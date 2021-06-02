@@ -2,9 +2,10 @@ package rest
 
 import (
 	"fmt"
-	"github.com/codegangsta/negroni"
 	"net/http"
 	"time"
+
+	"github.com/codegangsta/negroni"
 )
 
 type Logger struct {
