@@ -1,5 +1,6 @@
 package core
 
+/*
 import (
 	"errors"
 	"io"
@@ -87,3 +88,4 @@ func (s *openstackStore) Del(key string) error {
 	}
 	return err
 }
+*/

@@ -18,8 +18,10 @@ func NewStore(driver, source string) (Storer, error) {
 	switch driver {
 	case "disk":
 		return NewDiskStore()
-	case "openstack":
-		return newOpenstackStore()
+		/*
+			case "openstack":
+				return newOpenstackStore()
+		*/
 	default:
 		return nil, errors.New("no such driver " + driver + " for store")
 	}

@@ -65,8 +65,6 @@ github.com/stretchr/testify v1.7.0 h1:nwc3DEeHmmLAfoZucVR881uASk0Mfjw8xYJ99tb5Cc
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/toorop/go-dkim v0.0.0-20201103131630-e1cd1a0a5208 h1:PM5hJF7HVfNWmCjMdEfbuOBNXSVF2cMFGgQTPdKCbwM=
 github.com/toorop/go-dkim v0.0.0-20201103131630-e1cd1a0a5208/go.mod h1:BzWtXXrXzZUvMacR0oF/fbDDgUPO8L36tDMmRAf14ns=
-github.com/toorop/gopenstack v0.0.0-20180222105328-a83d16339d49 h1:tx49TfQ+FkI4KFG27OEx3gMvLWfSduEGvs3qeBOBa+4=
-github.com/toorop/gopenstack v0.0.0-20180222105328-a83d16339d49/go.mod h1:ZqDjWuyu5Vu4YJmhGSOAEwKdZYEZ226+wnE6lLabWsg=
 github.com/tredoe/fileutil v1.0.0/go.mod h1:PBayWPFCURwkmW0u6E8E8C6Jtd9ZzWq/U1iMa6BLRPg=
 github.com/tredoe/goutil v0.0.0-20200111155331-68cefb6d3cdc/go.mod h1:dp4VPOLeEFYbsf1ikgd+uytWDnpCdMiTHMg6mh7hHuQ=
 github.com/tredoe/osutil v1.0.5 h1:mfXjHBJU46GoJDOUcHyV895fauUuVikR9U8yRbGBrqw=
