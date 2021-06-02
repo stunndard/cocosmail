@@ -16,12 +16,12 @@ import (
 
 	//"github.com/bitly/nsq/nsqd"
 
-	"github.com/codegangsta/cli"
 	"github.com/nsqio/nsq/nsqd"
+	"github.com/urfave/cli"
 
-	tcli "github.com/toorop/tmail/cli"
-	"github.com/toorop/tmail/core"
-	"github.com/toorop/tmail/rest"
+	tcli "github.com/stunndard/cocosmail/cli"
+	"github.com/stunndard/cocosmail/core"
+	"github.com/stunndard/cocosmail/rest"
 )
 
 const (

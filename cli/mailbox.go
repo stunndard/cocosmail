@@ -3,8 +3,8 @@ package cli
 /*
 import (
 	"fmt"
-	"github.com/toorop/tmail/api"
-	cgCli "github.com/codegangsta/cli"
+	"github.com/stunndard/cocosmail/api"
+	cgCli "github.com/urfave/cli"
 )
 
 var Mailbox = cgCli.Command{

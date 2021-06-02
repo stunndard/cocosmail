@@ -13,7 +13,7 @@ import (
 
 	"github.com/jinzhu/gorm"
 	"github.com/nsqio/go-nsq"
-	"github.com/toorop/tmail/message"
+	"github.com/stunndard/cocosmail/message"
 )
 
 // Delivery is a deliver process

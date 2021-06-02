@@ -5,8 +5,8 @@ import (
 	"os"
 	"strconv"
 
-	cgCli "github.com/codegangsta/cli"
-	"github.com/toorop/tmail/api"
+	"github.com/stunndard/cocosmail/api"
+	cgCli "github.com/urfave/cli"
 )
 
 var Queue = cgCli.Command{

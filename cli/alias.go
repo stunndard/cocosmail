@@ -3,8 +3,8 @@ package cli
 import (
 	"strings"
 
-	cgCli "github.com/codegangsta/cli"
-	"github.com/toorop/tmail/api"
+	"github.com/stunndard/cocosmail/api"
+	cgCli "github.com/urfave/cli"
 )
 
 var alias = cgCli.Command{

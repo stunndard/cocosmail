@@ -12,7 +12,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/nbio/httpcontext"
 
-	"github.com/toorop/tmail/core"
+	"github.com/stunndard/cocosmail/core"
 )
 
 const (

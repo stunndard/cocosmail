@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"net/http"
 
-	"github.com/toorop/tmail/core"
+	"github.com/stunndard/cocosmail/core"
 )
 
 // ServeHTTP implementation of interface

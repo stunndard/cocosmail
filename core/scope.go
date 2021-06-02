@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 	"time"
@@ -15,15 +14,13 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
 	_ "github.com/lib/pq"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/nsqio/go-nsq"
 	"github.com/sirupsen/logrus"
-	_ "github.com/toorop/go-sqlite3"
-	"github.com/toorop/gopenstack/context"
-	"github.com/toorop/gopenstack/identity"
 )
 
 const (
-	// Time822 formt time for RFC 822
+	// Time822 format time for RFC 822
 	Time822 = "02 Jan 2006 15:04:05 -0700" // "02 Jan 06 15:04 -0700"
 )
 
@@ -133,19 +130,21 @@ func Bootstrap() (err error) {
 		}
 	}()
 
-	// openstack
-	if Cfg.GetOpenstackEnable() {
-		if !context.Keyring.IsPopulate() {
-			return errors.New("No credentials found from ENV. See http://docs.openstack.org/cli-reference/content/cli_openrc.html")
+	/*
+		// openstack
+		if Cfg.GetOpenstackEnable() {
+			if !context.Keyring.IsPopulate() {
+				return errors.New("No credentials found from ENV. See http://docs.openstack.org/cli-reference/content/cli_openrc.html")
+			}
+			// Do auth
+			err = identity.DoAuth()
+			if err != nil {
+				return err
+			}
+			// auto update Token
+			identity.AutoUpdate(30, new(log.Logger))
 		}
-		// Do auth
-		err = identity.DoAuth()
-		if err != nil {
-			return err
-		}
-		// auto update Token
-		identity.AutoUpdate(30, new(log.Logger))
-	}
+	*/
 
 	// init store
 	Store, err = NewStore(Cfg.GetStoreDriver(), Cfg.GetStoreSource())

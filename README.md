@@ -240,7 +240,7 @@ MIT, see LICENSE
 ## Imported packages
 
 github.com/nsqio/nsq/...
-github.com/codegangsta/cli
+github.com/urfave/cli
 github.com/codegangsta/negroni
 github.com/go-sql-driver/mysql
 github.com/jinzhu/gorm

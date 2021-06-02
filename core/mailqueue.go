@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/toorop/tmail/message"
+	"github.com/stunndard/cocosmail/message"
 )
 
 // QMessage represents a message in queue

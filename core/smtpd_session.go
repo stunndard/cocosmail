@@ -16,7 +16,7 @@ import (
 
 	"github.com/jinzhu/gorm"
 
-	"github.com/toorop/tmail/message"
+	"github.com/stunndard/cocosmail/message"
 )
 
 const (

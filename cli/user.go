@@ -1,8 +1,8 @@
 package cli
 
 import (
-	cgCli "github.com/codegangsta/cli"
-	"github.com/toorop/tmail/api"
+	"github.com/stunndard/cocosmail/api"
+	cgCli "github.com/urfave/cli"
 )
 
 var user = cgCli.Command{
