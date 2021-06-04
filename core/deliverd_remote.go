@@ -182,7 +182,7 @@ func deliverRemote(d *Delivery) {
 	}
 
 	// add Received headers
-	*d.RawData = append([]byte("Received: tmail deliverd remote "+d.ID+"; "+time.Now().Format(Time822)+"\r\n"), *d.RawData...)
+	*d.RawData = append([]byte("Received: tmail deliverd remote "+d.ID+"; "+Format822Date()+"\r\n"), *d.RawData...)
 
 	// DKIM ?
 	if Cfg.GetDeliverdDkimSign() {

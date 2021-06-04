@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // GetDistPath returns basePath (where tmail binaries is)
@@ -97,4 +98,11 @@ func isFQN(host string) (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+// This returns current date in a format used by RFC822
+// in email headers
+func Format822Date() string {
+	weekday := time.Now().Weekday().String()
+	return weekday[:3] + ", " + time.Now().Format(Time822)
 }

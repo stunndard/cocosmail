@@ -960,54 +960,61 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 	}
 	s.Log("message-id:", string(HeaderMessageID))
 
-	// Add recieved header
-	remoteIP := strings.Split(s.Conn.RemoteAddr().String(), ":")[0]
-	remoteHost := "no reverse"
+	// Add received header
+	remoteIP, _, err := net.SplitHostPort(s.Conn.RemoteAddr().String())
+	if err != nil {
+		remoteIP = "unknown"
+	}
+	remoteHost := "unknown"
 	remoteHosts, err := net.LookupAddr(remoteIP)
 	if err == nil {
 		remoteHost = remoteHosts[0]
 	}
-	localIP := strings.Split(s.Conn.LocalAddr().String(), ":")[0]
-	localHost := "no reverse"
+	localIP, _, err := net.SplitHostPort(s.Conn.LocalAddr().String())
+	if err != nil {
+		localIP = "unknown"
+	}
+	localHost := "unknown"
 	localHosts, err := net.LookupAddr(localIP)
 	if err == nil {
 		localHost = localHosts[0]
 	}
-	recieved := "Received: from "
 
+	received := "Received: from "
+	received += fmt.Sprintf("%s ([%s] ", remoteHost, remoteIP)
 	// helo
-	if len(s.helo) != 0 {
-		recieved += fmt.Sprintf("%s ", s.helo)
-	}
-
-	recieved += fmt.Sprintf("(%s [%s])", remoteHost, remoteIP)
-
-	// Authentified
-	if s.user != nil {
-		recieved += fmt.Sprintf(" (authenticated as %s)", s.user.Login)
-	}
+	received += fmt.Sprintf("helo=[%s]) ", s.helo) + "\r\n"
 
 	// local
-	recieved += fmt.Sprintf(" by %s (%s)", localIP, localHost)
+	// only hostname is enough?
+	//received += fmt.Sprintf("        by %s ([%s]) ", localHost, localIP)
+	received += fmt.Sprintf("        by %s ", localHost)
 
 	// Proto
 	if s.tls {
-		recieved += " with ESMTPS " + tlsGetVersion(s.connTLS.ConnectionState().Version) + " " + tlsGetCipherSuite(s.connTLS.ConnectionState().CipherSuite) + "; "
+		received += "with ESMTPS (" + tlsGetVersion(s.connTLS.ConnectionState().Version) + " " + tlsGetCipherSuite(s.connTLS.ConnectionState().CipherSuite) + ")"
 	} else {
-		recieved += " whith SMTP; "
+		received += "with SMTP"
 	}
+	received += "\r\n"
 
-	// tmail
-	recieved += "tmail " + Version
-	recieved += "; " + s.uuid
-	// timestamp
-	recieved += "; " + time.Now().Format(Time822)
-	h := []byte(recieved)
-	message.FoldHeader(&h)
-	h = append(h, []byte{13, 10}...)
+	// cocosmail version
+	received += "        (cocosmail " + Version + ")" + "\r\n"
+
+	// envelope from
+	received += "        (envelope-from " + s.Envelope.MailFrom + ")" + "\r\n"
+
+	// uuid
+	received += "        id " + s.uuid + "\r\n"
+	// envelope for and timestamp
+	received += "        for " + s.Envelope.RcptTo[0] + "; " + Format822Date() + "\r\n"
+
+	h := []byte(received)
+	//message.FoldHeader(&h)
 	s.CurrentRawMail = append(h, s.CurrentRawMail...)
-	recieved = ""
+	received = ""
 
+	// X-Env-from
 	s.CurrentRawMail = append([]byte("X-Env-From: "+s.Envelope.MailFrom+"\r\n"), s.CurrentRawMail...)
 
 	// Plugins
