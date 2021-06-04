@@ -13,7 +13,7 @@ require (
 	github.com/jinzhu/gorm v1.9.16
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/lib/pq v1.10.2
-	github.com/mattn/go-sqlite3 v1.14.0
+	github.com/mattn/go-sqlite3 v1.14.7
 	github.com/nbio/httpcontext v0.0.0-20150224063329-d2f7bb023e6e
 	github.com/nbio/st v0.0.0-20140626010706-e9e8d9816f32 // indirect
 	github.com/nsqio/go-diskqueue v0.0.0-20170827021554-4e924ca77cb3 // indirect
