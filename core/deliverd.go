@@ -3,6 +3,7 @@ package core
 // TODO consumer.SetLogger
 
 import (
+	"encoding/json"
 	"log"
 	"os"
 	"os/signal"
@@ -11,12 +12,28 @@ import (
 	"github.com/nsqio/go-nsq"
 )
 
-/*type deliverd struct {
-}
 
-func New() *deliverd {
-	return &deliverd{}
-}*/
+// This publishes ALL messages in the DB back to the nsq queue.
+// As we clean up the nsq data dir at start, we are sure there
+// won't be message dupes in the queue that would come from nsq
+// persistent data.
+func RequeueAll() {
+	var QMsg []QMessage
+
+	err := DB.Find(&QMsg).Error
+	if err != nil {
+		log.Fatalln("cannot load queue messages from db", err)
+	}
+	for _, qmsg := range QMsg {
+		jMsg, err := json.Marshal(qmsg)
+		if err != nil {
+			Logger.Info("error marshalling")
+			return
+		}
+		// republish
+		err = NsqQueueProducer.Publish("todeliver", jMsg)
+	}
+}
 
 // LaunchDeliverd launch deliverd
 func LaunchDeliverd() {

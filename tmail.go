@@ -37,6 +37,9 @@ func init() {
 	}
 	core.Version = TmailVersion
 
+	if os.RemoveAll(path.Join(core.GetBasePath(), "nsq")) != nil {
+		log.Fatalln("Unable to delete nsq data directory")
+	}
 	// Check base path structure
 	requiredPaths := []string{"db", "nsq", "ssl"}
 	for _, p := range requiredPaths {
@@ -179,6 +182,7 @@ func main() {
 
 			// deliverd
 			if core.Cfg.GetLaunchDeliverd() {
+				core.RequeueAll()
 				go core.LaunchDeliverd()
 			}
 
