@@ -69,6 +69,12 @@ func (s *diskStore) Put(key string, reader io.Reader) error {
 		return err
 	}
 	_, err = io.Copy(f, reader)
+	if err != nil {
+		return err
+	}
+
+	err = f.Close()
+
 	return err
 }
 
