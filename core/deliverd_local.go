@@ -11,9 +11,14 @@ import (
 	"time"
 
 	"github.com/jinzhu/gorm"
-
 	"github.com/stunndard/cocosmail/message"
 )
+
+type InternalDelivery interface {
+	Deliver(id string, deliverTo string, rawMsg *bytes.Buffer) (permFail bool, err error)
+	CheckConfig() (err error)
+	GetName() string
+}
 
 // deliverLocal handle local delivery
 func deliverLocal(d *Delivery) {
@@ -72,9 +77,7 @@ func deliverLocal(d *Delivery) {
 					d.dieTemp(fmt.Sprintf("delivery-local %s: unable to create stddin pipe to %s. %s", d.ID, alias.Pipe, err.Error()), true)
 					return
 				}
-				if err != nil {
-					d.dieTemp(fmt.Sprintf("delivery-local %s: unable to create stdout pipe from %s. %s", d.ID, alias.Pipe, err.Error()), true)
-				}
+
 				if err := cmd.Start(); err != nil {
 					d.dieTemp(fmt.Sprintf("delivery-local %s: unable to exec pipe  %s. %s", d.ID, alias.Pipe, err.Error()), true)
 					return
@@ -157,51 +160,85 @@ func deliverLocal(d *Delivery) {
 
 	dataBuf = bytes.NewBuffer(*d.RawData)
 
-	cmd := exec.Command(Cfg.GetDovecotLda(), "-d", deliverTo)
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		d.dieTemp(fmt.Sprintf("delivery-local %s: unable to create pipe to dovecot-lda stdin: %s", d.ID, err), true)
-		return
-	}
-
-	if err := cmd.Start(); err != nil {
-		d.dieTemp(fmt.Sprintf("delivery-local %s: unable to run dovecot-lda: %s", d.ID, err), true)
-		return
-	}
-
-	_, err = io.Copy(stdin, dataBuf)
-	if err != nil {
-		d.dieTemp(fmt.Sprintf("delivery-local %s: unable to pipe mail to dovecot-lda: %s", d.ID, err), true)
-		return
-	}
-	stdin.Close()
-
-	if err := cmd.Wait(); err != nil {
-		t := strings.Split(err.Error(), " ")
-		if len(t) != 3 {
-			d.dieTemp(fmt.Sprintf("delivery-local %s: unexpected response from dovecot-lda: %s", d.ID, err), true)
-			return
-		}
-		errCode, err := strconv.ParseUint(t[2], 10, 64)
+	if Cfg.GetDovecotSupportEnabled() {
+		cmd := exec.Command(Cfg.GetDovecotLda(), "-d", deliverTo)
+		stdin, err := cmd.StdinPipe()
 		if err != nil {
-			d.dieTemp(fmt.Sprintf("delivery-local %s: unable to parse response from dovecot-lda: %s", d.ID, err), true)
+			d.dieTemp(fmt.Sprintf("delivery-local-dovecot %s: unable to create pipe to dovecot-lda stdin: %s", d.ID, err), true)
 			return
 		}
-		switch errCode {
-		case 64:
-			d.dieTemp(fmt.Sprintf("delivery-local %s: dovecot-lda return: 64 - Invalid parameter given", d.ID), true)
-		case 67:
-			d.diePerm(fmt.Sprintf("delivery-local %s: the destination user %s was not found", d.ID, deliverTo), true)
-		case 77:
-			d.diePerm(fmt.Sprintf("delivery-local %s: the destination user %s is over quota", d.ID, deliverTo), true)
-		case 75:
-			d.dieTemp(fmt.Sprintf("delivery-local %s: dovecot temporary failure. Checks dovecot log for more info", d.ID), true)
-		default:
-			d.dieTemp(fmt.Sprintf("delivery-local %s: unexpected response code recieved from dovecot-lda: %d", d.ID, errCode), true)
-		}
-		return
-	}
-	Logger.Info(fmt.Sprintf("delivery-local %s: delivered to %s", d.ID, deliverTo))
 
-	d.dieOk()
+		if err := cmd.Start(); err != nil {
+			d.dieTemp(fmt.Sprintf("delivery-local-dovecot %s: unable to run dovecot-lda: %s", d.ID, err), true)
+			return
+		}
+
+		_, err = io.Copy(stdin, dataBuf)
+		if err != nil {
+			d.dieTemp(fmt.Sprintf("delivery-local-dovecot %s: unable to pipe mail to dovecot-lda: %s", d.ID, err), true)
+			return
+		}
+		stdin.Close()
+
+		if err := cmd.Wait(); err != nil {
+			t := strings.Split(err.Error(), " ")
+			if len(t) != 3 {
+				d.dieTemp(fmt.Sprintf("delivery-local-dovecot %s: unexpected response from dovecot-lda: %s", d.ID, err), true)
+				return
+			}
+			errCode, err := strconv.ParseUint(t[2], 10, 64)
+			if err != nil {
+				d.dieTemp(fmt.Sprintf("delivery-local-dovecot %s: unable to parse response from dovecot-lda: %s", d.ID, err), true)
+				return
+			}
+			switch errCode {
+			case 64:
+				d.dieTemp(fmt.Sprintf("delivery-local-dovecot %s: dovecot-lda return: 64 - Invalid parameter given", d.ID), true)
+			case 67:
+				d.diePerm(fmt.Sprintf("delivery-local-dovecot %s: the destination user %s was not found", d.ID, deliverTo), true)
+			case 77:
+				d.diePerm(fmt.Sprintf("delivery-local-dovecot %s: the destination user %s is over quota", d.ID, deliverTo), true)
+			case 75:
+				d.dieTemp(fmt.Sprintf("delivery-local-dovecot %s: dovecot temporary failure. Checks dovecot log for more info", d.ID), true)
+			default:
+				d.dieTemp(fmt.Sprintf("delivery-local-dovecot %s: unexpected response code recieved from dovecot-lda: %d", d.ID, errCode), true)
+			}
+			return
+		}
+		Logger.Info(fmt.Sprintf("delivery-local-dovecot %s: delivered to %s", d.ID, deliverTo))
+		d.dieOk()
+	} else {
+		var intD InternalDelivery
+
+		switch Cfg.GetLdaType() {
+		case "maildir":
+			intD = NewDeliveryMaildir(Cfg.GetUsersHomeBase())
+		/*
+			case "mbox":
+				intD = NewDeliveryMailBox(Cfg.GetUsersHomeBase(), ... )
+		*/
+		default:
+			d.diePerm(fmt.Sprintf("delivery-local-internal: unknown lda type: %s", Cfg.GetLdaType()), true)
+			return
+		}
+
+		if intD.CheckConfig() != nil {
+			d.dieTemp(fmt.Sprintf("delivery-local-internal-%s: config check failed. %s: %s", intD.GetName(), d.ID, err), true)
+			return
+		}
+
+		permFail, err := intD.Deliver(d.ID, deliverTo, dataBuf)
+		if err != nil {
+			if permFail {
+				d.diePerm(fmt.Sprintf("delivery-local-internal-%s: permanent fail %s: %s", intD.GetName(), d.ID, err), true)
+			} else {
+				d.dieTemp(fmt.Sprintf("delivery-local-internal-%s: temp fail %s: %s", intD.GetName(), d.ID, err), true)
+			}
+			return
+		}
+
+		Logger.Info(fmt.Sprintf("delivery-local-internal-%s %s: delivered to %s", intD.GetName(), d.ID, deliverTo))
+		d.dieOk()
+	}
+
 }

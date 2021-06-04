@@ -94,8 +94,8 @@ type Config struct {
 		UsersHomeBase           string `name:"users_home_base" default:"/home"`
 		UserMailboxDefaultQuota string `name:"users_mailbox_default_quota" default:""`
 
-		DovecotLda            string `name:"dovecot_lda" default:""`
-		DovecotSupportEnabled bool   `name:"dovecot_support_enabled" default:"false"`
+		DovecotLda string `name:"dovecot_lda" default:""`
+		LdaType    string `name:"lda_type" default:"internal"`
 	}
 }
 
@@ -643,7 +643,14 @@ func (c *Config) GetUserMailboxDefaultQuota() string {
 func (c *Config) GetDovecotSupportEnabled() bool {
 	c.Lock()
 	defer c.Unlock()
-	return c.cfg.DovecotSupportEnabled
+	return c.cfg.LdaType == "dovecot"
+}
+
+// GetLdaType returns LdaType
+func (c *Config) GetLdaType() string {
+	c.Lock()
+	defer c.Unlock()
+	return c.cfg.LdaType
 }
 
 // GetDovecotLda returns path to dovecot-lda binary
