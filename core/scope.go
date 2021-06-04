@@ -21,7 +21,7 @@ import (
 
 const (
 	// Time822 format time for RFC 822
-	Time822 = "02 Jan 2006 15:04:05 -0700" // "02 Jan 06 15:04 -0700"
+	Time822 = "Mon, 02 Jan 2006 15:04:05 -0700" // "Mon, 02 Jan 06 15:04 -0700"
 )
 
 var (
