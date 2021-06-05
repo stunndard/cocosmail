@@ -1,29 +1,25 @@
-# tmail
+# cocosmail
 
-[![Join the chat at https://gitter.im/toorop/tmail](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/toorop/tmail?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+cocosmail is a email server (SMTP/POP3/...)
 
-tmail is a SMTP server
+cocosmail is a fast and compact all-in-one solution for a personal self hosted email. The modern trends show that people move their email from big bad corporations to their personal servers. And this is where cocosmail steps in to help. Aimed to be very simple and extremely easy to setup and deploy for anyone (WIP).
 
 ## Features
 
- * SMTP, SMTP over SSL, ESMTP (SIZE, AUTH PLAIN, STARTTLS)
+ * SMTP, SMTP over SSL, ESMTP (SIZE, AUTH PLAIN, STARTTLS), POP3, POP3S
  * Advanced routing for outgoing mails (failover and round robin on routes, route by recipient, sender, authuser... )
  * SMTPAUTH (plain & cram-md5) for in/outgoing mails
- * STARTTLS/SSL for in/outgoing connexions.
+ * STARTTLS/SSL for in/outgoing connections.
  * Manageable via CLI or REST API.
  * DKIM support for signing outgoing mails.
  * Builtin support of clamav (open-source antivirus scanner).
  * Builtin Dovecot (imap server) support.
+ * Builtin deliverd supporting maildir.
  * Fully extendable via plugins
  * Easy to deploy
- * No dependencies: -> you do not have to install nor maintain libs
- * Clusterisable (todo)
- * IPV6 (soon)
+ * No dependencies, single binary: -> you do not have to install nor maintain libs
+ * Scriptable with easy procedural scripts at every email receiving/forwarding/alias/antispam step, no more cryptic configs for complicated actions (todo)
 
-
-## Quick install on linux (Ubuntu)
-
-For french users see: http://tmail.io/doc/installer-tmail/
 
 ### add user tmail
 
