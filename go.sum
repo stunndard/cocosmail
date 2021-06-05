@@ -66,6 +66,8 @@ github.com/stretchr/testify v1.7.0 h1:nwc3DEeHmmLAfoZucVR881uASk0Mfjw8xYJ99tb5Cc
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stunndard/go-maildir v0.3.0 h1:TfRvlbHvwO1Vx3lfCe2da0XeDHR6u1om2AzhmpPpxcA=
 github.com/stunndard/go-maildir v0.3.0/go.mod h1:Dq7DnzC/Qmt6JypRZe9hQ2vykgE1GjKIQGDOKwTBK6A=
+github.com/stunndard/go-maildir v0.3.1-0.20210605034352-5b7dd4cd98f4 h1:2wyh/QgzdWGZzrWFapBti8QHGRDix05YioVK3AWHEW0=
+github.com/stunndard/go-maildir v0.3.1-0.20210605034352-5b7dd4cd98f4/go.mod h1:Dq7DnzC/Qmt6JypRZe9hQ2vykgE1GjKIQGDOKwTBK6A=
 github.com/toorop/go-dkim v0.0.0-20201103131630-e1cd1a0a5208 h1:PM5hJF7HVfNWmCjMdEfbuOBNXSVF2cMFGgQTPdKCbwM=
 github.com/toorop/go-dkim v0.0.0-20201103131630-e1cd1a0a5208/go.mod h1:BzWtXXrXzZUvMacR0oF/fbDDgUPO8L36tDMmRAf14ns=
 github.com/tredoe/fileutil v1.0.0/go.mod h1:PBayWPFCURwkmW0u6E8E8C6Jtd9ZzWq/U1iMa6BLRPg=

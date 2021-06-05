@@ -22,7 +22,7 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.7.0
-	github.com/stunndard/go-maildir v0.3.0
+	github.com/stunndard/go-maildir v0.3.1-0.20210605034352-5b7dd4cd98f4
 	github.com/toorop/go-dkim v0.0.0-20201103131630-e1cd1a0a5208
 	github.com/tredoe/osutil v1.0.5
 	github.com/urfave/cli v1.22.5
