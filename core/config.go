@@ -96,6 +96,10 @@ type Config struct {
 
 		DovecotLda string `name:"dovecot_lda" default:""`
 		LdaType    string `name:"lda_type" default:"internal"`
+
+		LaunchPop3         bool   `name:"pop3d_launch" default:"false"`
+		Pop3dDsns          string `name:"pop3d_dsns" default:""`
+		Pop3dServerTimeout int    `name:"pop3d_server_timeout" default:"300"`
 	}
 }
 
@@ -658,4 +662,26 @@ func (c *Config) GetDovecotLda() string {
 	c.Lock()
 	defer c.Unlock()
 	return c.cfg.DovecotLda
+}
+
+// GetLaunchPop3returns true if pop3 has to be launched
+func (c *Config) GetLaunchPop3() bool {
+	c.Lock()
+	r := c.cfg.LaunchPop3
+	c.Unlock()
+	return r
+}
+
+// GetSmtpdDsns returns smtpd dsns
+func (c *Config) GetPop3Dsns() string {
+	c.Lock()
+	defer c.Unlock()
+	return c.cfg.Pop3dDsns
+}
+
+// GetPop3TransactionTimeout return pop3TransactionTimeout
+func (c *Config) GetPop3ServerTimeout() int {
+	c.Lock()
+	defer c.Unlock()
+	return c.cfg.Pop3dServerTimeout
 }

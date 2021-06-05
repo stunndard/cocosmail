@@ -307,15 +307,31 @@ export OS_PASSWORD="passwd"
 # OS_REGION_NAME is optional and only valid in certain environments.
 export OS_REGION_NAME="GRA1"
 
+##
+# POP3 settings
+
+# launch pop3d ? (default false)
+export TMAIL_POP3D_LAUNCH=true
+
+# Defines dnsS for pop3d to launch
+# Same format as for TMAIL_SMTPD_DSNS
+# WARNING: do not disable SSL for pop3d!!!
+# Because user and password are sent in clear text!
+# APOP and STLS are not supported (yet)
+export TMAIL_POP3D_DSNS="0.0.0.0:1100:true"
+
+# Type of internal LDA to use.
+# Can be "maildir" for internal maildir LDA
+# or "dovecot" for external dovecot LDA
+export TMAIL_LDA_TYPE="maildir"
 
 ##
 # Dovecot
 
-# Enabled dovecot for local deliveries
-export TMAIL_DOVECOT_SUPPORT_ENABLED=false
-
-# Dovecot LDA path
+# Dovecot LDA path if TMAIL_LDA_TYPE="dovecot"
 export TMAIL_DOVECOT_LDA="/usr/lib/dovecot/dovecot-lda"
+
+
 
 ##
 # plugin

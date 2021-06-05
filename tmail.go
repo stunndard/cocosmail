@@ -17,16 +17,12 @@ import (
 	//"github.com/bitly/nsq/nsqd"
 
 	"github.com/nsqio/nsq/nsqd"
+	"github.com/stunndard/cocosmail/pop3"
 	"github.com/urfave/cli"
 
 	tcli "github.com/stunndard/cocosmail/cli"
 	"github.com/stunndard/cocosmail/core"
 	"github.com/stunndard/cocosmail/rest"
-)
-
-const (
-	// TmailVersion version of tmail
-	TmailVersion = "0.2.0"
 )
 
 func init() {
@@ -35,7 +31,7 @@ func init() {
 	if err = core.Bootstrap(); err != nil {
 		log.Fatalln(err)
 	}
-	core.Version = TmailVersion
+	core.Version = core.TmailVersion
 
 	if os.RemoveAll(path.Join(core.GetBasePath(), "nsq")) != nil {
 		log.Fatalln("Unable to delete nsq data directory")
@@ -95,12 +91,12 @@ func main() {
 	app.Usage = "SMTP server"
 	app.Author = "Stéphane Depierrepont aka toorop"
 	app.Email = "toorop@tmail.io"
-	app.Version = TmailVersion
+	app.Version = core.TmailVersion
 	app.Commands = tcli.CliCommands
 	// no know command ? Launch server
 	app.Action = func(c *cli.Context) {
 		if len(c.Args()) != 0 {
-			cli.ShowAppHelp(c)
+			_ = cli.ShowAppHelp(c)
 		} else {
 			// if there is nothing to do then... do nothing
 			if !core.Cfg.GetLaunchDeliverd() && !core.Cfg.GetLaunchSmtpd() {
@@ -154,12 +150,12 @@ func main() {
 			// Number of message in RAM before synching to disk
 			opts.MemQueueSize = 0
 
-			nsqd := nsqd.New(opts)
-			nsqd.LoadMetadata()
-			if err = nsqd.PersistMetadata(); err != nil {
+			nsqDaemon := nsqd.New(opts)
+			_ = nsqDaemon.LoadMetadata()
+			if err = nsqDaemon.PersistMetadata(); err != nil {
 				log.Fatalf("ERROR: failed to persist metadata - %s", err.Error())
 			}
-			nsqd.Main()
+			nsqDaemon.Main()
 
 			// smtpd
 			if core.Cfg.GetLaunchSmtpd() {
@@ -191,6 +187,15 @@ func main() {
 				go rest.LaunchServer()
 			}
 
+			// POP3 server
+			if core.Cfg.GetLaunchPop3() {
+				pop3Dsn, err := core.GetDsnsFromString(core.Cfg.GetPop3Dsns())
+				if err != nil {
+					log.Fatalln("unable to parse pop3 dsn -", err)
+				}
+				go pop3.NewPop3d(pop3Dsn[0]).ListenAndServe()
+			}
+
 			<-sigChan
 			core.Logger.Info("Exiting...")
 
@@ -200,12 +205,12 @@ func main() {
 			}
 
 			// flush nsqd memory to disk
-			nsqd.Exit()
+			nsqDaemon.Exit()
 
 			// exit
 			os.Exit(0)
 		}
 	}
-	app.Run(os.Args)
+	_ = app.Run(os.Args)
 
 }

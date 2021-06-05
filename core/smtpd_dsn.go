@@ -8,22 +8,22 @@ import (
 )
 
 // DSN IP port and secured (none, tls, ssl)
-type dsn struct {
-	tcpAddr net.TCPAddr
-	ssl     bool
+type Dsn struct {
+	TcpAddr net.TCPAddr
+	Ssl     bool
 }
 
 // String return string representation of a dsn
-func (d *dsn) String() string {
+func (d *Dsn) String() string {
 	s := ""
-	if d.ssl {
+	if d.Ssl {
 		s = " SSL"
 	}
-	return d.tcpAddr.String() + s
+	return d.TcpAddr.String() + s
 }
 
 //getDsnsFromString Get dsn string from config and returns slice of dsn struct
-func GetDsnsFromString(dsnsStr string) (dsns []dsn, err error) {
+func GetDsnsFromString(dsnsStr string) (dsns []Dsn, err error) {
 	if len(dsnsStr) == 0 {
 		return dsns, errors.New("your smtpd.dsn string is empty")
 	}
@@ -45,7 +45,7 @@ func GetDsnsFromString(dsnsStr string) (dsns []dsn, err error) {
 		if err != nil {
 			return dsns, ErrBadDsn(err)
 		}
-		dsns = append(dsns, dsn{*tcpAddr, ssl})
+		dsns = append(dsns, Dsn{*tcpAddr, ssl})
 	}
 	return
 }

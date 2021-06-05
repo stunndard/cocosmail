@@ -9,11 +9,11 @@ import (
 
 // Smtpd SMTP Server
 type Smtpd struct {
-	dsn dsn
+	dsn Dsn
 }
 
 // NewSmtpd returns a new SmtpServer
-func NewSmtpd(d dsn) *Smtpd {
+func NewSmtpd(d Dsn) *Smtpd {
 	return &Smtpd{d}
 }
 
@@ -23,22 +23,22 @@ func (s *Smtpd) ListenAndServe() {
 	var err error
 	var tlsConfig *tls.Config
 	// SSL ?
-	if s.dsn.ssl {
+	if s.dsn.Ssl {
 		cert, err := tls.LoadX509KeyPair(path.Join(GetBasePath(), "ssl/server.crt"), path.Join(GetBasePath(), "ssl/server.key"))
 		if err != nil {
-			log.Fatalln("unable to load SSL keys for smtpd.", "dsn:", s.dsn.tcpAddr, "ssl", s.dsn.ssl, "err:", err)
+			log.Fatalln("unable to load SSL keys for smtpd.", "dsn:", s.dsn.TcpAddr, "ssl", s.dsn.Ssl, "err:", err)
 		}
 		// TODO: http://fastah.blackbuck.mobi/blog/securing-https-in-go/
 		tlsConfig = &tls.Config{
 			Certificates:       []tls.Certificate{cert},
 			InsecureSkipVerify: true,
 		}
-		listener, err = tls.Listen(s.dsn.tcpAddr.Network(), s.dsn.tcpAddr.String(), tlsConfig)
+		listener, err = tls.Listen(s.dsn.TcpAddr.Network(), s.dsn.TcpAddr.String(), tlsConfig)
 		if err != nil {
 			log.Fatalln("unable to create TLS listener.", err)
 		}
 	} else {
-		listener, err = net.Listen(s.dsn.tcpAddr.Network(), s.dsn.tcpAddr.String())
+		listener, err = net.Listen(s.dsn.TcpAddr.Network(), s.dsn.TcpAddr.String())
 		if err != nil {
 			log.Fatalln("unable to create listener")
 		}
@@ -55,7 +55,7 @@ func (s *Smtpd) ListenAndServe() {
 				go func(conn net.Conn) {
 					ChSmtpSessionsCount <- 1
 					defer func() { ChSmtpSessionsCount <- -1 }()
-					sss, err := NewSMTPServerSession(conn, s.dsn.ssl)
+					sss, err := NewSMTPServerSession(conn, s.dsn.Ssl)
 					if err != nil {
 						log.Println("unable to get new SmtpServerSession.", err)
 					} else {
