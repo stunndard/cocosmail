@@ -15,8 +15,13 @@ type diskStore struct {
 }
 
 // NewDiskStore returns a store with local disk as backend
-func NewDiskStore() (*diskStore, error) {
-	basePath := path.Clean(Cfg.GetStoreSource())
+func NewDiskStore(storeSource string) (*diskStore, error) {
+	basePath := ""
+	if storeSource == "_" {
+		basePath = path.Clean(path.Join(Cfg.GetBasePath(), "store"))
+	} else {
+		basePath = path.Clean(storeSource)
+	}
 	// check if path exists & is writable
 	fi, err := os.Stat(basePath)
 	if err != nil {

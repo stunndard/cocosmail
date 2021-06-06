@@ -1062,7 +1062,7 @@ func (s *SMTPServerSession) smtpStartTLS() {
 		s.SMTPResponseCode = 454
 		return
 	}
-	cert, err := tls.LoadX509KeyPair(path.Join(GetBasePath(), "ssl/server.crt"), path.Join(GetBasePath(), "ssl/server.key"))
+	cert, err := tls.LoadX509KeyPair(path.Join(Cfg.GetBasePath(), "ssl/server.crt"), path.Join(Cfg.GetBasePath(), "ssl/server.key"))
 	if err != nil {
 		msg := "TLS failed unable to load server keys: " + err.Error()
 		s.LogError(msg)

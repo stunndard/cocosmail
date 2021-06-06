@@ -463,8 +463,8 @@ func (p *Pop3d) ListenAndServe() {
 	}
 
 	if p.dsn.Ssl {
-		cert, err := tls.LoadX509KeyPair(path.Join(core.GetBasePath(), "ssl/server.crt"),
-			path.Join(core.GetBasePath(), "ssl/server.key"))
+		cert, err := tls.LoadX509KeyPair(path.Join(core.Cfg.GetBasePath(), "ssl/server.crt"),
+			path.Join(core.Cfg.GetBasePath(), "ssl/server.key"))
 		if err != nil {
 			log.Fatalln("unable to load SSL keys for pop3.", "err:", err)
 		}

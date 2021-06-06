@@ -166,7 +166,7 @@ func Bootstrap() (err error) {
 func InitBolt() error {
 	var err error
 	// init Bolt DB
-	Bolt, err = bolt.Open(Cfg.GetBoltFile(), 0600, nil)
+	Bolt, err = bolt.Open(GetBoltFilePath(), 0600, nil)
 	if err != nil {
 		return err
 	}

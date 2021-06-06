@@ -4,17 +4,10 @@ import (
 	"bytes"
 	"io/ioutil"
 	"net"
-	"os"
-	"path/filepath"
+	"path"
 	"strings"
 	"time"
 )
-
-// GetDistPath returns basePath (where tmail binaries is)
-func GetBasePath() string {
-	p, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return p
-}
 
 // RemoveBrackets removes trailing and ending brackets (<string> -> string)
 func RemoveBrackets(s string) string {
@@ -104,4 +97,9 @@ func isFQN(host string) (bool, error) {
 // in email headers
 func Format822Date() string {
 	return time.Now().Format(Time822)
+}
+
+// GetBoltFile returns bolt file path
+func GetBoltFilePath() string {
+	return path.Join(Cfg.GetBasePath(), "bolt/bolt.db")
 }

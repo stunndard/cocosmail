@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -20,18 +21,18 @@ type Config struct {
 	cfg struct {
 		ClusterModeEnabled  bool   `name:"cluster_mode_enabled" default:"false"`
 		Me                  string `name:"me" default:""`
+		BasePath            string `name:"base_path" default:"_"`
 		TempDir             string `name:"tempdir" default:"/tmp"`
 		LogPath             string `name:"logpath" default:"stdout"`
 		DebugEnabled        bool   `name:"debug_enabled" default:"false"`
 		HideServerSignature bool   `name:"hide_server_signature" default:"false"`
 
-		BoltFile string `name:"bolt_file"`
-
 		DbDriver string `name:"db_driver"`
 		DbSource string `name:"db_source"`
 
-		StoreDriver  string `name:"store_driver"`
-		StroreSource string `name:"store_source"`
+		// mail spool driver and location
+		StoreDriver string `name:"store_driver"`
+		StoreSource string `name:"store_source" default:"_"`
 
 		//NsqdEnbleLogging        bool   `name:"nsqd_eanble_logging" default:"false"`
 		NSQLookupdTcpAddresses  string `name:"nsq_lookupd_tcp_addresses" default:"_"`
@@ -207,6 +208,20 @@ func (c *Config) GetMe() string {
 	return c.cfg.Me
 }
 
+// GetBasePath return base directory
+func (c *Config) GetBasePath() string {
+	c.Lock()
+	defer c.Unlock()
+	p := ""
+	if c.cfg.BasePath == "_" {
+		// same dir as executable
+		p, _ = filepath.Abs(filepath.Dir(os.Args[0]))
+	} else {
+		p = c.cfg.BasePath
+	}
+	return p
+}
+
 // GetDebugEnabled returns debugEnabled
 func (c *Config) GetDebugEnabled() bool {
 	c.Lock()
@@ -233,13 +248,6 @@ func (c *Config) GetLogPath() string {
 	c.Lock()
 	defer c.Unlock()
 	return c.cfg.LogPath
-}
-
-// GetBoltFile return BoltFile
-func (c *Config) GetBoltFile() string {
-	c.Lock()
-	defer c.Unlock()
-	return c.cfg.BoltFile
 }
 
 // GetDbDriver returns database driver
@@ -269,7 +277,7 @@ func (c *Config) GetStoreDriver() string {
 func (c *Config) GetStoreSource() string {
 	c.Lock()
 	defer c.Unlock()
-	return c.cfg.StroreSource
+	return c.cfg.StoreSource
 }
 
 // GetLaunchSmtpd returns true if smtpd have to be launched

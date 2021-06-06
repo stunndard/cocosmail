@@ -24,7 +24,7 @@ func (s *Smtpd) ListenAndServe() {
 	var tlsConfig *tls.Config
 	// SSL ?
 	if s.dsn.Ssl {
-		cert, err := tls.LoadX509KeyPair(path.Join(GetBasePath(), "ssl/server.crt"), path.Join(GetBasePath(), "ssl/server.key"))
+		cert, err := tls.LoadX509KeyPair(path.Join(Cfg.GetBasePath(), "ssl/server.crt"), path.Join(Cfg.GetBasePath(), "ssl/server.key"))
 		if err != nil {
 			log.Fatalln("unable to load SSL keys for smtpd.", "dsn:", s.dsn.TcpAddr, "ssl", s.dsn.Ssl, "err:", err)
 		}

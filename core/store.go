@@ -17,7 +17,7 @@ type Storer interface {
 func NewStore(driver, source string) (Storer, error) {
 	switch driver {
 	case "disk":
-		return NewDiskStore()
+		return NewDiskStore(source)
 		/*
 			case "openstack":
 				return newOpenstackStore()

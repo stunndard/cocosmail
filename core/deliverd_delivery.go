@@ -263,7 +263,7 @@ func (d *Delivery) bounce(errMsg string) {
 	}
 
 	tData := templateData{Format822Date(), Cfg.GetMe(), d.QMsg.MailFrom, d.QMsg.RcptTo, errMsg, string(*d.RawData)}
-	t, err := template.ParseFiles(path.Join(GetBasePath(), "tpl/bounce.tpl"))
+	t, err := template.ParseFiles(path.Join(Cfg.GetBasePath(), "tpl/bounce.tpl"))
 	if err != nil {
 		Logger.Error("deliverd " + d.ID + ": unable to bounce message queued as " + d.QMsg.Uuid + " " + err.Error())
 		d.requeue(3)

@@ -14,8 +14,6 @@ import (
 	"syscall"
 	"time"
 
-	//"github.com/bitly/nsq/nsqd"
-
 	"github.com/nsqio/nsq/nsqd"
 	"github.com/stunndard/cocosmail/pop3"
 	"github.com/urfave/cli"
@@ -33,14 +31,14 @@ func init() {
 	}
 	core.Version = core.TmailVersion
 
-	if os.RemoveAll(path.Join(core.GetBasePath(), "nsq")) != nil {
+	if os.RemoveAll(path.Join(core.Cfg.GetBasePath(), "nsq")) != nil {
 		log.Fatalln("Unable to delete nsq data directory")
 	}
 	// Check base path structure
-	requiredPaths := []string{"db", "nsq", "ssl"}
+	requiredPaths := []string{"nsq", "ssl", "bolt"}
 	for _, p := range requiredPaths {
-		if err = os.MkdirAll(path.Join(core.GetBasePath(), p), 0700); err != nil {
-			log.Fatalln("Unable to create path "+path.Join(core.GetBasePath(), p), " - ", err.Error())
+		if err = os.MkdirAll(path.Join(core.Cfg.GetBasePath(), p), 0700); err != nil {
+			log.Fatalln("Unable to create path "+path.Join(core.Cfg.GetBasePath(), p), " - ", err.Error())
 		}
 	}
 
@@ -121,7 +119,7 @@ func main() {
 			opts.Logger = log.New(ioutil.Discard, "", 0)
 			opts.Logger = core.NewNSQLogger()
 			opts.Verbose = core.Cfg.GetDebugEnabled()
-			opts.DataPath = core.GetBasePath() + "/nsq"
+			opts.DataPath = core.Cfg.GetBasePath() + "/nsq"
 			// if cluster get lookupd addresses
 			if core.Cfg.GetClusterModeEnabled() {
 				opts.NSQLookupdTCPAddresses = core.Cfg.GetNSQLookupdTcpAddresses()
