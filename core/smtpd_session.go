@@ -1143,7 +1143,7 @@ func (s *SMTPServerSession) smtpAuth(rawMsg string) {
 			}
 			line = append(line, ch[0])
 		}
-
+		encoded = string(line)
 	} else {
 		s.Out("501 malformed auth input (#5.5.4)")
 		s.SMTPResponseCode = 501
