@@ -33,6 +33,7 @@ type SMTPServerSession struct {
 	Conn             net.Conn
 	connTLS          *tls.Conn
 	systemName       string
+	certName         string
 	timer            *time.Timer // for timeout
 	timeout          time.Duration
 	tls              bool
@@ -65,6 +66,8 @@ func NewSMTPServerSession(conn net.Conn, dsn Dsn) (sss *SMTPServerSession, err e
 		return
 	}
 	sss.systemName = dsn.SystemName
+
+	sss.certName = dsn.CertName
 
 	sss.startAt = time.Now()
 
@@ -1068,7 +1071,10 @@ func (s *SMTPServerSession) smtpStartTLS() {
 		s.SMTPResponseCode = 454
 		return
 	}
-	cert, err := tls.LoadX509KeyPair(path.Join(Cfg.GetBasePath(), "ssl/server.crt"), path.Join(Cfg.GetBasePath(), "ssl/server.key"))
+	cert, err := tls.LoadX509KeyPair(
+		path.Join(Cfg.GetBasePath(), fmt.Sprintf("ssl/smtp-%s.crt", s.certName)),
+		path.Join(Cfg.GetBasePath(), fmt.Sprintf("ssl/smtp-%s.key", s.certName,
+		)))
 	if err != nil {
 		msg := "TLS failed unable to load server keys: " + err.Error()
 		s.LogError(msg)
