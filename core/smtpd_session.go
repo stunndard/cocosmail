@@ -972,15 +972,19 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 	if err == nil {
 		remoteHost = remoteHosts[0]
 	}
-	localIP, _, err := net.SplitHostPort(s.Conn.LocalAddr().String())
-	if err != nil {
-		localIP = "unknown"
-	}
-	localHost := "unknown"
-	localHosts, err := net.LookupAddr(localIP)
-	if err == nil {
-		localHost = localHosts[0]
-	}
+
+	// why resolve local host?
+	/*
+		localIP, _, err := net.SplitHostPort(s.Conn.LocalAddr().String())
+		if err != nil {
+			localIP = "unknown"
+		}
+		localHost := "unknown"
+		localHosts, err := net.LookupAddr(localIP)
+		if err == nil {
+			localHost = localHosts[0]
+		}
+	*/
 
 	received := "Received: from "
 	received += fmt.Sprintf("%s ([%s] ", remoteHost, remoteIP)
@@ -990,7 +994,7 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 	// local
 	// only hostname is enough?
 	//received += fmt.Sprintf("        by %s ([%s]) ", localHost, localIP)
-	received += fmt.Sprintf("        by %s ", localHost)
+	received += fmt.Sprintf("        by %s ", s.systemName)
 
 	// Proto
 	if s.tls {

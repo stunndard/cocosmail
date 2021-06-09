@@ -1,5 +1,9 @@
 package core
 
+import (
+	"fmt"
+)
+
 //
 func tlsGetVersion(v uint16) string {
 	versionMap := map[uint16]string{
@@ -7,12 +11,13 @@ func tlsGetVersion(v uint16) string {
 		0x0301: "TLS 1.0",
 		0x0302: "TLS 1.1",
 		0x0303: "TLS 1.2",
+		0x0304: "TLS 1.3",
 	}
 	version, found := versionMap[v]
 	if found {
 		return version
 	}
-	return "unknow"
+	return fmt.Sprintf("unknown tls: %x", v)
 }
 
 // tlsGetCipherSuite returns cipher suite as string
@@ -33,6 +38,11 @@ func tlsGetCipherSuite(cs uint16) string {
 		0xc02b: "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
 		0xc030: "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
 		0xc02c: "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+		0xcca8: "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256",
+		0xcca9: "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
+		0x1301: "TLS_AES_128_GCM_SHA256",
+		0x1302: "TLS_AES_256_GCM_SHA384",
+		0x1303: "TLS_CHACHA20_POLY1305_SHA256",
 		// TLS_FALLBACK_SCSV isn't a standard cipher suite but an indicator
 		// that the client is doing version fallback. See
 		// https://tools.ietf.org/html/draft-ietf-tls-downgrade-scsv-00.
@@ -42,5 +52,5 @@ func tlsGetCipherSuite(cs uint16) string {
 	if found {
 		return cipher
 	}
-	return "unknow"
+	return fmt.Sprintf("unknown cipher: %x", cs)
 }
