@@ -83,20 +83,25 @@ export TMAIL_SMTPD_LAUNCH=true;
 
 # Defines dnsS for smtpd to launch
 # A dns is in the form
-# IP:PORT:SSL
+# IP:PORT:HOSTNAME:SSL:SSL_CERTIFICATE
 # IP: ip address to listen to
 # PORT: associated port
+# HOSTNAME: used in SMTP greeting and in received message headers
 # SSL: activate SSL
 # if SSL is true all transactions will be encrypted
 # if SSL is false transactions will be clear by default but they will be upgraded
 # via STARTTLS smtp extension/cmd
+# SSL_CERTIFICATE certificate file name template that will be loaded for this connection
+#
 #
 # Exemple:
-# 	"127.0.0.1:2525:false;127.0.0.1:4656:true"
+# 	"127.0.0.1:2525:tmail.io:false:tmail.io;127.0.0.1:4656:cool-mta.com:true:cool"
 # will launch 2 smtpd deamons
 # 	- one listening on 127.0.0.1:2525 without encryption (but upgradable via STARTTLS)
+#     certificate will be loaded from BASEDIR/ssl/smtp-tmail.io.(crt/key)
 # 	- one listening on 127.0.0.1:4656 with encryption
-export TMAIL_SMTPD_DSNS="0.0.0.0:2525:false"
+#     certificate will be loaded from BASEDIR/ssl/smtp-cool.(crt/key)
+export TMAIL_SMTPD_DSNS="0.0.0.0:2525:tmail.io:false:tmail.io"
 
 # smtp server timeout in seconds
 # throw a timeout if smtp client does not show signs of life
@@ -315,7 +320,7 @@ export TMAIL_POP3D_LAUNCH=true
 # WARNING: do not disable SSL for pop3d!!!
 # Because user and password are sent in clear text!
 # APOP and STLS are not supported (yet)
-export TMAIL_POP3D_DSNS="0.0.0.0:1100:true"
+export TMAIL_POP3D_DSNS="0.0.0.0:1100:pop.tmail.io:true:pop.tmail.io"
 
 # Type of internal LDA to use.
 # Can be "maildir" for internal maildir LDA

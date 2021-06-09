@@ -2,6 +2,7 @@ package core
 
 import (
 	"crypto/tls"
+	"fmt"
 	"log"
 	"net"
 	"path"
@@ -24,7 +25,10 @@ func (s *Smtpd) ListenAndServe() {
 	var tlsConfig *tls.Config
 	// SSL ?
 	if s.dsn.Ssl {
-		cert, err := tls.LoadX509KeyPair(path.Join(Cfg.GetBasePath(), "ssl/server.crt"), path.Join(Cfg.GetBasePath(), "ssl/server.key"))
+		cert, err := tls.LoadX509KeyPair(
+			path.Join(Cfg.GetBasePath(), fmt.Sprintf("ssl/smtp-%s.crt", s.dsn.CertName)),
+			path.Join(Cfg.GetBasePath(), fmt.Sprintf("ssl/smtp-%s.key", s.dsn.CertName,
+			)))
 		if err != nil {
 			log.Fatalln("unable to load SSL keys for smtpd.", "dsn:", s.dsn.TcpAddr, "ssl", s.dsn.Ssl, "err:", err)
 		}
@@ -55,7 +59,7 @@ func (s *Smtpd) ListenAndServe() {
 				go func(conn net.Conn) {
 					ChSmtpSessionsCount <- 1
 					defer func() { ChSmtpSessionsCount <- -1 }()
-					sss, err := NewSMTPServerSession(conn, s.dsn.Ssl)
+					sss, err := NewSMTPServerSession(conn, s.dsn)
 					if err != nil {
 						log.Println("unable to get new SmtpServerSession.", err)
 					} else {

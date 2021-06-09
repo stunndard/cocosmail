@@ -29,10 +29,10 @@ const (
 
 // SMTPServerSession retpresents a SMTP session (server)
 type SMTPServerSession struct {
-	uuid    string
-	Conn    net.Conn
-	connTLS *tls.Conn
-	//logger           *logrus.Logger
+	uuid             string
+	Conn             net.Conn
+	connTLS          *tls.Conn
+	systemName       string
 	timer            *time.Timer // for timeout
 	timeout          time.Duration
 	tls              bool
@@ -58,16 +58,18 @@ type SMTPServerSession struct {
 }
 
 // NewSMTPServerSession returns a new SMTP session
-func NewSMTPServerSession(conn net.Conn, isTLS bool) (sss *SMTPServerSession, err error) {
+func NewSMTPServerSession(conn net.Conn, dsn Dsn) (sss *SMTPServerSession, err error) {
 	sss = new(SMTPServerSession)
 	sss.uuid, err = NewUUID()
 	if err != nil {
 		return
 	}
+	sss.systemName = dsn.SystemName
+
 	sss.startAt = time.Now()
 
 	sss.Conn = conn
-	if isTLS {
+	if dsn.Ssl {
 		sss.connTLS = conn.(*tls.Conn)
 		sss.tls = true
 	}
@@ -225,7 +227,7 @@ func (s *SMTPServerSession) smtpGreeting() {
 		return
 	}
 
-	o := "220 " + Cfg.GetMe() + " ESMTP"
+	o := "220 " + s.systemName + " ESMTP"
 	if !Cfg.GetHideServerSignature() {
 		o += " - tmail " + Version
 	}
@@ -287,7 +289,7 @@ func (s *SMTPServerSession) heloBase(msg []string) (cont bool) {
 func (s *SMTPServerSession) smtpHelo(msg []string) {
 	defer s.recoverOnPanic()
 	if s.heloBase(msg) {
-		s.Out(fmt.Sprintf("250 %s", Cfg.GetMe()))
+		s.Out(fmt.Sprintf("250 %s", s.systemName))
 	}
 }
 
@@ -295,7 +297,7 @@ func (s *SMTPServerSession) smtpHelo(msg []string) {
 func (s *SMTPServerSession) smtpEhlo(msg []string) {
 	defer s.recoverOnPanic()
 	if s.heloBase(msg) {
-		s.Out(fmt.Sprintf("250-%s", Cfg.GetMe()))
+		s.Out(fmt.Sprintf("250-%s", s.systemName))
 		// Extensions
 		// Size
 		s.Out(fmt.Sprintf("250-SIZE %d", Cfg.GetSmtpdMaxDataBytes()))
@@ -517,7 +519,7 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 
 	// if no domain part and local part is postmaster FRC 5321 2.3.5
 	if strings.ToLower(s.LastRcptTo) == "postmaster" {
-		s.LastRcptTo += "@" + Cfg.GetMe()
+		s.LastRcptTo += "@" + s.systemName
 	}
 	// Check validity
 	_, err = mail.ParseAddress(s.LastRcptTo)
@@ -662,7 +664,7 @@ func (s *SMTPServerSession) smtpVrfy(msg []string) {
 
 	// if no domain part and local part is postmaster FRC 5321 2.3.5
 	if strings.ToLower(rcptto) == "postmaster" {
-		rcptto += "@" + Cfg.GetMe()
+		rcptto += "@" + s.systemName
 	}
 	// Check validity
 	_, err := mail.ParseAddress(rcptto)
@@ -950,7 +952,7 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 	// Message-ID
 	HeaderMessageID := message.RawGetMessageId(&s.CurrentRawMail)
 	if len(HeaderMessageID) == 0 {
-		atDomain := Cfg.GetMe()
+		atDomain := s.systemName
 		if strings.Count(s.Envelope.MailFrom, "@") != 0 {
 			atDomain = strings.ToLower(strings.Split(s.Envelope.MailFrom, "@")[1])
 		}

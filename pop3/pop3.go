@@ -459,12 +459,14 @@ func (p *Pop3d) ListenAndServe() {
 
 	pop3Cfg := &popgun.Config{
 		ListenInterface: p.dsn.TcpAddr.String(),
-		ServerName: "cocosmail " + core.TmailVersion,
+		ServerName:      fmt.Sprintf("cocosmail %s at %s", core.TmailVersion, p.dsn.SystemName),
 	}
 
 	if p.dsn.Ssl {
-		cert, err := tls.LoadX509KeyPair(path.Join(core.Cfg.GetBasePath(), "ssl/server.crt"),
-			path.Join(core.Cfg.GetBasePath(), "ssl/server.key"))
+		cert, err := tls.LoadX509KeyPair(
+			path.Join(core.Cfg.GetBasePath(), fmt.Sprintf("ssl/pop3-%s.crt", p.dsn.CertName)),
+			path.Join(core.Cfg.GetBasePath(), fmt.Sprintf("ssl/pop3-%s.key", p.dsn.CertName,
+			)))
 		if err != nil {
 			log.Fatalln("unable to load SSL keys for pop3.", "err:", err)
 		}

@@ -9,8 +9,10 @@ import (
 
 // DSN IP port and secured (none, tls, ssl)
 type Dsn struct {
-	TcpAddr net.TCPAddr
-	Ssl     bool
+	TcpAddr    net.TCPAddr
+	Ssl        bool
+	SystemName string
+	CertName   string
 }
 
 // String return string representation of a dsn
@@ -32,20 +34,34 @@ func GetDsnsFromString(dsnsStr string) (dsns []Dsn, err error) {
 
 	// parse
 	for _, dsnStr := range strings.Split(dsnsStr, ";") {
-		if strings.Count(dsnStr, ":") != 2 {
+		if strings.Count(dsnStr, ":") != 4 {
 			return dsns, errors.New("bad smtpd.dsn " + dsnStr + " found in config" + dsnsStr)
 		}
 		t := strings.Split(dsnStr, ":")
 		// ip & port valid ?
 		tcpAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(t[0], t[1]))
 		if err != nil {
-			return dsns, errors.New("bad IP:Port found in dsn" + dsnStr + "from config dsn" + dsnsStr)
+			return dsns, errors.New("bad IP:Port found in dsn" + dsnStr + " from config dsn " + dsnsStr)
 		}
-		ssl, err := strconv.ParseBool(t[2])
+		sysName := t[2]
+		if sysName == "" {
+			return dsns, errors.New("empty system name found in dsn " + dsnsStr + " from config dsn " + dsnsStr)
+		}
+		ssl, err := strconv.ParseBool(t[3])
 		if err != nil {
 			return dsns, ErrBadDsn(err)
 		}
-		dsns = append(dsns, Dsn{*tcpAddr, ssl})
+		certName := t[4]
+		if certName == "" {
+			return dsns, errors.New("empty cert name found in dsn " + dsnsStr + " from config dsn " + dsnsStr)
+		}
+
+		dsns = append(dsns, Dsn{
+			TcpAddr:    *tcpAddr,
+			Ssl:        ssl,
+			SystemName: sysName,
+			CertName:   certName,
+		})
 	}
 	return
 }
