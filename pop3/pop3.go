@@ -327,6 +327,13 @@ func (b *Backend) Update(user string) error {
 // tries to lock the storage, you should return an error to avoid data race.
 func (b *Backend) Lock(user string) (inUse bool, err error) {
 	mdUserPath := b.config.mailDirPath + "/" + user
+	_, err = os.Stat(mdUserPath)
+	if err != nil {
+		err = os.MkdirAll(mdUserPath, 0700)
+		if err != nil {
+			return false, fmt.Errorf("cannot create mailbox dir for user %s: %w", user, err)
+		}
+	}
 
 	lockfile := mdUserPath + "/lock"
 	_, err = os.Stat(lockfile)
