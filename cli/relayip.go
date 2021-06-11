@@ -9,13 +9,13 @@ import (
 
 var RelayIP = cgCli.Command{
 	Name:  "relayip",
-	Usage: "commands to authorise IP to relay through tmail",
+	Usage: "commands to authorise IP to relay through cocosmail",
 	Subcommands: []cgCli.Command{
 		// Add an authorized IP
 		{
 			Name:        "add",
 			Usage:       "Add an authorized IP",
-			Description: "tmail relayip add IP",
+			Description: "cocosmail relayip add IP",
 			Action: func(c *cgCli.Context) {
 				if len(c.Args()) == 0 {
 					cliDieBadArgs(c)
@@ -27,7 +27,7 @@ var RelayIP = cgCli.Command{
 		{
 			Name:        "list",
 			Usage:       "List authorized IP",
-			Description: "tmail relayip list",
+			Description: "cocosmail relayip list",
 			Action: func(c *cgCli.Context) {
 				ips, err := api.RelayIpGetAll()
 				cliHandleErr(err)
@@ -45,7 +45,7 @@ var RelayIP = cgCli.Command{
 		{
 			Name:        "del",
 			Usage:       "Delete an authorized IP",
-			Description: "tmail relayip del IP",
+			Description: "cocosmail relayip del IP",
 			Action: func(c *cgCli.Context) {
 				if len(c.Args()) == 0 {
 					cliDieBadArgs(c)

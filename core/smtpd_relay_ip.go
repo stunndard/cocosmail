@@ -26,7 +26,7 @@ func IpCanRelay(ip net.Addr) (bool, error) {
 	return false, nil
 }
 
-// relayipAdd authorize IP to relay through tmail
+// relayipAdd authorize IP to relay through cocosmail
 func RelayIpAdd(ip string) error {
 	// input validation
 	if net.ParseIP(ip) == nil {
@@ -38,7 +38,7 @@ func RelayIpAdd(ip string) error {
 	return DB.Save(&rip).Error
 }
 
-// RelayIpList return all IPs authorized to relay through tmail
+// RelayIpList return all IPs authorized to relay through cocosmail
 func RelayIpGetAll() (ips []RelayIpOk, err error) {
 	ips = []RelayIpOk{}
 	err = DB.Find(&ips).Error

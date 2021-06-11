@@ -466,7 +466,7 @@ func (p *Pop3d) ListenAndServe() {
 
 	pop3Cfg := &popgun.Config{
 		ListenInterface: p.dsn.TcpAddr.String(),
-		ServerName:      fmt.Sprintf("cocosmail %s at %s", core.TmailVersion, p.dsn.SystemName),
+		ServerName:      fmt.Sprintf("cocosmail %s at %s", core.CocosmailVersion, p.dsn.SystemName),
 	}
 
 	if p.dsn.Ssl {

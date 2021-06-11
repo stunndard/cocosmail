@@ -20,8 +20,8 @@ import (
 )
 
 const (
-	// TmailVersion version of tmail
-	TmailVersion = "0.2.0"
+	// CocosmailVersion version of cocosmail
+	CocosmailVersion = "0.2.0"
 )
 
 const (
@@ -50,7 +50,7 @@ var (
 // TODO check validity of each element
 func Bootstrap() (err error) {
 	// Load config
-	Cfg, err = InitConfig("tmail")
+	Cfg, err = InitConfig("cocosmail")
 	if err != nil {
 		return
 	}
@@ -157,7 +157,7 @@ func Bootstrap() (err error) {
 		return err
 	}
 	// TODO gestion erreur
-	execTmailPlugins("postinit")
+	execCocosMailPlugins("postinit")
 
 	return
 }
@@ -182,7 +182,7 @@ func InitBolt() error {
 // initMailQueueProducer init producer for queue
 func initMailQueueProducer() (err error) {
 	nsqCfg := nsq.NewConfig()
-	nsqCfg.UserAgent = "tmail.queue"
+	nsqCfg.UserAgent = "cocosmail.queue"
 	NsqQueueProducer, err = nsq.NewProducer("127.0.0.1:4150", nsqCfg)
 	if Cfg.GetDebugEnabled() {
 		NsqQueueProducer.SetLogger(NewNSQLogger(), nsq.LogLevelDebug)

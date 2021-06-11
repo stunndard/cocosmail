@@ -15,7 +15,7 @@ var alias = cgCli.Command{
 		{
 			Name:        "add",
 			Usage:       "Add an alias",
-			Description: "tmail alias add [--pipe COMMAND] [--deliver-to REAL_LOCAL_USER] ALIAS ",
+			Description: "cocosmail alias add [--pipe COMMAND] [--deliver-to REAL_LOCAL_USER] ALIAS ",
 			Flags: []cgCli.Flag{
 				cgCli.StringFlag{
 					Name:  "pipe, p",
@@ -41,7 +41,7 @@ var alias = cgCli.Command{
 		}, {
 			Name:        "del",
 			Usage:       "Delete an alias",
-			Description: "tmail alias del ALIAS",
+			Description: "cocosmail alias del ALIAS",
 			Action: func(c *cgCli.Context) {
 				if len(c.Args()) != 1 {
 					cliDieBadArgs(c)
@@ -53,7 +53,7 @@ var alias = cgCli.Command{
 		}, {
 			Name:        "list",
 			Usage:       "list all aliases",
-			Description: "tmail alias list",
+			Description: "cocosmail alias list",
 			Action: func(c *cgCli.Context) {
 				aliases, err := api.AliasList()
 				cliHandleErr(err)

@@ -1,11 +1,11 @@
 package main
 
-//import _ "github.com/toorop/protecmail/tmailplugins/postinit"
+//import _ "github.com/stunndard/cocosmailplugins/postinit"
 
-//import _ "github.com/toorop/protecmail/tmailplugins/connect"
+//import _ "github.com/stunndard/cocosmailplugins/connect"
 
-//import _ "github.com/toorop/protecmail/tmailplugins/helo"
+//import _ "github.com/stunndard/cocosmailplugins/helo"
 
-//import _ "github.com/toorop/protecmail/tmailplugins/rcptto"
+//import _ "github.com/stunndard/cocosmailplugins/rcptto"
 
-//import _ "github.com/toorop/protecmail/tmailplugins/deliverd_remoteinit"
+//import _ "github.com/stunndard/cocosmailplugins/deliverd_remoteinit"

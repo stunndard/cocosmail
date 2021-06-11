@@ -14,7 +14,7 @@ import (
 
 var c Config
 
-// Config represents tmail confiig
+// Config represents cocosmail confiig
 // when default is set to _ that means that the defauly value is (type)null (eg "" for string)
 type Config struct {
 	sync.Mutex
@@ -566,7 +566,7 @@ func (c *Config) GetLocalIps() string {
 		roundRobin := strings.Count(localIps, "|") != 0
 
 		if failover && roundRobin {
-			return nil, errors.New("mixing & and | are not allowed in config TMAIL_DELIVERD_LOCAL_IPS")
+			return nil, errors.New("mixing & and | are not allowed in config COCOSMAIL_DELIVERD_LOCAL_IPS")
 		}
 
 		var sIps []string
@@ -587,7 +587,7 @@ func (c *Config) GetLocalIps() string {
 		for _, ipStr := range sIps {
 			ip := net.ParseIP(ipStr)
 			if ip == nil {
-				return nil, errors.New("invalid IP " + ipStr + " found in config TMAIL_DELIVERD_LOCAL_IPS")
+				return nil, errors.New("invalid IP " + ipStr + " found in config COCOSMAIL_DELIVERD_LOCAL_IPS")
 			}
 			lIps = append(lIps, ip)
 		}

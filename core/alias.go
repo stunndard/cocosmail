@@ -8,7 +8,7 @@ import (
 	"github.com/jinzhu/gorm"
 )
 
-// Alias represents a tmail alias
+// Alias represents a cocosmail alias
 type Alias struct {
 	ID         int64
 	Alias      string `sql:"unique"`
@@ -24,7 +24,7 @@ func AliasGet(aliasStr string) (alias Alias, err error) {
 	return alias, err
 }
 
-// AliasAdd create a new tmail alias
+// AliasAdd create a new cocosmail alias
 func AliasAdd(alias, deliverTo, pipe string, isMiniList bool) error {
 	isDomAlias := false
 
@@ -73,12 +73,12 @@ func AliasAdd(alias, deliverTo, pipe string, isMiniList bool) error {
 		rcpthost, err := RcpthostGet(localDom[1])
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
-				return errors.New("domain " + localDom[1] + " is not handled by tmail")
+				return errors.New("domain " + localDom[1] + " is not handled by cocosmail")
 			}
 			return err
 		}
 		if !rcpthost.IsLocal {
-			return errors.New("domain part of alias must be a local domain handled by tmail")
+			return errors.New("domain part of alias must be a local domain handled by cocosmail")
 		}
 	} else {
 		// alias is a domain and must be in rcpthost
