@@ -149,7 +149,7 @@ func deliverLocal(d *Delivery) {
 	//msg.DelHeader("return-path")
 
 	// Received
-	*d.RawData = append([]byte("Received: tmail deliverd local "+d.ID+"; "+Format822Date()+"\r\n"), *d.RawData...)
+	*d.RawData = append([]byte("Received: cocosmail deliverd local "+d.ID+"; "+Format822Date()+"\r\n"), *d.RawData...)
 
 	// Delivered-To
 	*d.RawData = append([]byte("Delivered-To: "+deliverTo+"\r\n"), *d.RawData...)

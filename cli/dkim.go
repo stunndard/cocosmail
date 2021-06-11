@@ -11,12 +11,12 @@ var Dkim = cgCli.Command{
 
 	Name:  "dkim",
 	Usage: "Commands to manage DKIM",
-	//Usage:       "tmail dkim [arguments...]",
+	//Usage:       "cocosmail dkim [arguments...]",
 	Subcommands: []cgCli.Command{ // Add a mailbox
 		{
 			Name:        "enable",
 			Usage:       "Activate DKIM on domain DOMAIN",
-			Description: "To enable DKIM on domain DOMAIN:\n\ttmail dkim enable DOMAIN",
+			Description: "To enable DKIM on domain DOMAIN:\n\tcocosmail dkim enable DOMAIN",
 			Action: func(c *cgCli.Context) {
 				if len(c.Args()) != 1 {
 					cliDieBadArgs(c)
@@ -32,7 +32,7 @@ var Dkim = cgCli.Command{
 		}, {
 			Name:        "disable",
 			Usage:       "Disable DKIM on domain DOMAIN",
-			Description: "TO disable DKIM on domain DOMAIN\n\ttmail dkim disable DOMAIN",
+			Description: "TO disable DKIM on domain DOMAIN\n\tcocosmail dkim disable DOMAIN",
 			Action: func(c *cgCli.Context) {
 				if len(c.Args()) != 1 {
 					cliDieBadArgs(c)
@@ -44,7 +44,7 @@ var Dkim = cgCli.Command{
 		}, {
 			Name:        "getprivkey",
 			Usage:       "Return the private key of domain DOMAIN",
-			Description: "tmail dkim getprivkey DOMAIN",
+			Description: "cocosmail dkim getprivkey DOMAIN",
 			Action: func(c *cgCli.Context) {
 				if len(c.Args()) != 1 {
 					cliDieBadArgs(c)
@@ -57,7 +57,7 @@ var Dkim = cgCli.Command{
 				} else {
 					println("DKIM is not enabled for " + domain)
 					println("To enable DKIM on " + domain + " run command:")
-					println("tmail dkim enable " + domain)
+					println("cocosmail dkim enable " + domain)
 				}
 
 				cliDieOk()
@@ -65,7 +65,7 @@ var Dkim = cgCli.Command{
 		}, {
 			Name:        "getpubkey",
 			Usage:       "Return the public key of domain DOMAIN",
-			Description: "tmail dkim getpubkey DOMAIN",
+			Description: "cocosmail dkim getpubkey DOMAIN",
 			Action: func(c *cgCli.Context) {
 				if len(c.Args()) != 1 {
 					cliDieBadArgs(c)
@@ -78,7 +78,7 @@ var Dkim = cgCli.Command{
 				} else {
 					println("DKIM is not enabled for " + domain)
 					println("To enable DKIM on " + domain + " run command:")
-					println("tmail dkim enable " + domain)
+					println("cocosmail dkim enable " + domain)
 				}
 
 				cliDieOk()
@@ -86,7 +86,7 @@ var Dkim = cgCli.Command{
 		}, {
 			Name:        "getdnsrecord",
 			Usage:       "Return the DKIM DNS TXT record for domain DOMAIN",
-			Description: "tmail dkim getdnsrecord DOMAIN",
+			Description: "cocosmail dkim getdnsrecord DOMAIN",
 			Action: func(c *cgCli.Context) {
 				if len(c.Args()) != 1 {
 					cliDieBadArgs(c)
@@ -99,7 +99,7 @@ var Dkim = cgCli.Command{
 				} else {
 					println("DKIM is not enabled for " + domain)
 					println("To enable DKIM on " + domain + " run command:")
-					println("tmail dkim enable " + domain)
+					println("cocosmail dkim enable " + domain)
 				}
 
 				cliDieOk()

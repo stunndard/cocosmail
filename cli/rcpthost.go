@@ -14,12 +14,12 @@ import (
 // Rcpthost represents commands for dealing with rcpthosts
 var Rcpthost = cgCli.Command{
 	Name:  "rcpthost",
-	Usage: "commands to manage domains that tmail should handle",
+	Usage: "commands to manage domains that cocosmail should handle",
 	Subcommands: []cgCli.Command{
 		{
 			Name:        "add",
 			Usage:       "Add a rcpthost",
-			Description: "tmail rcpthost add HOSTNAME",
+			Description: "cocosmail rcpthost add HOSTNAME",
 			Flags: []cgCli.Flag{
 				cgCli.BoolFlag{
 					Name:  "local, l",
@@ -38,7 +38,7 @@ var Rcpthost = cgCli.Command{
 		{
 			Name:        "list",
 			Usage:       "List rcpthosts",
-			Description: "tmail rcpthost list",
+			Description: "cocosmail rcpthost list",
 			Action: func(c *cgCli.Context) {
 				rcpthosts, err := api.RcpthostList()
 				cliHandleErr(err)
@@ -61,7 +61,7 @@ var Rcpthost = cgCli.Command{
 		{
 			Name:        "del",
 			Usage:       "Delete a rcpthost",
-			Description: "tmail rcpthost del HOSTNAME",
+			Description: "cocosmail rcpthost del HOSTNAME",
 			Action: func(c *cgCli.Context) {
 				if len(c.Args()) == 0 {
 					cliDieBadArgs(c)

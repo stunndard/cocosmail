@@ -74,7 +74,7 @@ func MailboxList() (mailboxes []core.Mailbox, err error) {
 */
 
 // RELAY IP
-// RelayIpAdd add an IP authozed to relay through tmail
+// RelayIpAdd add an IP authozed to relay through cocosmail
 func RelayIpAdd(ip string) error {
 	return core.RelayIpAdd(ip)
 }
@@ -84,7 +84,7 @@ func RelayIpDel(ip string) error {
 	return core.RelayIpDel(ip)
 }
 
-// RelayIpGetAll returns all IPs which are authorized to relay through tmail
+// RelayIpGetAll returns all IPs which are authorized to relay through cocosmail
 func RelayIpGetAll() (ips []core.RelayIpOk, err error) {
 	return core.RelayIpGetAll()
 }

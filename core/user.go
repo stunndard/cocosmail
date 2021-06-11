@@ -10,7 +10,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// User represents a tmail user.
+// User represents a cocosmail user.
 type User struct {
 	Id           int64
 	Login        string `sql:"unique"`
@@ -92,7 +92,7 @@ func UserAdd(login, passwd, mbQuota string, haveMailbox, authRelay, isCatchall b
 				return err
 			}
 		} else if !rcpthost.IsLocal {
-			return errors.New("rcpthost " + t[1] + " is already handled by tmail but declared as remote destination")
+			return errors.New("rcpthost " + t[1] + " is already handled by cocosmail but declared as remote destination")
 		} else if rcpthost.IsAlias {
 			return errors.New("rcpthost " + t[1] + " is an domain alias. You can't add user for this kind of domain")
 		}

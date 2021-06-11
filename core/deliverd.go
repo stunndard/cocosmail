@@ -41,7 +41,7 @@ func LaunchDeliverd() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	cfg := nsq.NewConfig()
 
-	cfg.UserAgent = "tmail/deliverd"
+	cfg.UserAgent = "cocosmail/deliverd"
 	cfg.MaxInFlight = ((Cfg.GetDeliverdConcurrencyLocal() + Cfg.GetDeliverdConcurrencyRemote()) * 200) / 100
 	// MaxAttempts: number of attemps for a message before sending a
 	// 1 [queueRemote/deliverd] msg 07814777d6312000 attempted 6 times, giving up

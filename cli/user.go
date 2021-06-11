@@ -13,7 +13,7 @@ var user = cgCli.Command{
 		{
 			Name:        "add",
 			Usage:       "Add an user",
-			Description: "tmail user add USER CLEAR_PASSWD [-m] [-r] [-q BYTES] [--catchall]",
+			Description: "cocosmail user add USER CLEAR_PASSWD [-m] [-r] [-q BYTES] [--catchall]",
 			Flags: []cgCli.Flag{
 				cgCli.BoolFlag{
 					Name:  "mailbox, m",
@@ -46,7 +46,7 @@ var user = cgCli.Command{
 		{
 			Name:        "del",
 			Usage:       "Delete an user",
-			Description: "tmail user del USER",
+			Description: "cocosmail user del USER",
 			Action: func(c *cgCli.Context) {
 				var err error
 				if len(c.Args()) != 1 {
@@ -62,7 +62,7 @@ var user = cgCli.Command{
 		{
 			Name:        "update",
 			Usage:       "change proprieties of an user",
-			Description: "tmail user update USER -p NEW_PASSWORD",
+			Description: "cocosmail user update USER -p NEW_PASSWORD",
 			Flags: []cgCli.Flag{
 				cgCli.StringFlag{
 					Name:  "password, p",

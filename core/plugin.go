@@ -1,27 +1,27 @@
 package core
 
 func init() {
-	TmailPlugins = make(map[string][]TmailPlugin)
+	CocosmailPlugins = make(map[string][]CocosmailPlugin)
 	SMTPdPlugins = make(map[string][]SMTPdPlugin)
 	DeliverdPlugins = make(map[string][]DeliverdPlugin)
 }
 
-// Tmail core plugin
+// Cocosmail core plugin
 
-// TmailPlugin base plugin for hooks:
+// CocosmailPlugin base plugin for hooks:
 // - postinit
-type TmailPlugin func()
+type CocosmailPlugin func()
 
-// TmailPlugins is a map of plugin
-var TmailPlugins map[string][]TmailPlugin
+// CocosmailPlugins is a map of plugin
+var CocosmailPlugins map[string][]CocosmailPlugin
 
 // RegisterPlugin registers a new plugin
-func RegisterPlugin(hook string, plugin TmailPlugin) {
-	TmailPlugins[hook] = append(TmailPlugins[hook], plugin)
+func RegisterPlugin(hook string, plugin CocosmailPlugin) {
+	CocosmailPlugins[hook] = append(CocosmailPlugins[hook], plugin)
 }
 
-func execTmailPlugins(hook string) {
-	if plugins, found := TmailPlugins[hook]; found {
+func execCocosMailPlugins(hook string) {
+	if plugins, found := CocosmailPlugins[hook]; found {
 		for _, plugin := range plugins {
 			plugin()
 		}

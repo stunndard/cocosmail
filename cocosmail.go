@@ -29,7 +29,7 @@ func init() {
 	if err = core.Bootstrap(); err != nil {
 		log.Fatalln(err)
 	}
-	core.Version = core.TmailVersion
+	core.Version = core.CocosmailVersion
 
 	if os.RemoveAll(path.Join(core.Cfg.GetBasePath(), "nsq")) != nil {
 		log.Fatalln("Unable to delete nsq data directory")
@@ -45,7 +45,7 @@ func init() {
 	// TODO: if clusterMode check if nsqlookupd is available
 
 	// check DB
-	// TODO: do check in CLI call (raise error & ask for user to run tmail initdb|checkdb)
+	// TODO: do check in CLI call (raise error & ask for user to run cocosmail initdb|checkdb)
 	if !core.IsOkDB(core.DB) {
 		var r []byte
 		for {
@@ -76,7 +76,7 @@ func init() {
 	if core.Cfg.GetDovecotSupportEnabled() {
 		_, err := exec.LookPath(core.Cfg.GetDovecotLda())
 		if err != nil {
-			log.Fatalln("Unable to find Dovecot LDA binary, checks your config poarameter TMAIL_DOVECOT_LDA ", err)
+			log.Fatalln("Unable to find Dovecot LDA binary, checks your config poarameter COCOSMAIL_DOVECOT_LDA ", err)
 		}
 	}
 }
@@ -85,11 +85,9 @@ func init() {
 func main() {
 	var err error
 	app := cli.NewApp()
-	app.Name = "tmail"
-	app.Usage = "SMTP server"
-	app.Author = "Stéphane Depierrepont aka toorop"
-	app.Email = "toorop@tmail.io"
-	app.Version = core.TmailVersion
+	app.Name = "cocosmail"
+	app.Usage = "Email system"
+	app.Version = core.CocosmailVersion
 	app.Commands = tcli.CliCommands
 	// no know command ? Launch server
 	app.Action = func(c *cli.Context) {

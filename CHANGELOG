@@ -62,4 +62,4 @@ v 0.3
 	- BugFix: Optimise/fix queries for Mysql
 
 v 0.2
-	- add Clamav support: http://tmail.io/doc/filtrage-smtp-antivirus-clamav/
+	- add Clamav support
