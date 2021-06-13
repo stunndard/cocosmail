@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path"
 
 	"github.com/stunndard/go-maildir"
 )
@@ -29,7 +28,12 @@ func (d *DeliveryMaildir) CheckConfig() (err error) {
 }
 
 func (d *DeliveryMaildir) Deliver(id, deliverTo string, rawMsg *bytes.Buffer) (permFail bool, err error) {
-	mdPath := path.Join(d.dataPath, deliverTo)
+	// get user
+	usr, err := UserGetByLogin(deliverTo)
+	if err != nil {
+		return false, fmt.Errorf("cannot get user: %s", err)
+	}
+	mdPath := usr.Home
 
 	err = os.MkdirAll(mdPath, 0700)
 	if err != nil {
