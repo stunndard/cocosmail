@@ -326,16 +326,22 @@ func (b *Backend) Update(user string) error {
 // is to read all the messages into cache after client is connected. If another user
 // tries to lock the storage, you should return an error to avoid data race.
 func (b *Backend) Lock(user string) (inUse bool, err error) {
-	mdUserPath := b.config.mailDirPath + "/" + user
-	_, err = os.Stat(mdUserPath)
+	// get the user
+	usr, err := core.UserGetByLogin(user)
 	if err != nil {
-		err = os.MkdirAll(mdUserPath, 0700)
+		return false, fmt.Errorf("cannot get user: %s: %w", user, err)
+	}
+	// get user home path
+	mdUserHome := usr.Home
+	_, err = os.Stat(mdUserHome)
+	if err != nil {
+		err = os.MkdirAll(mdUserHome, 0700)
 		if err != nil {
 			return false, fmt.Errorf("cannot create mailbox dir for user %s: %w", user, err)
 		}
 	}
 
-	lockfile := mdUserPath + "/lock"
+	lockfile := mdUserHome + "/lock"
 	_, err = os.Stat(lockfile)
 	if err == nil {
 		return true, nil
@@ -348,7 +354,7 @@ func (b *Backend) Lock(user string) (inUse bool, err error) {
 
 	s := NewSession(user, &Session{
 		user: user,
-		md:   maildir.Dir(mdUserPath),
+		md:   maildir.Dir(mdUserHome),
 	})
 
 	core.Logger.Info(fmt.Sprintf("pop3d user %s locked mailbox", user))
