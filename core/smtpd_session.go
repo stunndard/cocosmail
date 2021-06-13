@@ -973,7 +973,7 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 	remoteHost := "unknown"
 	remoteHosts, err := net.LookupAddr(remoteIP)
 	if err == nil {
-		remoteHost = remoteHosts[0]
+		remoteHost = strings.TrimSuffix(remoteHosts[0], ".")
 	}
 
 	// why resolve local host?
