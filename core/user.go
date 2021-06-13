@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"net/mail"
 	"strings"
 
@@ -56,9 +57,9 @@ func UserAdd(login, passwd, mbQuota string, haveMailbox, authRelay, isCatchall b
 
 	// if we have to create mailbox, login must be a valid email address
 	if haveMailbox {
-		// check if dovecot is available
-		if !Cfg.GetDovecotSupportEnabled() {
-			return errors.New("you must enable (and install) Dovecot support")
+		// check if correct lda is set
+		if !Cfg.GetDovecotSupportEnabled() || Cfg.GetLdaType() != "maildir" {
+			return errors.New(fmt.Sprintf("invalid lda type: %s. use dovecot/other internal lda", Cfg.GetLdaType()))
 		}
 
 		if _, err := mail.ParseAddress(login); err != nil {
