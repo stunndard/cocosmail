@@ -58,7 +58,7 @@ func UserAdd(login, passwd, mbQuota string, haveMailbox, authRelay, isCatchall b
 	// if we have to create mailbox, login must be a valid email address
 	if haveMailbox {
 		// check if correct lda is set
-		if !Cfg.GetDovecotSupportEnabled() || Cfg.GetLdaType() != "maildir" {
+		if !Cfg.GetDovecotSupportEnabled() && Cfg.GetLdaType() != "maildir" {
 			return errors.New(fmt.Sprintf("invalid lda type: %s. use dovecot/other internal lda", Cfg.GetLdaType()))
 		}
 
