@@ -114,8 +114,8 @@ func (d *Delivery) processMsg() {
 	d.QMsg.Status = 0
 	d.QMsg.SaveInDb()
 
-	// {"Id":7,"Key":"7f88b72858ae57c17b6f5e89c1579924615d7876","MailFrom":"toorop@toorop.fr",
-	// "RcptTo":"toorop@toorop.fr","Host":"toorop.fr","AddedAt":"2014-12-02T09:05:59.342268145+01:00",
+	// {"Id":7,"Key":"7f88b72858ae57c17b6f5e89c1579924615d7876","MailFrom":"cocos@cocosmail.io",
+	// "RcptTo":"cocos@cocosmail.io","Host":"cocosmail.io","AddedAt":"2014-12-02T09:05:59.342268145+01:00",
 	// "DeliveryStartedAt":"2014-12-02T09:05:59.34226818+01:00","NextDeliveryAt":"2014-12-02T09:05:59.342268216+01:00",
 	// "DeliveryInProgress":true,"DeliveryFailedCount":0}
 

@@ -21,32 +21,32 @@ cocosmail is a fast and compact all-in-one solution for a personal self hosted e
  * Scriptable with easy procedural scripts at every email receiving/forwarding/alias/antispam step, no more cryptic configs for complicated actions (todo)
 
 
-### add user tmail
+### add user cocosmail
 
-	adduser tmail
+	adduser cocosmail
 
-### Fetch tmail dist
+### Fetch cocosmail dist
 
-	# su tmail
+	# su cocosmail
 	$ cd
-	$ wget ftp://ftp.toorop.fr/softs/tmail/tmail.zip
-	$ unzip tmail.zip
+	$ wget ftp://ftp.cocosmail./softs/cocosmail/cocosmail.zip
+	$ unzip cocosmail.zip
 	$ cd dist
 
 Under dist you will find:
 
 * conf: configuration.
-* run: script used to launch tmail
+* run: script used to launch cocosmail
 * ssl: is the place to store SSL cert. For testing purpose you can use those included.
-* tmail: tmail binary
+* cocosmail: cocosmail binary
 * tpl: text templates.
 * db: if you use sqlite as DB backend (MySQL and Postgresql are also supported), sqlite file will be stored in this directory.
 * store: mainly used to store raw email when they are in queue. (others kind of backend/storage engine are coming)
 * mailboxes: where mailboxes are stored if you activate Dovecot support.
 
-Make run script and tmail runnable:
+Make run script and cocosmail runnable:
 
-	chmod 700 run tmail
+	chmod 700 run cocosmail
 
 add directories:
 
@@ -58,7 +58,7 @@ if you want to enable Dovecot support add mailboxes directory:
 
 	mkdir mailboxes
 
-See [Enabling Dovecot support for tmail (french)](http://tmail.io/doc/mailboxes/) for more info.
+See [Enabling Dovecot support for cocosmail (french)](http://cocosmail.io/doc/mailboxes/) for more info.
 
 
 ### Configuration
@@ -66,87 +66,87 @@ See [Enabling Dovecot support for tmail (french)](http://tmail.io/doc/mailboxes/
 Init you conf file:
 
 	cd conf
-	cp tmail.cfg.base tmail.cfg
-	chmod 600 tmail.cfg
+	cp cocosmail.cfg.base cocosmail.cfg
+	chmod 600 cocosmail.cfg
 
-* TMAIL_ME: Hostname of the SMTP server (will be used for HELO|EHLO)
+* COCOSMAIL_ME: Hostname of the SMTP server (will be used for HELO|EHLO)
 
-* TMAIL_DB_DRIVER: I recommend sqlite3 unless you want to enable clustering (or you have a lot of domains/mailboxes)
+* COCOSMAIL_DB_DRIVER: I recommend sqlite3 unless you want to enable clustering (or you have a lot of domains/mailboxes)
 
-* TMAIL_SMTPD_DSNS: listening IP(s), port(s) and SSL options (see conf file for more info)
+* COCOSMAIL_SMTPD_DSNS: listening IP(s), port(s) and SSL options (see conf file for more info)
 
-* TMAIL_DELIVERD_LOCAL_IPS: IP(s) to use for sending mail to remote host.
+* COCOSMAIL_DELIVERD_LOCAL_IPS: IP(s) to use for sending mail to remote host.
 
-* TMAIL_SMTPD_CONCURRENCY_INCOMING: max concurent incomming proccess
+* COCOSMAIL_SMTPD_CONCURRENCY_INCOMING: max concurent incomming proccess
 
-* TMAIL_DELIVERD_MAX_IN_FLIGHT: concurrent delivery proccess
+* COCOSMAIL_DELIVERD_MAX_IN_FLIGHT: concurrent delivery proccess
 
 
 ### Init database
 
-	tmail@dev:~/dist$ ./run
-	Database 'driver: sqlite3, source: /home/tmail/dist/db/tmail.db' misses some tables.
+	cocosmail@dev:~/dist$ ./run
+	Database 'driver: sqlite3, source: /home/cocosmail/dist/db/cocosmail.db' misses some tables.
 	Should i create them ? (y/n): y
 
-	[dev.tmail.io - 127.0.0.1] 2015/02/02 12:42:32.449597 INFO - smtpd 151.80.115.83:2525 launched.
-	[dev.tmail.io - 127.0.0.1] 2015/02/02 12:42:32.449931 INFO - smtpd 151.80.115.83:5877 launched.
-	[dev.tmail.io - 127.0.0.1] 2015/02/02 12:42:32.450011 INFO - smtpd 151.80.115.83:4655 SSL launched.
-	[dev.tmail.io - 127.0.0.1] 2015/02/02 12:42:32.499728 INFO - deliverd launched
+	[dev.cocosmail.io - 127.0.0.1] 2015/02/02 12:42:32.449597 INFO - smtpd 151.80.115.83:2525 launched.
+	[dev.cocosmail.io - 127.0.0.1] 2015/02/02 12:42:32.449931 INFO - smtpd 151.80.115.83:5877 launched.
+	[dev.cocosmail.io - 127.0.0.1] 2015/02/02 12:42:32.450011 INFO - smtpd 151.80.115.83:4655 SSL launched.
+	[dev.cocosmail.io - 127.0.0.1] 2015/02/02 12:42:32.499728 INFO - deliverd launched
 
 ### Port forwarding
 
-As you run tmail under tmail user, it can't open port under 1024 (and for now tmail can be launched as root, open port under 25 and fork itself to unprivilegied user).
+As you run cocosmail under cocosmail user, it can't open port under 1024 (and for now cocosmail can be launched as root, open port under 25 and fork itself to unprivilegied user).
 
 The workaround is to use iptables to forward ports.
-For example, if we have tmail listening on ports 2525, and 5877 and we want tu use 25 and 587 as public ports, we have to use those iptables rules:
+For example, if we have cocosmail listening on ports 2525, and 5877 and we want tu use 25 and 587 as public ports, we have to use those iptables rules:
 
 	iptables -t nat -A PREROUTING -p tcp --dport 25 -j REDIRECT --to-port 2525
 	iptables -t nat -A PREROUTING -p tcp --dport 587 -j REDIRECT --to-port 5877
 
 ### First test
 
-	$ telnet dev.tmail.io 25
+	$ telnet dev.cocosmail.io 25
 	Trying 151.80.115.83...
-	Connected to dev.tmail.io.
+	Connected to dev.cocosmail.io.
 	Escape character is '^]'.
-	220 tmail.io  tmail ESMTP f22815e0988b8766b6fe69cbc73fb0d965754f60
+	220 cocosmail.io  cocosmail ESMTP f22815e0988b8766b6fe69cbc73fb0d965754f60
 	HELO toto
-	250 tmail.io
-	MAIL FROM: toorop@tmail.io
+	250 cocosmail.io
+	MAIL FROM: cocos@cocosmail.io
 	250 ok
-	RCPT TO: toorop@tmail.io
-	554 5.7.1 <toorop@tmail.io>: Relay access denied.
+	RCPT TO: cocos@cocosmail.io
+	554 5.7.1 <cocos@cocosmail.io>: Relay access denied.
 	Connection closed by foreign host.
 
 Perfect !
-You got "Relay access denied" because by default noboby can use tmail for relaying mails.
+You got "Relay access denied" because by default noboby can use cocosmail for relaying mails.
 
 ### Relaying mails for @example.com
 
-If you want tmail to relay mails for example.com, just run:
+If you want cocosmail to relay mails for example.com, just run:
 
-	tmail rcpthost add example.com
+	cocosmail rcpthost add example.com
 
 Note: If you have activated Dovecot support and example.com is a local domain, add -l flag :
 
-	tmail rcpthost add -l example.com
+	cocosmail rcpthost add -l example.com
 
 Does it work as expected ?
 
-	$ telnet dev.tmail.io 25
+	$ telnet dev.cocosmail.io 25
 	Trying 151.80.115.83...
-	Connected to dev.tmail.io.
+	Connected to dev.cocosmail.io.
 	Escape character is '^]'.
-	220 tmail.io  tmail ESMTP 96b78ef8f850253cc956820a874e8ce40773bfb7
+	220 cocosmail.io  cocosmail ESMTP 96b78ef8f850253cc956820a874e8ce40773bfb7
 	HELO toto
-	250 tmail.io
-	mail from: toorop@toorop.fr
+	250 cocosmail.io
+	mail from: cocos@cocosmail.io
 	250 ok
-	rcpt to: toorop@example.com
+	rcpt to: cocos@example.com
 	250 ok
 	data
 	354 End data with <CR><LF>.<CR><LF>
-	subject: test tmail
+	subject: test cocosmail
 
 	blabla
 	.
@@ -159,37 +159,37 @@ Yes ;)
 
 ### Allow relay from an IP
 
-	tmail relayip add IP
+	cocosmail relayip add IP
 
 For example:
 
-	tmail relayip add 127.0.0.1
+	cocosmail relayip add 127.0.0.1
 
 
 ### Basic routing
 
-By default tmail will use MX records for routing mails, but you can "manualy" configure alternative routing.
-If you want tmail to route mail from @example.com to mx.slowmail.com. It is as easy as adding this routing rule
+By default cocosmail will use MX records for routing mails, but you can "manualy" configure alternative routing.
+If you want cocosmail to route mail from @example.com to mx.slowmail.com. It is as easy as adding this routing rule
 
-	tmail routes add -d example.com -rh mx.slowmail.com
+	cocosmail routes add -d example.com -rh mx.slowmail.com
 
-You can find more elaborated routing rules on [tmail routing documentation (french)](http://tmail.io/doc/cli-gestion-route-smtp/) (translators are welcomed ;))
+You can find more elaborated routing rules on [cocosmail routing documentation (french)](http://cocosmail.io/doc/cli-gestion-route-smtp/) (translators are welcomed ;))
 
 ### SMTP AUTH
 
-If you want to enable relaying after SMTP AUTH for user toorop@tmail.io, just enter:
+If you want to enable relaying after SMTP AUTH for user cocos@cocosmail.io, just enter:
 
-	tmail user add -r toorop@tmail.io password
+	cocosmail user add -r cocos@cocosmail.io password
 
 
-If you want to delete user toorop@tmail.io :
+If you want to delete user cocos@cocosmail.io :
 
-	tmail user del toorop@tmail.io
+	cocosmail user del cocos@cocosmail.io
 
 
 ### Let's Encrypt (TLS/SSL)
 
-If you want to activate TLS/SSL connections with a valid certificate (not an auto-signed one as it's by default) between mail clients and your tmail server you can get a let's Encrypt certificate, you have first to install let's Encrypt :
+If you want to activate TLS/SSL connections with a valid certificate (not an auto-signed one as it's by default) between mail clients and your cocosmail server you can get a let's Encrypt certificate, you have first to install let's Encrypt :
 
 	cd ~
 	git clone https://github.com/letsencrypt/letsencrypt
@@ -201,21 +201,21 @@ Then you can request a certificate
 
 You'll have to provide a valid mail address and agree to the Let's Encrypt Term of Service. When certificate is issued you have to copy some files to the ssl/ directory
 
-	cd /home/tmail/dist/ssl
+	cd /home/cocosmail/dist/ssl
 	cp /etc/letsencrypt/live/your.hostname/fullchain.pem server.crt
 	cp /etc/letsencrypt/live/your.hostname/privkey.pem server.key
-	chown tmail.tmail server.*
+	chown cocosmail.cocosmail server.*
 
 And it's done !
 
 
 ## Contribute
 
-Feel free to inspect & improve tmail code, PR are welcomed ;)
+Feel free to inspect & improve cocosmail code, PR are welcomed ;)
 
 If you are not a coder, you can contribute too:
 
-* install and use tmail, I need feebacks.
+* install and use cocosmail, I need feebacks.
 
 * as you can see reading this page, english is not my native language, so I need help to write english documentation.
 

@@ -13,7 +13,7 @@ func authorized(w http.ResponseWriter, r *http.Request) bool {
 	// Headers Authorization found ?
 	hAuth := r.Header.Get("authorization")
 	if hAuth == "" {
-		w.Header().Set("WWW-Authenticate", "Basic realm=tmail REST server")
+		w.Header().Set("WWW-Authenticate", "Basic realm=cocosmail REST server")
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return false
 	}

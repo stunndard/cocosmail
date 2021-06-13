@@ -16,7 +16,7 @@ var Routes = cgCli.Command{
 		{
 			Name:        "list",
 			Usage:       "List routes",
-			Description: "tmail routes list",
+			Description: "cocosmail routes list",
 			Action: func(c *cgCli.Context) {
 				routes, err := api.RoutesGet()
 				cliHandleErr(err)
@@ -80,7 +80,7 @@ var Routes = cgCli.Command{
 		{
 			Name:        "add",
 			Usage:       "Add a route",
-			Description: "tmail routes add -d DESTINATION_HOST -rh REMOTE_HOST [-rp REMOTE_PORT] [-p PRORITY] [-l LOCAL_IP] [-u AUTHENTIFIED_USER] [-f MAIL_FROM] [-rl REMOTE_LOGIN] [-rpwd REMOTE_PASSWD]",
+			Description: "cocosmail routes add -d DESTINATION_HOST -rh REMOTE_HOST [-rp REMOTE_PORT] [-p PRORITY] [-l LOCAL_IP] [-u AUTHENTIFIED_USER] [-f MAIL_FROM] [-rl REMOTE_LOGIN] [-rpwd REMOTE_PASSWD]",
 			Flags: []cgCli.Flag{
 				cgCli.StringFlag{
 					Name:  "destination, d",
@@ -142,7 +142,7 @@ var Routes = cgCli.Command{
 		{
 			Name:        "del",
 			Usage:       "Delete a route",
-			Description: "tmail routes del ROUTE_ID",
+			Description: "cocosmail routes del ROUTE_ID",
 			Action: func(c *cgCli.Context) {
 				if len(c.Args()) != 1 {
 					cliDieBadArgs(c, "you must provide a route ID")

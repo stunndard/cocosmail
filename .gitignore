@@ -1,10 +1,10 @@
 /.idea/
 /archives/
-/dist/tmail
+/dist/cocosmail
 /dist/db/*
 dist/tools/easyCert/
 dist/nsq/*
-dist/conf/tmail.cfg
+dist/conf/cocosmail.cfg
 run
 test
 watch
@@ -12,9 +12,9 @@ build
 buildDist
 dist/log/
 dist/mailboxes/
-dist/tmail64
+dist/cocosmail64
 dist/tools/
-tmail.zip
+cocosmail.zip
 
 ### golang
 vendor/**/**/

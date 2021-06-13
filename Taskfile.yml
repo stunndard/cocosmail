@@ -3,26 +3,26 @@ version: '2'
 tasks:
   build:
     cmds:
-      - go build -o dist/tmail
+      - go build -o dist/cocosmail
 
   run:
     deps: [build]
     dir: dist
     cmds:
-      - source conf/tmail.cfg && ./tmail
+      - source conf/cocosmail.cfg && ./cocosmail
 
   builddist:
     deps: [build]
     cmds:
-      - zip -r tmail.zip dist/conf/tmail.cfg.base
-      - zip -r tmail.zip dist/ssl
-      - zip -r tmail.zip dist/tpl
-      - zip -r tmail.zip dist/run
-      - zip -r tmail.zip dist/tmail
+      - zip -r cocosmail.zip dist/conf/cocosmail.cfg.base
+      - zip -r cocosmail.zip dist/ssl
+      - zip -r cocosmail.zip dist/tpl
+      - zip -r cocosmail.zip dist/run
+      - zip -r cocosmail.zip dist/cocosmail
 
   deploy:
     deps: [build]
     cmds:
-      - rsync dist/tmail root@51.15.212.212:/home/tmail/dist/tmail
-      - ssh root@51.15.212.212 setcap cap_net_bind_service=+ep /home/tmail/dist/tmail
-      - ssh root@51.15.212.212 systemctl restart tmail
+      - rsync dist/cocosmail root@51.15.212.212:/home/cocosmail/dist/cocosmail
+      - ssh root@51.15.212.212 setcap cap_net_bind_service=+ep /home/cocosmail/dist/cocosmail
+      - ssh root@51.15.212.212 systemctl restart cocosmail

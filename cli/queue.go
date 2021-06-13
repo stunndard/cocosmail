@@ -11,13 +11,13 @@ import (
 
 var Queue = cgCli.Command{
 	Name:  "queue",
-	Usage: "commands to interact with tmail queue",
+	Usage: "commands to interact with cocosmail queue",
 	Subcommands: []cgCli.Command{
 		// list queue
 		{
 			Name:        "list",
 			Usage:       "List messages in queue",
-			Description: "tmail queue list",
+			Description: "cocosmail queue list",
 			Action: func(c *cgCli.Context) {
 				var status string
 				messages, err := api.QueueGetMessages()
@@ -50,7 +50,7 @@ var Queue = cgCli.Command{
 		}, {
 			Name:        "count",
 			Usage:       "count messages in queue",
-			Description: "tmail queue count",
+			Description: "cocosmail queue count",
 			Action: func(c *cgCli.Context) {
 				count, err := api.QueueCount()
 				cliHandleErr(err)
@@ -61,7 +61,7 @@ var Queue = cgCli.Command{
 		{
 			Name:        "discard",
 			Usage:       "Discard (delete without bouncing) a message in queue",
-			Description: "tmail queue discard MESSAGE_ID",
+			Description: "cocosmail queue discard MESSAGE_ID",
 			Action: func(c *cgCli.Context) {
 				if len(c.Args()) != 1 {
 					cliDieBadArgs(c)
@@ -75,7 +75,7 @@ var Queue = cgCli.Command{
 		{
 			Name:        "bounce",
 			Usage:       "Bounce a message in queue",
-			Description: "tmail queue bounce MESSAGE_ID",
+			Description: "cocosmail queue bounce MESSAGE_ID",
 			Action: func(c *cgCli.Context) {
 				if len(c.Args()) != 1 {
 					cliDieBadArgs(c)
@@ -89,7 +89,7 @@ var Queue = cgCli.Command{
 		{
 			Name:        "purge",
 			Usage:       "Purge expired message from queue",
-			Description: "tmail queue purge",
+			Description: "cocosmail queue purge",
 			Action: func(c *cgCli.Context) {
 				cliHandleErr(api.QueuePurge())
 				cliDieOk()

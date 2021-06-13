@@ -232,7 +232,7 @@ func (s *SMTPServerSession) smtpGreeting() {
 
 	o := "220 " + s.systemName + " ESMTP"
 	if !Cfg.GetHideServerSignature() {
-		o += " - tmail " + Version
+		o += " - cocosmail " + Version
 	}
 	o += " - " + s.uuid
 	s.Out(o)

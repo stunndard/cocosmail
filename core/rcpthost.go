@@ -7,7 +7,7 @@ import (
 	"github.com/jinzhu/gorm"
 )
 
-// RcptHost represents a hostname that tmail have to handle mails for (=local domains)
+// RcptHost represents a hostname that cocosmail have to handle mails for (=local domains)
 type RcptHost struct {
 	Id       int64
 	Hostname string `sql:"unique"`
