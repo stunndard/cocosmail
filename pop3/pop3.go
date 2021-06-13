@@ -79,19 +79,12 @@ func (a Authorizator) Authorize(user, pass string) bool {
 	return true
 }
 
-type Config struct {
-	mailDirPath string
-}
 
 // Backend is a backend interface implementation
-type Backend struct {
-	config Config
-}
+type Backend struct {}
 
-func NewBackend(cfg Config) *Backend {
-	return &Backend{
-		config: cfg,
-	}
+func NewBackend() *Backend {
+	return &Backend{}
 }
 
 // Returns total message count and total mailbox size in bytes (octets).
@@ -404,7 +397,13 @@ func (b *Backend) Unlock(user string) error {
 	// so it remains locked and cannot be entered again
 	DeleteSession(user)
 
-	lockfile := b.config.mailDirPath + "/" + user + "/lock"
+	// get user
+	usr, err := core.UserGetByLogin(user)
+	if err != nil {
+		return fmt.Errorf("cannot get user: %s: %w", user, err)
+	}
+
+	lockfile := usr.Home + "/lock"
 	if err := os.Remove(lockfile); err != nil {
 		return fmt.Errorf("error unlocking user: %w", err)
 	}
@@ -417,20 +416,17 @@ func (b *Backend) Unlock(user string) error {
 // ClearLocks deletes all stuck lock files in all users mail directories.
 // It's caled at pop3 server start only.
 func (b *Backend) ClearLocks() error {
-	f, err := os.Open(b.config.mailDirPath)
+	// get all users
+	usrs, err := core.UserList()
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot get users: %w", err)
 	}
-	defer func() { _ = f.Close() }()
-	dirs, err := f.Readdir(0)
-	if err != nil {
-		return err
-	}
-	for _, dir := range dirs {
-		if !dir.IsDir() {
+
+	for _, usr := range usrs {
+		if !usr.HaveMailbox {
 			continue
 		}
-		lockfile := b.config.mailDirPath + "/" + dir.Name() + "/lock"
+		lockfile := usr.Home + "/lock"
 		if _, err = os.Stat(lockfile); err != nil {
 			continue
 		}
@@ -439,6 +435,7 @@ func (b *Backend) ClearLocks() error {
 		}
 		core.Logger.Info(fmt.Sprintf("stalled lockfile removed %s", lockfile))
 	}
+
 	return nil
 }
 
@@ -462,9 +459,7 @@ func (p *Pop3d) ListenAndServe() {
 
 	var authorizator Authorizator
 
-	backend := NewBackend(Config{
-		mailDirPath: core.Cfg.GetUsersHomeBase(),
-	})
+	backend := NewBackend()
 
 	if err := backend.ClearLocks(); err != nil {
 		log.Fatal(err)
