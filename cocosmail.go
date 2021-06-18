@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/nsqio/nsq/nsqd"
+	"github.com/stunndard/cocosmail/plugin"
 	"github.com/stunndard/cocosmail/pop3"
 	"github.com/urfave/cli"
 
@@ -155,6 +156,7 @@ func main() {
 
 			// smtpd
 			if core.Cfg.GetLaunchSmtpd() {
+				plugin.RegisterPlugins()
 				// clamav ?
 				if core.Cfg.GetSmtpdClamavEnabled() {
 					if err = core.NewClamav().Ping(); err != nil {

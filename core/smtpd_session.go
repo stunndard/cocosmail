@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/jinzhu/gorm"
-
 	"github.com/stunndard/cocosmail/message"
+	"github.com/traefik/yaegi/interp"
 )
 
 const (
@@ -34,6 +34,7 @@ type SMTPServerSession struct {
 	connTLS          *tls.Conn
 	systemName       string
 	certName         string
+	Yags             []*interp.Interpreter
 	timer            *time.Timer // for timeout
 	timeout          time.Duration
 	tls              bool
@@ -1235,6 +1236,8 @@ func (s *SMTPServerSession) handle() {
 
 	// Init some var
 	//var msg []byte
+
+	execSMTPdPlugins("init", s)
 
 	buffer := make([]byte, 1)
 
