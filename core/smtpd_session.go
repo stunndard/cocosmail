@@ -17,6 +17,7 @@ import (
 	"github.com/jinzhu/gorm"
 	"github.com/stunndard/cocosmail/message"
 	"github.com/traefik/yaegi/interp"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const (
@@ -27,6 +28,11 @@ const (
 	//ZEROBYTE ="\\0"
 )
 
+type YagPlugin struct {
+	Yag  *interp.Interpreter
+	Name string
+}
+
 // SMTPServerSession retpresents a SMTP session (server)
 type SMTPServerSession struct {
 	uuid             string
@@ -34,7 +40,7 @@ type SMTPServerSession struct {
 	connTLS          *tls.Conn
 	systemName       string
 	certName         string
-	Yags             []*interp.Interpreter
+	YagPlugins       []YagPlugin
 	timer            *time.Timer // for timeout
 	timeout          time.Duration
 	tls              bool
@@ -60,43 +66,40 @@ type SMTPServerSession struct {
 }
 
 // NewSMTPServerSession returns a new SMTP session
-func NewSMTPServerSession(conn net.Conn, dsn Dsn) (sss *SMTPServerSession, err error) {
-	sss = new(SMTPServerSession)
-	sss.uuid, err = NewUUID()
+func NewSMTPServerSession(conn net.Conn, dsn Dsn) (*SMTPServerSession, error) {
+
+	session := &SMTPServerSession{
+		systemName: dsn.SystemName,
+		certName:   dsn.CertName,
+		startAt:    time.Now(),
+		Conn:       conn,
+		remoteAddr: conn.RemoteAddr().String(),
+		//sss.logger = Log
+		RelayGranted:   false,
+		rcptCount:      0,
+		BadRcptToCount: 0,
+		vrfyCount:      0,
+		lastClientCmd:  []byte{},
+		seenHelo:       false,
+		seenMail:       false,
+		// timeout
+		exitasap: make(chan int, 1),
+		timeout:  time.Duration(Cfg.GetSmtpdServerTimeout()) * time.Second,
+	}
+	session.timer = time.AfterFunc(session.timeout, session.raiseTimeout)
+
+	var err error
+	session.uuid, err = NewUUID()
 	if err != nil {
-		return
+		return nil, err
 	}
-	sss.systemName = dsn.SystemName
 
-	sss.certName = dsn.CertName
-
-	sss.startAt = time.Now()
-
-	sss.Conn = conn
 	if dsn.Ssl {
-		sss.connTLS = conn.(*tls.Conn)
-		sss.tls = true
+		session.connTLS = conn.(*tls.Conn)
+		session.tls = true
 	}
 
-	sss.remoteAddr = conn.RemoteAddr().String()
-	//sss.logger = Log
-
-	sss.RelayGranted = false
-
-	sss.rcptCount = 0
-	sss.BadRcptToCount = 0
-	sss.vrfyCount = 0
-
-	sss.lastClientCmd = []byte{}
-
-	sss.seenHelo = false
-	sss.seenMail = false
-
-	// timeout
-	sss.exitasap = make(chan int, 1)
-	sss.timeout = time.Duration(Cfg.GetSmtpdServerTimeout()) * time.Second
-	sss.timer = time.AfterFunc(sss.timeout, sss.raiseTimeout)
-	return
+	return session, nil
 }
 
 // GetLastClientCmd returns lastClientCmd (not splited)
@@ -138,9 +141,8 @@ func (s *SMTPServerSession) ExitAsap() {
 		go func() { <-s.timer.C }()
 	}
 	// Plugins
-	execSMTPdPlugins("exitasap", s)
+	ExecSMTPdPlugins("exitasap", s)
 	s.exitasap <- 1
-
 }
 
 // resetTimeout reset timeout
@@ -162,7 +164,7 @@ func (s *SMTPServerSession) Reset() {
 
 // Out : to client
 func (s *SMTPServerSession) Out(msg string) {
-	s.Conn.Write([]byte(msg + "\r\n"))
+	_, _ = s.Conn.Write([]byte(msg + "\r\n"))
 	s.LogDebug(">", msg)
 	s.resetTimeout()
 }
@@ -227,7 +229,13 @@ func (s *SMTPServerSession) smtpGreeting() {
 	s.Log(fmt.Sprintf("starting new transaction %d/%d", SmtpSessionsCount, Cfg.GetSmtpdConcurrencyIncoming()))
 
 	// Plugins
-	if execSMTPdPlugins("connect", s) {
+	done, drop := ExecSMTPdPlugins("connect", s)
+	if done || drop {
+		if drop {
+			s.Log("plugin terminating session")
+			s.ExitAsap()
+			return
+		}
 		return
 	}
 
@@ -254,8 +262,15 @@ func (s *SMTPServerSession) heloBase(msg []string) (cont bool) {
 	}
 
 	// Plugins
-	if execSMTPdPlugins("helo", s) {
-		return false
+	done, drop := ExecSMTPdPlugins("helo", s)
+	if done || drop {
+		if drop {
+			s.Log("plugin terminating session")
+			s.ExitAsap()
+			return false
+		}
+		s.seenHelo = true
+		return true
 	}
 
 	s.helo = ""
@@ -318,7 +333,7 @@ func (s *SMTPServerSession) smtpEhlo(msg []string) {
 // MAIL FROM
 func (s *SMTPServerSession) smtpMailFrom(msg []string) {
 	defer s.recoverOnPanic()
-	extension := []string{}
+	var extension []string
 
 	// Reset
 	s.Reset()
@@ -341,7 +356,12 @@ func (s *SMTPServerSession) smtpMailFrom(msg []string) {
 	}
 
 	// Plugin - hook "mailpre"
-	execSMTPdPlugins("mailpre", s)
+	_, drop := ExecSMTPdPlugins("mailpre", s)
+	if drop {
+		s.Log("plugin terminating session")
+		s.ExitAsap()
+		return
+	}
 
 	// mail from:<user> EXT || mail from: <user> EXT
 	if len(msg[1]) > 5 { // mail from:<user> EXT
@@ -459,7 +479,17 @@ func (s *SMTPServerSession) smtpMailFrom(msg []string) {
 		}
 	}
 	// Plugin - hook "mailpost"
-	execSMTPdPlugins("mailpost", s)
+	done, drop := ExecSMTPdPlugins("mailpost", s)
+	if done || drop {
+		if drop {
+			s.Log("plugin terminating session")
+			s.ExitAsap()
+			return
+		}
+		s.seenMail = true
+		return
+	}
+
 	s.seenMail = true
 	s.Log("MAIL FROM " + s.Envelope.MailFrom)
 	s.Out("250 ok")
@@ -552,7 +582,14 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 	s.RelayGranted = false
 
 	// Plugins
-	if execSMTPdPlugins("rcptto", s) {
+	done, drop := ExecSMTPdPlugins("rcptto", s)
+	if done || drop {
+		if drop {
+			s.Log("plugin terminating session")
+			s.ExitAsap()
+			return
+		}
+		// s.Envelope.RcptTo needs to be set by plugin
 		return
 	}
 
@@ -734,7 +771,7 @@ func (s *SMTPServerSession) smtpVrfy(msg []string) {
 }
 
 // SMTPExpn EXPN SMTP command
-func (s *SMTPServerSession) smtpExpn(msg []string) {
+func (s *SMTPServerSession) smtpExpn(_ []string) {
 	s.Out("252")
 	s.SMTPResponseCode = 252
 	return
@@ -799,7 +836,7 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 		if flagInHeader {
 			// Check hops
 			if pos < 9 {
-				if ch[0] != byte("delivered"[pos]) && ch[0] != byte("DELIVERED"[pos]) {
+				if ch[0] != "delivered"[pos] && ch[0] != "DELIVERED"[pos] {
 					flagLineMightMatchDelivered = false
 				}
 				if flagLineMightMatchDelivered && pos == 8 {
@@ -807,7 +844,7 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 				}
 
 				if pos < 8 {
-					if ch[0] != byte("received"[pos]) && ch[0] != byte("RECEIVED"[pos]) {
+					if ch[0] != "received"[pos] && ch[0] != "RECEIVED"[pos] {
 						flagLineMightMatchReceived = false
 					}
 				}
@@ -914,7 +951,7 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 			s.Log(fmt.Sprintf("MAIL - Message is looping. Hops : %d", hops))
 			s.Out("554 5.4.6 too many hops, this message is looping")
 			s.SMTPResponseCode = 554
-			s.purgeConn()
+			_ = s.purgeConn()
 			s.Reset()
 			return
 		}
@@ -924,7 +961,7 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 			s.Log(fmt.Sprintf("MAIL - Message size (%d) exceeds maxDataBytes (%d).", s.dataBytes, Cfg.GetSmtpdMaxDataBytes()))
 			s.Out("552 5.3.4 sorry, that message size exceeds my databytes limit")
 			s.SMTPResponseCode = 552
-			s.purgeConn()
+			_ = s.purgeConn()
 			s.Reset()
 			return
 		}
@@ -1028,7 +1065,9 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 	s.CurrentRawMail = append([]byte("X-Env-From: "+s.Envelope.MailFrom+"\r\n"), s.CurrentRawMail...)
 
 	// Plugins
-	if execSMTPdPlugins("data", s) {
+	_, drop := ExecSMTPdPlugins("data", s)
+	if drop {
+		s.ExitAsap()
 		return
 	}
 
@@ -1039,7 +1078,18 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 	}
 
 	// Plugins
-	execSMTPdPlugins("beforequeue", s)
+	done, drop := ExecSMTPdPlugins("beforequeue", s)
+	if done || drop {
+		if drop {
+			s.ExitAsap()
+			return
+		}
+		// plugin can call QueueAddMessage if it processes it
+		// also needs send the response using s.Out()
+		s.Reset()
+		return
+	}
+
 	id, err := QueueAddMessage(&s.CurrentRawMail, s.Envelope, authUser)
 	if err != nil {
 		s.LogError("MAIL - unable to put message in queue -", err.Error())
@@ -1058,7 +1108,7 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 // QUIT
 func (s *SMTPServerSession) smtpQuit() {
 	// Plugins
-	execSMTPdPlugins("quit", s)
+	ExecSMTPdPlugins("quit", s)
 
 	s.Out(fmt.Sprintf("221 2.0.0 Bye"))
 	s.SMTPResponseCode = 221
@@ -1194,19 +1244,22 @@ func (s *SMTPServerSession) smtpAuth(rawMsg string) {
 		if err == gorm.ErrRecordNotFound {
 			s.Out("535 authentication failed - No such user (#5.7.1)")
 			s.SMTPResponseCode = 535
+			AuthSMTPdPlugins(authLogin, authPasswd, false, s)
 			s.Log("auth failed: " + rawMsg + " err:" + err.Error())
 			s.ExitAsap()
 			return
 		}
-		if err.Error() == "crypto/bcrypt: hashedPassword is not the hash of the given password" {
+		if err == bcrypt.ErrMismatchedHashAndPassword {
 			s.Out("535 authentication failed (#5.7.1)")
 			s.SMTPResponseCode = 535
+			AuthSMTPdPlugins(authLogin, authPasswd, false, s)
 			s.Log("auth failed: " + rawMsg + " err:" + err.Error())
 			s.ExitAsap()
 			return
 		}
 		s.Out("454 oops, problem with auth (#4.3.0)")
 		s.SMTPResponseCode = 454
+		AuthSMTPdPlugins(authLogin, authPasswd, false, s)
 		s.Log("ERROR auth " + rawMsg + " err:" + err.Error())
 		s.ExitAsap()
 		return
@@ -1214,6 +1267,7 @@ func (s *SMTPServerSession) smtpAuth(rawMsg string) {
 	s.Log("auth succeed for user " + s.user.Login)
 	s.Out("235 ok, go ahead (#2.0.0)")
 	s.SMTPResponseCode = 235
+	AuthSMTPdPlugins(authLogin, authPasswd, true, s)
 }
 
 // RSET SMTP ahandler
@@ -1237,7 +1291,8 @@ func (s *SMTPServerSession) handle() {
 	// Init some var
 	//var msg []byte
 
-	execSMTPdPlugins("init", s)
+	// initialize all active smtpd plugins
+	InitSMTPdPlugins(s)
 
 	buffer := make([]byte, 1)
 
@@ -1269,7 +1324,7 @@ func (s *SMTPServerSession) handle() {
 				var rmsg string
 				strMsg := strings.TrimSpace(string(s.lastClientCmd))
 				s.LogDebug("<", strMsg)
-				splittedMsg := []string{}
+				var splittedMsg []string
 				for _, m := range strings.Split(strMsg, " ") {
 					m = strings.TrimSpace(m)
 					if m != "" {
@@ -1285,7 +1340,6 @@ func (s *SMTPServerSession) handle() {
 					case "helo":
 						s.smtpHelo(splittedMsg)
 					case "ehlo":
-						//s.smtpEhlo(splittedMsg)
 						s.smtpEhlo(splittedMsg)
 					case "mail":
 						s.smtpMailFrom(splittedMsg)
@@ -1322,8 +1376,8 @@ func (s *SMTPServerSession) handle() {
 		}
 	}()
 	<-s.exitasap
-	s.Conn.Close()
+	_ = s.Conn.Close()
 	s.Log("EOT")
-	s.exiting = false
+	//s.exiting = false
 	return
 }

@@ -157,7 +157,7 @@ func Bootstrap() (err error) {
 		return err
 	}
 	// TODO gestion erreur
-	execCocosMailPlugins("postinit")
+	//execCocosMailPlugins("postinit")
 
 	return
 }

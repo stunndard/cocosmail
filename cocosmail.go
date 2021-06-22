@@ -156,7 +156,7 @@ func main() {
 
 			// smtpd
 			if core.Cfg.GetLaunchSmtpd() {
-				plugin.RegisterPlugins()
+				plugin.InitModule()
 				// clamav ?
 				if core.Cfg.GetSmtpdClamavEnabled() {
 					if err = core.NewClamav().Ping(); err != nil {
