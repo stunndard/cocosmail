@@ -1,4 +1,4 @@
-package ban
+package fail2ban
 
 import (
 	"encoding/json"
@@ -14,6 +14,11 @@ type IpData struct {
 	Attempts int
 	Expires  time.Time
 }
+
+const (
+	FAILEDAUTH = 2
+	BANTIME = 24 * 7
+)
 
 var ips = make(map[string]*IpData)
 
@@ -37,7 +42,7 @@ func connect(s *core.SMTPServerSession) (done, drop bool, err error) {
 		return false, false, err
 	}
 
-	err = json.Unmarshal([]byte(jsn), &ips)
+	err = json.Unmarshal(jsn, &ips)
 	if err != nil {
 		return false, false, err
 	}
@@ -95,10 +100,10 @@ func auth(user, pass string, success bool, s *core.SMTPServerSession) error {
 		ip = &IpData{}
 	}
 	ip.Attempts++
-	if !ip.Banned && ip.Attempts > 3 {
+	if !ip.Banned && ip.Attempts >= FAILEDAUTH {
 		// ban
 		ip.Banned = true
-		ip.Expires = time.Now().Add(24 * 3 * time.Hour)
+		ip.Expires = time.Now().Add(BANTIME * time.Hour)
 		s.LogDebug(fmt.Sprintf("banned ip: %s", remoteIP))
 	}
 	// update ip

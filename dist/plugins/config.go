@@ -9,7 +9,7 @@ func core() []string {
 // in the same sequence by the host.
 func smtpd() []string {
 	return []string{
-	"ban",
+	"fail2ban",
 	"customhelo",
 	}
 }
