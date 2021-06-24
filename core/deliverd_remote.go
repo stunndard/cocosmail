@@ -35,9 +35,11 @@ func deliverRemote(d *Delivery) {
 
 	// plugins
 	// if plugin return false return
+	/*
 	if !execDeliverdPlugins("remoteinit", d) {
 		return
 	}
+	*/
 
 	// Default routes
 	if len(d.RemoteRoutes) == 0 {

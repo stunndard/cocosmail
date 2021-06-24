@@ -25,6 +25,7 @@ require (
 	github.com/stunndard/go-maildir v0.3.1-0.20210605034352-5b7dd4cd98f4
 	github.com/stunndard/popgun v0.0.0-20210605125826-7d86a3ec4471
 	github.com/toorop/go-dkim v0.0.0-20201103131630-e1cd1a0a5208
+	github.com/traefik/yaegi v0.9.18
 	github.com/tredoe/osutil v1.0.5
 	github.com/urfave/cli v1.22.5
 	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a

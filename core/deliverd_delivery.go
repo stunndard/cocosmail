@@ -42,7 +42,7 @@ func (d *Delivery) processMsg() {
 		if err := recover(); err != nil {
 			Logger.Error(fmt.Sprintf("deliverd %s : PANIC \r\n %s \r\n %s", d.ID, err, debug.Stack()))
 		}
-		execDeliverdPlugins("exit", d)
+		//execDeliverdPlugins("exit", d)
 
 		//d.sendTelemetry()
 

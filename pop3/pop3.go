@@ -16,6 +16,7 @@ import (
 	"github.com/stunndard/cocosmail/core"
 	"github.com/stunndard/go-maildir"
 	"github.com/stunndard/popgun"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Message struct {
@@ -65,16 +66,22 @@ type Authorizator struct {
 
 // Authorize user for given username and password.
 func (a Authorizator) Authorize(user, pass string) bool {
-	_, err := core.UserGet(user, pass)
+	usr, err := core.UserGet(user, pass)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			core.Logger.Info(fmt.Sprintf("pop3d authentication failed for user %s: user not found", user))
 			return false
 		}
-		if err.Error() == "crypto/bcrypt: hashedPassword is not the hash of the given password" {
+		if err == bcrypt.ErrMismatchedHashAndPassword {
 			core.Logger.Info(fmt.Sprintf("pop3d authentication failed for user %s: wrong password", user))
 			return false
 		}
+		core.Logger.Info(fmt.Sprintf("pop3d authentication failed for user %s: %s", user, err))
+		return false
+	}
+	if usr.Login != user {
+		core.Logger.Error(fmt.Sprintf("pop3d authentication failed for user %s: wrong user fetched: %s", user, usr.Login))
+		return false
 	}
 	return true
 }

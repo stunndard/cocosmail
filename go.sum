@@ -70,6 +70,8 @@ github.com/stunndard/popgun v0.0.0-20210605125826-7d86a3ec4471 h1:bMtKL44lA3ZDAq
 github.com/stunndard/popgun v0.0.0-20210605125826-7d86a3ec4471/go.mod h1:iAd2P6oeWwV9/+gBAy5k1v5BHXiSUYXRZ8HQgTwKWYo=
 github.com/toorop/go-dkim v0.0.0-20201103131630-e1cd1a0a5208 h1:PM5hJF7HVfNWmCjMdEfbuOBNXSVF2cMFGgQTPdKCbwM=
 github.com/toorop/go-dkim v0.0.0-20201103131630-e1cd1a0a5208/go.mod h1:BzWtXXrXzZUvMacR0oF/fbDDgUPO8L36tDMmRAf14ns=
+github.com/traefik/yaegi v0.9.18 h1:21GZkxEqecM/DOil7oMByHxFJPBMF9ljYrNpiKSsWXo=
+github.com/traefik/yaegi v0.9.18/go.mod h1:FAYnRlZyuVlEkvnkHq3bvJ1lW5be6XuwgLdkYgYG6Lk=
 github.com/tredoe/fileutil v1.0.0/go.mod h1:PBayWPFCURwkmW0u6E8E8C6Jtd9ZzWq/U1iMa6BLRPg=
 github.com/tredoe/goutil v0.0.0-20200111155331-68cefb6d3cdc/go.mod h1:dp4VPOLeEFYbsf1ikgd+uytWDnpCdMiTHMg6mh7hHuQ=
 github.com/tredoe/osutil v1.0.5 h1:mfXjHBJU46GoJDOUcHyV895fauUuVikR9U8yRbGBrqw=

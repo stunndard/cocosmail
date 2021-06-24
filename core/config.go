@@ -22,6 +22,7 @@ type Config struct {
 		ClusterModeEnabled  bool   `name:"cluster_mode_enabled" default:"false"`
 		Me                  string `name:"me" default:""`
 		BasePath            string `name:"base_path" default:"_"`
+		PluginPath          string `name:"plugin_path" default:"_"`
 		TempDir             string `name:"tempdir" default:"/tmp"`
 		LogPath             string `name:"logpath" default:"stdout"`
 		DebugEnabled        bool   `name:"debug_enabled" default:"false"`
@@ -218,6 +219,21 @@ func (c *Config) GetBasePath() string {
 		p, _ = filepath.Abs(filepath.Dir(os.Args[0]))
 	} else {
 		p = c.cfg.BasePath
+	}
+	return p
+}
+
+// GetPluginPath return plugin directory
+func (c *Config) GetPluginPath() string {
+	c.Lock()
+	defer c.Unlock()
+	p := ""
+	if c.cfg.PluginPath == "_" {
+		// same dir as executable
+		p, _ = filepath.Abs(filepath.Dir(os.Args[0]))
+		p = filepath.Join(p, "plugins")
+	} else {
+		p = c.cfg.PluginPath
 	}
 	return p
 }

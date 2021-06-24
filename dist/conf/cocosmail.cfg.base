@@ -336,6 +336,5 @@ export COCOSMAIL_DOVECOT_LDA="/usr/lib/dovecot/dovecot-lda"
 
 
 ##
-# plugin
-# Export here env var need for your plugins
-
+# Path where plugin files reside
+export COCOSMAIL_PLUGIN_PATH="/home/cocosmail/dist/plugins"
