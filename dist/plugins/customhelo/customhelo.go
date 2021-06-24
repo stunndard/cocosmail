@@ -1,4 +1,4 @@
-package ban
+package customhelo
 
 import (
 	"github.com/stunndard/cocosmail/core"

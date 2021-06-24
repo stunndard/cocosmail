@@ -55,7 +55,7 @@ func InitSMTPdPlugins(s *core.SMTPServerSession) {
 	for _, plugin := range smtpdPlugins {
 		yag := interp.New(interp.Options{})
 		yag.Use(yaegi.Symbols)
-		_, err := yag.EvalPath(filepath.Join(core.Cfg.GetPluginPath(), plugin+".go"))
+		_, err := yag.EvalPath(filepath.Join(core.Cfg.GetPluginPath(), plugin, plugin+".go"))
 		if err != nil {
 			s.LogDebug(fmt.Sprintf("plugin %s failed to load: %s", plugin, err))
 			continue
