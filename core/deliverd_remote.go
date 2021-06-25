@@ -13,11 +13,9 @@ import (
 
 func deliverRemote(d *Delivery) {
 	var err error
-	ChDeliverdConcurrencyRemoteCount <- 1
-	defer func() { ChDeliverdConcurrencyRemoteCount <- -1 }()
 
 	// > concurrency remote ?
-	if DeliverdConcurrencyRemoteCount >= Cfg.GetDeliverdConcurrencyRemote() {
+	if int(DeliverdConcurrencyRemoteCount) >= Cfg.GetDeliverdConcurrencyRemote() {
 		d.requeue()
 		return
 	}

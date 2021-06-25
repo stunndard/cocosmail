@@ -38,11 +38,9 @@ var (
 	//Log                              *Logger
 	Logger                           *logrus.Logger
 	NsqQueueProducer                 *nsq.Producer
-	SmtpSessionsCount                int
-	ChSmtpSessionsCount              chan int
-	DeliverdConcurrencyLocalCount    int
-	DeliverdConcurrencyRemoteCount   int
-	ChDeliverdConcurrencyRemoteCount chan int
+	SmtpSessionsCount                int32
+	DeliverdConcurrencyLocalCount    int32
+	DeliverdConcurrencyRemoteCount   int32
 	Store                            Storer
 )
 
@@ -116,24 +114,6 @@ func Bootstrap() (err error) {
 			return err
 		}
 	}
-
-	// SMTP in sessions counter
-	SmtpSessionsCount = 0
-	ChSmtpSessionsCount = make(chan int)
-	go func() {
-		for {
-			SmtpSessionsCount += <-ChSmtpSessionsCount
-		}
-	}()
-
-	// Deliverd remote process
-	DeliverdConcurrencyRemoteCount = 0
-	ChDeliverdConcurrencyRemoteCount = make(chan int)
-	go func() {
-		for {
-			DeliverdConcurrencyRemoteCount += <-ChDeliverdConcurrencyRemoteCount
-		}
-	}()
 
 	/*
 		// openstack

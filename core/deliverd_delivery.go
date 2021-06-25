@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"path"
 	"runtime/debug"
+	"sync/atomic"
 	"text/template"
 	"time"
 
@@ -165,7 +166,9 @@ func (d *Delivery) processMsg() {
 	if d.IsLocal {
 		deliverLocal(d)
 	} else {
+		atomic.AddInt32(&DeliverdConcurrencyRemoteCount, 1)
 		deliverRemote(d)
+		atomic.AddInt32(&DeliverdConcurrencyRemoteCount,-1)
 	}
 	return
 }

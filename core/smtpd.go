@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"path"
+	"sync/atomic"
 )
 
 // Smtpd SMTP Server
@@ -63,9 +64,9 @@ func (s *Smtpd) ListenAndServe() {
 				log.Println("unable to get new SmtpServerSession.", err)
 				return
 			}
-			ChSmtpSessionsCount <- 1
+			atomic.AddInt32(&SmtpSessionsCount, 1)
 			sess.handle()
-			ChSmtpSessionsCount <- -1
+			atomic.AddInt32(&SmtpSessionsCount, -1)
 		}(conn)
 	}
 }

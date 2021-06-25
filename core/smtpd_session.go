@@ -218,7 +218,7 @@ func (s *SMTPServerSession) smtpGreeting() {
 	// Todo desactiver server signature en option
 	// dans le cas ou l'on refuse la transaction on doit répondre par un 554 et attendre le quit
 	time.Sleep(100 * time.Nanosecond)
-	if SmtpSessionsCount > Cfg.GetSmtpdConcurrencyIncoming() {
+	if int(SmtpSessionsCount) > Cfg.GetSmtpdConcurrencyIncoming() {
 		s.Log(fmt.Sprintf("GREETING - max connections reached %d/%d", SmtpSessionsCount, Cfg.GetSmtpdConcurrencyIncoming()))
 		s.Out(fmt.Sprintf("421 sorry, the maximum number of connections has been reached, try again later %s", s.uuid))
 		s.SMTPResponseCode = 421
