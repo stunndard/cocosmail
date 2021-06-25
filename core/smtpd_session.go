@@ -83,7 +83,7 @@ func NewSMTPServerSession(conn net.Conn, dsn Dsn) (*SMTPServerSession, error) {
 		seenHelo:       false,
 		seenMail:       false,
 		// timeout
-		exitasap: make(chan int, 1),
+		exitasap: make(chan int),
 		timeout:  time.Duration(Cfg.GetSmtpdServerTimeout()) * time.Second,
 	}
 	session.timer = time.AfterFunc(session.timeout, session.raiseTimeout)
@@ -132,24 +132,28 @@ func (s *SMTPServerSession) recoverOnPanic() {
 
 // ExitAsap exist session as soon as possible
 func (s *SMTPServerSession) ExitAsap() {
+	//s.Log("exitasap() enter")
+	//defer s.Log("exitasap() done")
+
+	s.timer.Stop()
+
 	if s.exiting {
 		time.Sleep(time.Duration(1) * time.Millisecond)
 		return
 	}
 	s.exiting = true
-	if !s.timer.Stop() {
-		go func() { <-s.timer.C }()
-	}
+
 	// Plugins
 	ExecSMTPdPlugins("exitasap", s)
+	s.Conn.Close()
+	//s.Log("waiting in exitasap()")
 	s.exitasap <- 1
+	//s.Log("finished waiting in exitasap()")
 }
 
 // resetTimeout reset timeout
 func (s *SMTPServerSession) resetTimeout() {
-	if !s.timer.Stop() {
-		go func() { <-s.timer.C }()
-	}
+	s.timer.Stop()
 	s.timer.Reset(s.timeout)
 }
 
@@ -1288,19 +1292,17 @@ func (s *SMTPServerSession) noop() {
 func (s *SMTPServerSession) handle() {
 	defer s.recoverOnPanic()
 
-	// Init some var
-	//var msg []byte
-
 	// initialize all active smtpd plugins
 	InitSMTPdPlugins(s)
 
 	buffer := make([]byte, 1)
 
-	// welcome (
-	s.smtpGreeting()
-
+	//s.Log("before gofunc")
 	go func() {
 		defer s.recoverOnPanic()
+        	// welcome (
+		s.smtpGreeting()
+
 		for {
 			_, err := s.Conn.Read(buffer)
 			if err != nil {
@@ -1375,6 +1377,7 @@ func (s *SMTPServerSession) handle() {
 			}
 		}
 	}()
+	//s.Log("waiting on exitasap")
 	<-s.exitasap
 	_ = s.Conn.Close()
 	s.Log("EOT")
