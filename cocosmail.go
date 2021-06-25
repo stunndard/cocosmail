@@ -119,6 +119,8 @@ func main() {
 			opts.Logger = core.NewNSQLogger()
 			opts.Verbose = core.Cfg.GetDebugEnabled()
 			opts.DataPath = core.Cfg.GetBasePath() + "/nsq"
+			opts.TCPAddress = "127.0.0.1:4150"
+			opts.HTTPAddress = "127.0.0.1:4151"
 			// if cluster get lookupd addresses
 			if core.Cfg.GetClusterModeEnabled() {
 				opts.NSQLookupdTCPAddresses = core.Cfg.GetNSQLookupdTcpAddresses()
