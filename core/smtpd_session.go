@@ -285,12 +285,14 @@ func (s *SMTPServerSession) heloBase(msg []string) (cont bool) {
 				ok, err := isFQN(msg[1])
 				if err != nil {
 					s.Log("fail to do lookup on helo host. " + err.Error())
+					s.pause(2)
 					s.Out("404 unable to resolve " + msg[1] + ". Need fqdn or address in helo command")
 					s.SMTPResponseCode = 404
 					return false
 				}
 				if !ok {
 					s.Log("helo command rejected, need fully-qualified hostname or address" + msg[1] + " given")
+					s.pause(2)
 					s.Out("504 helo command rejected, need fully-qualified hostname or address #5.5.2")
 					s.SMTPResponseCode = 504
 					return false
@@ -300,6 +302,7 @@ func (s *SMTPServerSession) heloBase(msg []string) (cont bool) {
 		s.helo = strings.Join(msg[1:], " ")
 	} else if Cfg.getRFCHeloNeedsFqnOrAddress() {
 		s.Log("helo command rejected, need fully-qualified hostname. None given")
+		s.pause(2)
 		s.Out("504 helo command rejected, need fully-qualified hostname or address #5.5.2")
 		s.SMTPResponseCode = 504
 		return false
@@ -436,9 +439,9 @@ func (s *SMTPServerSession) smtpMailFrom(msg []string) {
 	if reversePathlen > 0 { // 0 -> null reverse path (bounce)
 		if reversePathlen > 256 { // RFC 5321 4.3.5.1.3
 			s.Log("MAIL - reverse path is too long: " + s.Envelope.MailFrom)
+			s.pause(2)
 			s.Out("550 reverse path must be lower than 255 char (RFC 5321 4.5.1.3.1)")
 			s.SMTPResponseCode = 550
-			s.pause(2)
 			return
 		}
 		localDomain := strings.Split(s.Envelope.MailFrom, "@")
@@ -455,16 +458,16 @@ func (s *SMTPServerSession) smtpMailFrom(msg []string) {
 		}
 		if Cfg.getRFCMailFromLocalpartSize() && len(localDomain[0]) > 64 {
 			s.Log("MAIL - local part is too long: " + s.Envelope.MailFrom)
+			s.pause(2)
 			s.Out("550 local part of reverse path MUST be lower than 65 char (RFC 5321 4.5.3.1.1)")
 			s.SMTPResponseCode = 550
-			s.pause(2)
 			return
 		}
 		if len(localDomain[1]) > 255 {
 			s.Log("MAIL - domain part is too long: " + s.Envelope.MailFrom)
+			s.pause(2)
 			s.Out("550 domain part of reverse path MUST be lower than 255 char (RFC 5321 4.5.3.1.2)")
 			s.SMTPResponseCode = 550
-			s.pause(2)
 			return
 		}
 		// domain part should be FQDN
@@ -477,6 +480,7 @@ func (s *SMTPServerSession) smtpMailFrom(msg []string) {
 		}
 		if !ok {
 			s.Log("MAIL - need fully-qualified hostname. " + localDomain[1] + " given")
+			s.pause(2)
 			s.Out("550 5.5.2 need fully-qualified hostname for domain part")
 			s.SMTPResponseCode = 550
 			return
@@ -509,6 +513,7 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 	//s.LogDebug(fmt.Sprintf("RCPT TO %d/%d", s.rcptCount, Cfg.GetSmtpdMaxRcptTo()))
 	if Cfg.GetSmtpdMaxRcptTo() != 0 && s.rcptCount > Cfg.GetSmtpdMaxRcptTo() {
 		s.Log(fmt.Sprintf("max RCPT TO command reached (%d)", Cfg.GetSmtpdMaxRcptTo()))
+		s.pause(2)
 		s.Out("451 4.5.3 max RCPT To commands reached for this sessions")
 		s.SMTPResponseCode = 451
 		return
@@ -602,6 +607,7 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 		rcpthost, err := RcpthostGet(localDom[1])
 		if err != nil && err != gorm.ErrRecordNotFound {
 			s.LogError("RCPT - relay access failed while queriyng for rcpthost. " + err.Error())
+			s.pause(2)
 			s.Out("455 4.3.0 oops, problem with relay access")
 			s.SMTPResponseCode = 455
 			return
@@ -616,12 +622,14 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 				exists, err := IsValidLocalRcpt(strings.ToLower(s.LastRcptTo))
 				if err != nil {
 					s.LogError("RCPT - relay access failed while checking validity of local rpctto. " + err.Error())
+					s.pause(2)
 					s.Out("455 4.3.0 oops, problem with relay access")
 					s.SMTPResponseCode = 455
 					return
 				}
 				if !exists {
 					s.Log("RCPT - no mailbox here by that name: " + s.LastRcptTo)
+					s.pause(2)
 					s.Out("550 5.5.1 Sorry, no mailbox here by that name")
 					s.SMTPResponseCode = 550
 					s.BadRcptToCount++
@@ -644,6 +652,7 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 		s.RelayGranted, err = IpCanRelay(s.Conn.RemoteAddr())
 		if err != nil {
 			s.LogError("RCPT - relay access failed while checking if IP is allowed to relay. " + err.Error())
+			s.pause(2)
 			s.Out("455 4.3.0 oops, problem with relay access")
 			s.SMTPResponseCode = 455
 			return
@@ -653,9 +662,9 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 	// Relay denied
 	if !s.RelayGranted {
 		s.Log("Relay access denied - from " + s.Envelope.MailFrom + " to " + s.LastRcptTo)
+		s.pause(2)
 		s.Out("554 5.7.1 Relay access denied")
 		s.SMTPResponseCode = 554
-		s.pause(2)
 		return
 	}
 
@@ -676,6 +685,7 @@ func (s *SMTPServerSession) smtpVrfy(msg []string) {
 	s.LogDebug(fmt.Sprintf("VRFY -  %d/%d", s.vrfyCount, Cfg.GetSmtpdMaxVrfy()))
 	if Cfg.GetSmtpdMaxVrfy() != 0 && s.vrfyCount > Cfg.GetSmtpdMaxVrfy() {
 		s.Log(fmt.Sprintf(" VRFY - max command reached (%d)", Cfg.GetSmtpdMaxVrfy()))
+		s.pause(2)
 		s.Out("551 5.5.3 too many VRFY commands for this sessions")
 		s.SMTPResponseCode = 551
 		return
@@ -755,6 +765,7 @@ func (s *SMTPServerSession) smtpVrfy(msg []string) {
 			}
 			if !exists {
 				s.Log("VRFY - no mailbox here by that name: " + rcptto)
+				s.pause(2)
 				s.Out("551 5.5.1 <" + rcptto + "> no mailbox here by that name")
 				s.SMTPResponseCode = 551
 				return
@@ -768,6 +779,7 @@ func (s *SMTPServerSession) smtpVrfy(msg []string) {
 		}
 	} else {
 		s.Log("VRFY - no mailbox here by that name: " + rcptto)
+		s.pause(2)
 		s.Out("551 5.5.1 <" + rcptto + "> no mailbox here by that name")
 		s.SMTPResponseCode = 551
 		return
@@ -985,6 +997,7 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 			return
 		}
 		if found {
+			s.pause(2)
 			s.Out("554 5.7.1 message infected by " + virusName)
 			s.SMTPResponseCode = 554
 			s.Log("MAIL - infected by " + virusName)
@@ -1212,6 +1225,7 @@ func (s *SMTPServerSession) smtpAuth(rawMsg string) {
 		}
 		encoded = string(line)
 	} else {
+		s.pause(2)
 		s.Out("501 malformed auth input (#5.5.4)")
 		s.SMTPResponseCode = 501
 		s.Log("malformed auth input: " + rawMsg)
@@ -1222,6 +1236,7 @@ func (s *SMTPServerSession) smtpAuth(rawMsg string) {
 	// decode  "authorize-id\0userid\0passwd\0"
 	authData, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
+		s.pause(2)
 		s.Out("501 malformed auth input (#5.5.4)")
 		s.SMTPResponseCode = 501
 		s.Log("malformed auth input: " + rawMsg + " err:" + err.Error())
@@ -1246,6 +1261,7 @@ func (s *SMTPServerSession) smtpAuth(rawMsg string) {
 	s.user, err = UserGet(authLogin, authPasswd)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
+			s.pause(2)
 			s.Out("535 authentication failed - No such user (#5.7.1)")
 			s.SMTPResponseCode = 535
 			AuthSMTPdPlugins(authLogin, authPasswd, false, s)
@@ -1254,6 +1270,7 @@ func (s *SMTPServerSession) smtpAuth(rawMsg string) {
 			return
 		}
 		if err == bcrypt.ErrMismatchedHashAndPassword {
+			s.pause(2)
 			s.Out("535 authentication failed (#5.7.1)")
 			s.SMTPResponseCode = 535
 			AuthSMTPdPlugins(authLogin, authPasswd, false, s)
@@ -1261,6 +1278,7 @@ func (s *SMTPServerSession) smtpAuth(rawMsg string) {
 			s.ExitAsap()
 			return
 		}
+		s.pause(2)
 		s.Out("454 oops, problem with auth (#4.3.0)")
 		s.SMTPResponseCode = 454
 		AuthSMTPdPlugins(authLogin, authPasswd, false, s)
