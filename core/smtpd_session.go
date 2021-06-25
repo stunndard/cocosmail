@@ -145,7 +145,7 @@ func (s *SMTPServerSession) ExitAsap() {
 
 	// Plugins
 	ExecSMTPdPlugins("exitasap", s)
-	s.Conn.Close()
+	_ = s.Conn.Close()
 	//s.Log("waiting in exitasap()")
 	s.exitasap <- 1
 	//s.Log("finished waiting in exitasap()")
