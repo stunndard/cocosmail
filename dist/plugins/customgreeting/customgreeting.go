@@ -1,4 +1,4 @@
-package customhelo
+package customgreeting
 
 import (
 	"github.com/stunndard/cocosmail/core"
@@ -14,6 +14,6 @@ func initialize() error {
 
 func connect(s *core.SMTPServerSession) (bool, bool, error) {
 
-	s.Out("220 hi from customhelo plugin " + counter)
+	s.Out("220 hi from customgreeting plugin " + counter)
 	return true, false, nil
 }

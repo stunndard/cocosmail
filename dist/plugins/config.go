@@ -10,7 +10,7 @@ func core() []string {
 func smtpd() []string {
 	return []string{
 	"fail2ban",
-	"customhelo",
+	"customgreeting",
 	}
 }
 
