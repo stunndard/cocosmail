@@ -10,6 +10,6 @@ func NewNSQLogger() *NSQLogger {
 
 // Output implements nsq.logger.Output interface
 func (n *NSQLogger) Output(calldepth int, s string) error {
-	Logger.Debug(s)
+	//Logger.Debug(s)
 	return nil
 }

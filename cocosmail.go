@@ -109,15 +109,11 @@ func main() {
 			sigChan := make(chan os.Signal, 1)
 			signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-			// TODO
-			// Chanel to comunicate between all elements
-			//daChan := make(chan string)
-
 			// init and launch nsqd
 			opts := nsqd.NewOptions()
 			opts.Logger = log.New(ioutil.Discard, "", 0)
-			opts.Logger = core.NewNSQLogger()
-			opts.Verbose = core.Cfg.GetDebugEnabled()
+			//opts.Logger = core.NewNSQLogger()
+			//opts.Verbose = core.Cfg.GetDebugEnabled()
 			opts.DataPath = core.Cfg.GetBasePath() + "/nsq"
 			opts.TCPAddress = "127.0.0.1:4150"
 			opts.HTTPAddress = "127.0.0.1:4151"
