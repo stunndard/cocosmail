@@ -53,7 +53,6 @@ type SMTPServerSession struct {
 	helo             string
 	Envelope         message.Envelope
 	LastRcptTo       string
-	exitasap         chan int
 	rcptCount        int
 	BadRcptToCount   int
 	vrfyCount        int
@@ -83,7 +82,6 @@ func NewSMTPServerSession(conn net.Conn, dsn Dsn) (*SMTPServerSession, error) {
 		seenHelo:       false,
 		seenMail:       false,
 		// timeout
-		exitasap: make(chan int),
 		timeout:  time.Duration(Cfg.GetSmtpdServerTimeout()) * time.Second,
 	}
 	session.timer = time.AfterFunc(session.timeout, session.raiseTimeout)
@@ -146,9 +144,6 @@ func (s *SMTPServerSession) ExitAsap() {
 	// Plugins
 	ExecSMTPdPlugins("exitasap", s)
 	_ = s.Conn.Close()
-	//s.Log("waiting in exitasap()")
-	s.exitasap <- 1
-	//s.Log("finished waiting in exitasap()")
 }
 
 // resetTimeout reset timeout
@@ -352,7 +347,7 @@ func (s *SMTPServerSession) smtpMailFrom(msg []string) {
 	msgLen := len(msg)
 	// mail from ?
 	if msgLen == 1 || !strings.HasPrefix(strings.ToLower(msg[1]), "from:") || msgLen > 4 {
-		s.Log("MAIL - Bad syntax: %s" + strings.Join(msg, " "))
+		s.Log(fmt.Sprintf("MAIL - Bad syntax: %s", strings.Join(msg, " ")))
 		s.pause(2)
 		s.Out("501 5.5.4 Syntax: MAIL FROM:<address> [SIZE]")
 		s.SMTPResponseCode = 501
@@ -387,7 +382,7 @@ func (s *SMTPServerSession) smtpMailFrom(msg []string) {
 	if len(extension) != 0 {
 		// Only SIZE is supported (and announced)
 		if len(extension) > 1 {
-			s.Log("MAIL - Bad syntax: " + strings.Join(msg, " "))
+			s.Log(fmt.Sprintf("MAIL - Bad syntax: %s", strings.Join(msg, " ")))
 			s.pause(2)
 			s.Out("501 5.5.4 Syntax: MAIL FROM:<address> [SIZE]")
 			s.SMTPResponseCode = 501
@@ -542,7 +537,7 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 	}
 
 	if len(s.LastRcptTo) == 0 {
-		s.Log("RCPT - Bad syntax : %s " + strings.Join(msg, " "))
+		s.Log(fmt.Sprintf("RCPT - Bad syntax : %s ", strings.Join(msg, " ")))
 		s.pause(2)
 		s.Out("501 5.5.4 syntax: RCPT TO:<address>")
 		s.SMTPResponseCode = 501
@@ -688,7 +683,7 @@ func (s *SMTPServerSession) smtpVrfy(msg []string) {
 	}
 
 	if len(msg) != 2 {
-		s.Log("VRFY - Bad syntax : %s " + strings.Join(msg, " "))
+		s.Log(fmt.Sprintf("VRFY - Bad syntax : %s", strings.Join(msg, " ")))
 		s.pause(2)
 		s.Out("551 5.5.4 syntax: VRFY <address>")
 		s.SMTPResponseCode = 551
@@ -698,7 +693,7 @@ func (s *SMTPServerSession) smtpVrfy(msg []string) {
 	// vrfy: user
 	rcptto = msg[1]
 	if len(rcptto) == 0 {
-		s.Log("VRFY - Bad syntax : %s " + strings.Join(msg, " "))
+		s.Log(fmt.Sprintf("VRFY - Bad syntax : %s", strings.Join(msg, " ")))
 		s.pause(2)
 		s.Out("551 5.5.4 syntax: VRFY <address>")
 		s.SMTPResponseCode = 551
@@ -1298,89 +1293,84 @@ func (s *SMTPServerSession) handle() {
 	buffer := make([]byte, 1)
 
 	//s.Log("before gofunc")
-	go func() {
-		defer s.recoverOnPanic()
-        	// welcome (
-		s.smtpGreeting()
 
-		for {
-			_, err := s.Conn.Read(buffer)
-			if err != nil {
-				if err.Error() == "EOF" {
-					s.LogDebug(s.Conn.RemoteAddr().String(), "- Client send EOF")
-				} else if strings.Contains(err.Error(), "connection reset by peer") {
-					s.Log(err.Error())
-				} else if !strings.Contains(err.Error(), "use of closed network connection") {
-					s.LogError("unable to read data from client - ", err.Error())
-				}
-				s.ExitAsap()
-				break
+	defer s.recoverOnPanic()
+	// welcome (
+	s.smtpGreeting()
+
+	for {
+		_, err := s.Conn.Read(buffer)
+		if err != nil {
+			if err.Error() == "EOF" {
+				s.LogDebug(s.Conn.RemoteAddr().String(), "- Client send EOF")
+			} else if strings.Contains(err.Error(), "connection reset by peer") {
+				s.Log(err.Error())
+			} else if !strings.Contains(err.Error(), "use of closed network connection") {
+				s.LogError("unable to read data from client - ", err.Error())
 			}
-
-			if buffer[0] == 0x00 {
-				continue
-			}
-
-			if buffer[0] == 10 {
-				s.timer.Stop()
-				var rmsg string
-				strMsg := strings.TrimSpace(string(s.lastClientCmd))
-				s.LogDebug("<", strMsg)
-				var splittedMsg []string
-				for _, m := range strings.Split(strMsg, " ") {
-					m = strings.TrimSpace(m)
-					if m != "" {
-						splittedMsg = append(splittedMsg, m)
-					}
-				}
-
-				// get command, first word
-				// TODO Use textproto / scanner
-				if len(splittedMsg) != 0 {
-					verb := strings.ToLower(splittedMsg[0])
-					switch verb {
-					case "helo":
-						s.smtpHelo(splittedMsg)
-					case "ehlo":
-						s.smtpEhlo(splittedMsg)
-					case "mail":
-						s.smtpMailFrom(splittedMsg)
-					case "vrfy":
-						s.smtpVrfy(splittedMsg)
-					case "expn":
-						s.smtpExpn(splittedMsg)
-					case "rcpt":
-						s.smtpRcptTo(splittedMsg)
-					case "data":
-						s.smtpData(splittedMsg)
-					case "starttls":
-						s.smtpStartTLS()
-					case "auth":
-						s.smtpAuth(strMsg)
-					case "rset":
-						s.rset()
-					case "noop":
-						s.noop()
-					case "quit":
-						s.smtpQuit()
-					default:
-						rmsg = "502 5.5.1 unimplemented"
-						s.Log("unimplemented command from client:", strMsg)
-						s.Out(rmsg)
-						s.SMTPResponseCode = 502
-					}
-				}
-				//s.resetTimeout()
-				s.lastClientCmd = []byte{}
-			} else {
-				s.lastClientCmd = append(s.lastClientCmd, buffer[0])
-			}
+			s.ExitAsap()
+			break
 		}
-	}()
-	//s.Log("waiting on exitasap")
-	<-s.exitasap
-	_ = s.Conn.Close()
+
+		if buffer[0] == 0x00 {
+			continue
+		}
+
+		if buffer[0] == 10 {
+			s.timer.Stop()
+			var rmsg string
+			strMsg := strings.TrimSpace(string(s.lastClientCmd))
+			s.LogDebug("<", strMsg)
+			var splittedMsg []string
+			for _, m := range strings.Split(strMsg, " ") {
+				m = strings.TrimSpace(m)
+				if m != "" {
+					splittedMsg = append(splittedMsg, m)
+				}
+			}
+
+			// get command, first word
+			// TODO Use textproto / scanner
+			if len(splittedMsg) != 0 {
+				verb := strings.ToLower(splittedMsg[0])
+				switch verb {
+				case "helo":
+					s.smtpHelo(splittedMsg)
+				case "ehlo":
+					s.smtpEhlo(splittedMsg)
+				case "mail":
+					s.smtpMailFrom(splittedMsg)
+				case "vrfy":
+					s.smtpVrfy(splittedMsg)
+				case "expn":
+					s.smtpExpn(splittedMsg)
+				case "rcpt":
+					s.smtpRcptTo(splittedMsg)
+				case "data":
+					s.smtpData(splittedMsg)
+				case "starttls":
+					s.smtpStartTLS()
+				case "auth":
+					s.smtpAuth(strMsg)
+				case "rset":
+					s.rset()
+				case "noop":
+					s.noop()
+				case "quit":
+					s.smtpQuit()
+				default:
+					rmsg = "502 5.5.1 unimplemented"
+					s.Log("unimplemented command from client:", strMsg)
+					s.Out(rmsg)
+					s.SMTPResponseCode = 502
+				}
+			}
+			//s.resetTimeout()
+			s.lastClientCmd = []byte{}
+		} else {
+			s.lastClientCmd = append(s.lastClientCmd, buffer[0])
+		}
+	}
 	s.Log("EOT")
-	//s.exiting = false
 	return
 }

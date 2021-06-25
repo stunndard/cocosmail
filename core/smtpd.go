@@ -47,26 +47,25 @@ func (s *Smtpd) ListenAndServe() {
 			log.Fatalln("unable to create listener")
 		}
 	}
-	if err != nil {
-		log.Fatalln(err)
-	} else {
-		defer listener.Close()
-		for {
-			conn, error := listener.Accept()
-			if error != nil {
-				log.Println("Client error: ", error)
-			} else {
-				go func(conn net.Conn) {
-					ChSmtpSessionsCount <- 1
-					defer func() { ChSmtpSessionsCount <- -1 }()
-					sss, err := NewSMTPServerSession(conn, s.dsn)
-					if err != nil {
-						log.Println("unable to get new SmtpServerSession.", err)
-					} else {
-						sss.handle()
-					}
-				}(conn)
-			}
+
+	defer func() { _ = listener.Close() }()
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			log.Println("Client error: ", err)
+			continue
 		}
+
+		go func(conn net.Conn) {
+			ChSmtpSessionsCount <- 1
+			defer func() { ChSmtpSessionsCount <- -1 }()
+			sess, err := NewSMTPServerSession(conn, s.dsn)
+			if err != nil {
+				log.Println("unable to get new SmtpServerSession.", err)
+				return
+			}
+			sess.handle()
+		}(conn)
 	}
 }
