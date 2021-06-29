@@ -79,15 +79,10 @@ func Unix2dos(ch *[]byte) (err error) {
 func isFQN(host string) (bool, error) {
 	_, err := net.LookupMX(host)
 	if err != nil {
-		if strings.HasSuffix(err.Error(), "no such host") {
-			// Try A
-			_, err = net.LookupHost(host)
-			if err != nil {
-				if strings.HasSuffix(err.Error(), "no such host") {
-					return false, nil
-				}
-				return false, err
-			}
+		// Try A
+		_, err = net.LookupHost(host)
+		if err != nil {
+			return false, err
 		}
 	}
 	return true, nil
