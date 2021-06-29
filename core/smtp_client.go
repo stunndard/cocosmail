@@ -21,10 +21,11 @@ import (
 
 // smtpClient represent an SMTP client
 type smtpClient struct {
-	text    *textproto.Conn
-	route   *Route
-	conn    net.Conn
-	connTLS *tls.Conn
+	text       *textproto.Conn
+	route      *Route
+	conn       net.Conn
+	connTLS    *tls.Conn
+	systemName string
 	// map of supported extensions
 	ext map[string]string
 	// whether the Client is using TLS
@@ -38,7 +39,11 @@ type smtpClient struct {
 // newSMTPClient return a connected SMTP client
 func newSMTPClient(d *Delivery, routes []Route, timeoutBasePerCmd int) (client *smtpClient, err error) {
 	for _, route := range routes {
-		localIPs := []net.IP{}
+		var localIPs []struct {
+			ip         net.IP
+			systemName string
+		}
+
 		remoteAddresses := []net.TCPAddr{}
 
 		// If there is no local IP get default (as defined in config)
@@ -78,13 +83,27 @@ func newSMTPClient(d *Delivery, routes []Route, timeoutBasePerCmd int) (client *
 			rSIps = nil
 		}
 
-		// IP string to net.IP
+		// IP:systemname string to net.IP and systemname
 		for _, ipStr := range sIps {
-			ip := net.ParseIP(ipStr)
+			ipAndName := strings.Split(ipStr, ":")
+			if len(ipAndName) == 0 {
+				return nil, errors.New(fmt.Sprintf("invalid IP:name %s found in localIp routes: %s", ipStr, route.LocalIp.String))
+			}
+			ip := net.ParseIP(ipAndName[0])
 			if ip == nil {
 				return nil, errors.New("invalid IP " + ipStr + " found in localIp routes: " + route.LocalIp.String)
 			}
-			localIPs = append(localIPs, ip)
+			sysName := Cfg.GetMe()
+			if len(ipAndName) > 1 {
+				sysName = ipAndName[1]
+			}
+			localIPs = append(localIPs, struct {
+				ip         net.IP
+				systemName string
+			}{
+				ip: ip,
+				systemName: sysName,
+			})
 		}
 
 		// remoteAdresses
@@ -115,7 +134,7 @@ func newSMTPClient(d *Delivery, routes []Route, timeoutBasePerCmd int) (client *
 		for _, localIP := range localIPs {
 			for _, remoteAddr := range remoteAddresses {
 				// IPv4 <-> IPv4 or IPv6 <-> IPv6
-				if IsIPV4(localIP.String()) != IsIPV4(remoteAddr.IP.String()) {
+				if IsIPV4(localIP.ip.String()) != IsIPV4(remoteAddr.IP.String()) {
 					continue
 				}
 
@@ -125,9 +144,9 @@ func newSMTPClient(d *Delivery, routes []Route, timeoutBasePerCmd int) (client *
 					continue
 				}
 
-				localAddr, err := net.ResolveTCPAddr("tcp", localIP.String()+":0")
+				localAddr, err := net.ResolveTCPAddr("tcp", localIP.ip.String()+":0")
 				if err != nil {
-					return nil, errors.New("bad local IP: " + localIP.String() + ". " + err.Error())
+					return nil, errors.New("bad local IP: " + localIP.ip.String() + ". " + err.Error())
 				}
 
 				// Dial timeout
@@ -144,9 +163,10 @@ func newSMTPClient(d *Delivery, routes []Route, timeoutBasePerCmd int) (client *
 					client = &smtpClient{
 						conn:              conn,
 						timeoutBasePerCmd: timeoutBasePerCmd,
+						systemName: localIP.systemName,
+						route: &route,
+						text: textproto.NewConn(conn),
 					}
-					client.route = &route
-					client.text = textproto.NewConn(conn)
 					_, _, err = client.text.ReadResponse(220)
 					done <- err
 				}()
@@ -299,7 +319,7 @@ func (s *smtpClient) Hello() (code int, msg string, err error) {
 
 // SMTP HELO
 func (s *smtpClient) Ehlo() (code int, msg string, err error) {
-	code, msg, err = s.cmd(s.timeoutBasePerCmd, 250, "EHLO %s", Cfg.GetMe())
+	code, msg, err = s.cmd(s.timeoutBasePerCmd, 250, "EHLO %s", s.systemName)
 	if err != nil {
 		return code, msg, err
 	}
@@ -326,7 +346,7 @@ func (s *smtpClient) Ehlo() (code int, msg string, err error) {
 // SMTP HELO
 func (s *smtpClient) Helo() (code int, msg string, err error) {
 	s.ext = nil
-	code, msg, err = s.cmd(s.timeoutBasePerCmd, 250, "HELO %s", Cfg.GetMe())
+	code, msg, err = s.cmd(s.timeoutBasePerCmd, 250, "HELO %s", s.systemName)
 	return
 }
 

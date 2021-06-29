@@ -165,7 +165,11 @@ export COCOSMAIL_DELIVERD_LAUNCH=true
 # deliverd will use local IP in a random order
 # If an IP is present X time this will increase its priority
 #
-# You must define at least one local addresse
+# You must define at least one local address
+# You can specify a hostname after IP that will be used in HELO when delivering email
+# and for other (which ones?) purposes associated with this deliveryd IP connection
+# Example :
+# 127.0.0.1:cocosmail.io&127.0.0.2&127.0.0.3:kokosmail.io
 export COCOSMAIL_DELIVERD_LOCAL_IPS="0.0.0.0"
 
 # Local Concurrency
