@@ -7,6 +7,7 @@ var (
 	InitSMTPdPlugins func(session *SMTPServerSession)
 	ExecSMTPdPlugins func(hook string, session *SMTPServerSession) (done, drop bool)
 	AuthSMTPdPlugins func(user, passwd string, success bool, session *SMTPServerSession)
+	NotifySMTPdPlugins func(session *SMTPServerSession) (drop bool)
 )
 
 // Deliverd plugins

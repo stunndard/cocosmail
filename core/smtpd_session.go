@@ -1382,6 +1382,10 @@ func (s *SMTPServerSession) handle() {
 					s.Out(rmsg)
 					s.SMTPResponseCode = 502
 				}
+				if NotifySMTPdPlugins(s) {
+					s.Log("plugin terminating session")
+					s.ExitAsap()
+				}
 			}
 			//s.resetTimeout()
 			s.lastClientCmd = []byte{}

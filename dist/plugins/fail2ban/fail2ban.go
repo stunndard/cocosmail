@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/stunndard/cocosmail/core"
@@ -35,13 +36,12 @@ func initialize() error {
 // and proceed to next phase in the SMTP session. Otherwise,
 // the host will also do its own processing after calling this hook.
 // Return drop to terminate the SMTP client session immediately.
-// Return err to signalize an error to the host
+// Return err to signalize an error to the host.
 func connect(s *core.SMTPServerSession) (done, drop bool, err error) {
 	jsn, err := core.PluginLoadObject("ban", "ips")
 	if err != nil {
 		return false, false, err
 	}
-
 	err = json.Unmarshal(jsn, &ips)
 	if err != nil {
 		return false, false, err
@@ -74,9 +74,9 @@ func connect(s *core.SMTPServerSession) (done, drop bool, err error) {
 	}
 	// sorry, reban
 	/*
-	ip.Expires = time.Now().Add(24 * 3 * time.Hour)
-	jsn, _ = json.Marshal(ips)
-	err = core.PluginSaveObject("ban", "ips", jsn)
+	   ip.Expires = time.Now().Add(24 * 3 * time.Hour)
+	   jsn, _ = json.Marshal(ips)
+	   err = core.PluginSaveObject("ban", "ips", jsn)
 	*/
 	// drop connection
 	return false, true, nil
@@ -85,13 +85,21 @@ func connect(s *core.SMTPServerSession) (done, drop bool, err error) {
 // auth is called with the result of AUTH command processed by the host.
 // user: username used in AUTH command.
 // pass: password used in AUTH command.
-// success: true if AUTH was successful, false otherwise
+// success: true if AUTH was successful, false otherwise.
 func auth(user, pass string, success bool, s *core.SMTPServerSession) error {
 	if success {
 		return nil
 	}
 	remoteIP, _, _ := net.SplitHostPort(s.Conn.RemoteAddr().String())
 	s.LogDebug(fmt.Sprintf("auth failed: ip: %s user: %s pass: %s", remoteIP, user, pass))
+
+	_, err := checkAndBan(s)
+	return err
+}
+
+
+func checkAndBan(s *core.SMTPServerSession) (banned bool, err error) {
+	remoteIP, _, _ := net.SplitHostPort(s.Conn.RemoteAddr().String())
 
 	var ip *IpData
 	var ok bool
@@ -105,12 +113,50 @@ func auth(user, pass string, success bool, s *core.SMTPServerSession) error {
 		ip.Banned = true
 		ip.Expires = time.Now().Add(BANTIME * time.Hour)
 		s.LogDebug(fmt.Sprintf("banned ip: %s", remoteIP))
+		banned = true
 	}
 	// update ip
 	ips[remoteIP] = ip
 
 	jsn, _ := json.Marshal(ips)
-	s.LogDebug(fmt.Sprintf("json: %s", jsn))
-	return core.PluginSaveObject("ban", "ips", jsn)
+	//s.LogDebug(fmt.Sprintf("json: %s", jsn))
+	return banned, core.PluginSaveObject("ban", "ips", jsn)
 }
 
+// helo is called on HELO/EHLO command.
+// Return done if no more processing should be done by the host
+// and proceed to next phase in the SMTP session. Otherwise,
+// the host will also do its own processing after calling this hook.
+// Return drop to terminate the SMTP client session immediately.
+// Return err to signalize an error to the host.
+func helo(s *core.SMTPServerSession) (done, drop bool, err error) {
+	heloCmd := strings.ToLower(string(s.GetLastClientCmd()))
+	s.LogDebug(fmt.Sprintf("helo received: %s", heloCmd))
+
+	if heloCmd == "ehlo user" {
+		drop, err = checkAndBan(s)
+	}
+	if heloCmd == "ehlo example.com" {
+		drop, err = checkAndBan(s)
+	}
+
+	return false, drop, err
+}
+
+
+// notify is called AFTER each SMTP command processed by the host.
+// session object contains all relevant data set, for example s.SMTPResponseCode.
+// The plugin can act accordingly on every command.
+// smtpCommand: the last command sent by the client and processed by the host
+// Return drop to terminate the SMTP client session immediately.
+// Return err to signalize an error to the host.
+func notify(s *core.SMTPServerSession) (drop bool, err error) {
+	rcptTo := strings.HasPrefix(strings.ToLower(string(s.GetLastClientCmd())), "rcpt to")
+	if rcptTo && s.SMTPResponseCode == 554 {
+		remoteIP, _, _ := net.SplitHostPort(s.Conn.RemoteAddr().String())
+		s.LogDebug(fmt.Sprintf("ip %s was denied to relay", remoteIP))
+		drop, err = checkAndBan(s)
+	}
+
+	return drop, err
+}

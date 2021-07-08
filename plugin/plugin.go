@@ -14,6 +14,7 @@ func InitModule() {
 	core.InitSMTPdPlugins = InitSMTPdPlugins
 	core.ExecSMTPdPlugins = ExecSMTPdPlugins
 	core.AuthSMTPdPlugins = AuthSMTPdPlugins
+	core.NotifySMTPdPlugins = NotifySMTPdPlugins
 }
 
 func getActivePlugins() (cor []string, smtpd []string, deliveryd []string) {
@@ -126,6 +127,31 @@ func AuthSMTPdPlugins(user, passwd string, success bool, s *core.SMTPServerSessi
 		if err != nil {
 			s.LogDebug(fmt.Sprintf("plugin %s returned error in hook auth: %s", yag.Name, err))
 			continue
+		}
+	}
+	return
+}
+
+//
+func NotifySMTPdPlugins(s *core.SMTPServerSession) (drop bool) {
+	for _, yag := range s.YagPlugins {
+		v, err := yag.Yag.Eval(yag.Name + ".notify")
+		if err != nil {
+			s.LogDebug(fmt.Sprintf("plugin %s failed to Eval in notify: %s", yag.Name, err))
+			continue
+		}
+		hookFunc, ok := v.Interface().(func(s *core.SMTPServerSession) (bool, error))
+		if !ok {
+			s.LogDebug(fmt.Sprintf("plugin %s hook notify is wrong type", yag.Name))
+			continue
+		}
+		drop, err = hookFunc(s)
+		if err != nil {
+			s.LogDebug(fmt.Sprintf("plugin %s returned error in hook notify: %s", yag.Name, err))
+			continue
+		}
+		if drop {
+			return true
 		}
 	}
 	return
