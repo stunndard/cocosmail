@@ -42,11 +42,13 @@ func connect(s *core.SMTPServerSession) (done, drop bool, err error) {
 	if err != nil {
 		return false, false, err
 	}
-	err = json.Unmarshal(jsn, &ips)
-	if err != nil {
-		return false, false, err
+	if len(jsn) > 0 {
+		err = json.Unmarshal(jsn, &ips)
+		if err != nil {
+			return false, false, err
+		}
 	}
-	s.LogDebug(fmt.Sprintf("ip object loaded, %d", len(ips)))
+	s.LogDebug(fmt.Sprintf("ip object loaded, %d IPs total", len(ips)))
 
 	// get ip
 	remoteIP, _, _ := net.SplitHostPort(s.Conn.RemoteAddr().String())
@@ -82,7 +84,7 @@ func connect(s *core.SMTPServerSession) (done, drop bool, err error) {
 	return false, true, nil
 }
 
-// auth is called with the result of AUTH command processed by the host.
+// auth() is called with the result of AUTH command processed by the host.
 // user: username used in AUTH command.
 // pass: password used in AUTH command.
 // success: true if AUTH was successful, false otherwise.
@@ -96,7 +98,6 @@ func auth(user, pass string, success bool, s *core.SMTPServerSession) error {
 	_, err := checkAndBan(s)
 	return err
 }
-
 
 func checkAndBan(s *core.SMTPServerSession) (banned bool, err error) {
 	remoteIP, _, _ := net.SplitHostPort(s.Conn.RemoteAddr().String())
@@ -123,7 +124,7 @@ func checkAndBan(s *core.SMTPServerSession) (banned bool, err error) {
 	return banned, core.PluginSaveObject("ban", "ips", jsn)
 }
 
-// helo is called on HELO/EHLO command.
+// helo is() called on HELO/EHLO command.
 // Return done if no more processing should be done by the host
 // and proceed to next phase in the SMTP session. Otherwise,
 // the host will also do its own processing after calling this hook.
@@ -143,9 +144,8 @@ func helo(s *core.SMTPServerSession) (done, drop bool, err error) {
 	return false, drop, err
 }
 
-
-// notify is called AFTER each SMTP command processed by the host.
-// session object contains all relevant data set, for example s.SMTPResponseCode.
+// notify() is called AFTER each SMTP command is done processing by the host.
+// Session object contains all relevant data set by the host, for example s.SMTPResponseCode.
 // The plugin can act accordingly on every command.
 // smtpCommand: the last command sent by the client and processed by the host
 // Return drop to terminate the SMTP client session immediately.
@@ -159,4 +159,32 @@ func notify(s *core.SMTPServerSession) (drop bool, err error) {
 	}
 
 	return drop, err
+}
+
+func mailpre(s *core.SMTPServerSession) (done, drop bool, err error) {
+	return false, false, nil
+}
+
+func mailpost(s *core.SMTPServerSession) (done, drop bool, err error) {
+	return false, false, nil
+}
+
+func rcptto(s *core.SMTPServerSession) (done, drop bool, err error) {
+	return false, false, nil
+}
+
+func data(s *core.SMTPServerSession) (done, drop bool, err error) {
+	return false, false, nil
+}
+
+func beforequeue(s *core.SMTPServerSession) (done, drop bool, err error) {
+	return false, false, nil
+}
+
+func quit(s *core.SMTPServerSession) (done, drop bool, err error) {
+	return false, false, nil
+}
+
+func exitasap(s *core.SMTPServerSession) (done, drop bool, err error) {
+	return false, false, nil
 }
