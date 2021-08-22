@@ -11,6 +11,7 @@ import (
 )
 
 type IpData struct {
+	Added    time.Time
 	Banned   bool
 	Attempts int
 	Expires  time.Time
@@ -18,7 +19,8 @@ type IpData struct {
 
 const (
 	FAILEDAUTH = 2
-	BANTIME = 24 * 7
+	BANTIME    = 24 * 7
+	KEEPTIME   = 24 * 14
 )
 
 var ips = make(map[string]*IpData)
@@ -50,6 +52,23 @@ func connect(s *core.SMTPServerSession) (done, drop bool, err error) {
 	}
 	s.LogDebug(fmt.Sprintf("ip object loaded, %d IPs total", len(ips)))
 
+	// let's do housekeeping
+	deleted := 0
+	for k, ip := range ips {
+		if ip.Added.Add(KEEPTIME * time.Hour).Before(time.Now()) {
+			delete(ips, k)
+			deleted++
+		}
+	}
+	if deleted > 0 {
+		s.LogDebug(fmt.Sprintf("ip object cleaned up, %d IPs deleted", deleted))
+	}
+	jsn, _ = json.Marshal(ips)
+	err = core.PluginSaveObject("ban", "ips", jsn)
+	if err != nil {
+		return false, false, err
+	}
+
 	// get ip
 	remoteIP, _, _ := net.SplitHostPort(s.Conn.RemoteAddr().String())
 	ip, ok := ips[remoteIP]
@@ -68,6 +87,7 @@ func connect(s *core.SMTPServerSession) (done, drop bool, err error) {
 	if ip.Expires.Before(time.Now()) {
 		ip.Banned = false
 		ip.Attempts = 0
+		delete(ips, remoteIP)
 		jsn, _ := json.Marshal(ips)
 		err = core.PluginSaveObject("ban", "ips", jsn)
 		s.LogDebug("ip is UNBANNED")
@@ -106,7 +126,9 @@ func checkAndBan(s *core.SMTPServerSession) (banned bool, err error) {
 	var ok bool
 	ip, ok = ips[remoteIP]
 	if !ok {
-		ip = &IpData{}
+		ip = &IpData{
+			Added: time.Now(),
+		}
 	}
 	ip.Attempts++
 	if !ip.Banned && ip.Attempts >= FAILEDAUTH {
@@ -153,8 +175,11 @@ func helo(s *core.SMTPServerSession) (done, drop bool, err error) {
 func notify(s *core.SMTPServerSession) (drop bool, err error) {
 	rcptTo := strings.HasPrefix(strings.ToLower(string(s.GetLastClientCmd())), "rcpt to")
 	if rcptTo && s.SMTPResponseCode == 554 {
-		remoteIP, _, _ := net.SplitHostPort(s.Conn.RemoteAddr().String())
-		s.LogDebug(fmt.Sprintf("ip %s was denied to relay", remoteIP))
+		//remoteIP, _, _ := net.SplitHostPort(s.Conn.RemoteAddr().String())
+		//s.LogDebug(fmt.Sprintf("ip %s was denied to relay", remoteIP))
+		drop, err = checkAndBan(s)
+	}
+	if s.SMTPResponseCode == 502 {
 		drop, err = checkAndBan(s)
 	}
 
