@@ -60,6 +60,7 @@ type Config struct {
 		DeliverdRemoteTimeout        int    `name:"deliverd_remote_timeout" default:"300"`
 		DeliverdRemoteTLSSkipVerify  bool   `name:"deliverd_remote_tls_skipverify" default:"false"`
 		DeliverdRemoteTLSFallback    bool   `name:"deliverd_remote_tls_fallback" default:"false"`
+		DeliverdRemoteUseSameHost    bool   `name:"deliverd_remote_use_same_host" default:"true"`
 		DeliverdDkimSign             bool   `name:"deliverd_dkim_sign" default:"false"`
 
 		// RFC compliance
@@ -637,6 +638,13 @@ func (c *Config) GetDeliverdRemoteTLSFallback() bool {
 	c.Lock()
 	defer c.Unlock()
 	return c.cfg.DeliverdRemoteTLSFallback
+}
+
+// GetDeliverdRemoteUseSameHost return DeliverdRemoteUseSameHost
+func (c *Config) GetDeliverdRemoteUseSameHost() bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.cfg.DeliverdRemoteUseSameHost
 }
 
 // GetDeliverdRemoteTLSSkipVerify return DeliverdRemoteTLSSkipVerify
