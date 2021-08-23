@@ -121,8 +121,8 @@ func newSMTPClient(d *Delivery, routes []Route, timeoutBasePerCmd int) (client *
 
 			receivedBy := ""
 			recvs := msg.GetHeaders("received")
+			re := regexp.MustCompile(`by +([^ ]+) +with .*cocosmail `)
 			for _, recv := range recvs {
-				re := regexp.MustCompile(`by +([^ ]+) +with .*cocosmail `)
 				match := re.FindStringSubmatch(recv)
 				if len(match) != 2 {
 					Logger.Debugf("skipping received header: %s", recv)
