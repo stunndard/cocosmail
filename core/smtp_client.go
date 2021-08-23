@@ -12,11 +12,13 @@ import (
 	"math/rand"
 	"net"
 	"net/textproto"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/boltdb/bolt"
+	"github.com/stunndard/cocosmail/message"
 )
 
 // smtpClient represent an SMTP client
@@ -44,7 +46,7 @@ func newSMTPClient(d *Delivery, routes []Route, timeoutBasePerCmd int) (client *
 			systemName string
 		}
 
-		remoteAddresses := []net.TCPAddr{}
+		var remoteAddresses []net.TCPAddr
 
 		// If there is no local IP get default (as defined in config)
 		if route.LocalIp.String == "" {
@@ -101,9 +103,52 @@ func newSMTPClient(d *Delivery, routes []Route, timeoutBasePerCmd int) (client *
 				ip         net.IP
 				systemName string
 			}{
-				ip: ip,
+				ip:         ip,
 				systemName: sysName,
 			})
+		}
+
+		if Cfg.GetDeliverdRemoteUseSameHost() {
+			var localIPz []struct {
+				ip         net.IP
+				systemName string
+			}
+
+			msg, err := message.New(d.RawData)
+			if err != nil {
+				return nil, errors.New("cannot parse message: " + err.Error())
+			}
+
+			receivedBy := ""
+			recvs := msg.GetHeaders("received")
+			for _, recv := range recvs {
+				re := regexp.MustCompile(`by +([^ ]+) +with .*cocosmail `)
+				match := re.FindStringSubmatch(recv)
+				if len(match) != 2 {
+					Logger.Debugf("skipping received header: %s", recv)
+					continue
+				}
+
+				dsns, _ := GetDsnsFromString(Cfg.GetSmtpdDsns())
+				for _, dsn := range dsns {
+					if match[1] == dsn.SystemName || match[1] == Cfg.GetMe() {
+						receivedBy = match[1]
+						break
+					}
+				}
+			}
+
+			if receivedBy == "" {
+				return nil, errors.New(fmt.Sprintf("cannot get received hostname from Received header(s): %s", recvs))
+			}
+
+			for _, ip := range localIPs {
+				if ip.systemName == receivedBy {
+					localIPz = append(localIPz, ip)
+				}
+			}
+
+			localIPs = localIPz
 		}
 
 		// remoteAdresses
@@ -149,6 +194,9 @@ func newSMTPClient(d *Delivery, routes []Route, timeoutBasePerCmd int) (client *
 					return nil, errors.New("bad local IP: " + localIP.ip.String() + ". " + err.Error())
 				}
 
+				Logger.Debugf("Dialing remote host: %s from local host: %s using hostname %s",
+					remoteAddr.IP.String(), localAddr.IP.String(), localIP.systemName)
+
 				// Dial timeout
 				connectTimer := time.NewTimer(time.Duration(timeoutBasePerCmd) * time.Second)
 				done := make(chan error, 1)
@@ -163,9 +211,9 @@ func newSMTPClient(d *Delivery, routes []Route, timeoutBasePerCmd int) (client *
 					client = &smtpClient{
 						conn:              conn,
 						timeoutBasePerCmd: timeoutBasePerCmd,
-						systemName: localIP.systemName,
-						route: &route,
-						text: textproto.NewConn(conn),
+						systemName:        localIP.systemName,
+						route:             &route,
+						text:              textproto.NewConn(conn),
 					}
 					_, _, err = client.text.ReadResponse(220)
 					done <- err
@@ -372,7 +420,7 @@ func (s *smtpClient) Auth(a DeliverdAuth) (code int, msg string, err error) {
 	encoding := base64.StdEncoding
 	mech, resp, err := a.Start(&ServerInfo{s.route.RemoteHost, s.tls, s.auth})
 	if err != nil {
-		s.Quit()
+		_, _, _ = s.Quit()
 		return
 	}
 	resp64 := make([]byte, encoding.EncodedLen(len(resp)))
@@ -394,8 +442,8 @@ func (s *smtpClient) Auth(a DeliverdAuth) (code int, msg string, err error) {
 		}
 		if err != nil {
 			// abort the AUTH
-			s.cmd(10, 501, "*")
-			s.Quit()
+			_, _, _ = s.cmd(10, 501, "*")
+			_, _, _ = s.Quit()
 			break
 		}
 		if resp == nil {
@@ -442,7 +490,7 @@ func (s *smtpClient) Data() (*dataCloser, int, string, error) {
 // QUIT
 func (s *smtpClient) Quit() (code int, msg string, err error) {
 	code, msg, err = s.cmd(s.timeoutBasePerCmd, 221, "QUIT")
-	s.text.Close()
+	_ = s.text.Close()
 	return
 }
 
