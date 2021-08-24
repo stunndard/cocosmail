@@ -131,6 +131,10 @@ export COCOSMAIL_SMTP_MAX_BAD_RCPT=0
 # Default 20
 export COCOSMAIL_SMTPD_CONCURRENCY_INCOMING=20
 
+# Hide IP and hostname in Received header if the client who sending
+# that email is authorized.
+export COCOSMAIL_SMTPD_HIDE_RECEIVED_FROM_AUTH="true"
+
 ### Filters
 # Clamav
 export COCOSMAIL_SMTPD_SCAN_CLAMAV_ENABLED=false

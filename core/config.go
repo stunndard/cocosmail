@@ -39,17 +39,18 @@ type Config struct {
 		NSQLookupdTcpAddresses  string `name:"nsq_lookupd_tcp_addresses" default:"_"`
 		NSQLookupdHttpAddresses string `name:"nsq_lookupd_http_addresses" default:"_"`
 
-		LaunchSmtpd              bool   `name:"smtpd_launch" default:"false"`
-		SmtpdDsns                string `name:"smtpd_dsns" default:""`
-		SmtpdServerTimeout       int    `name:"smtpd_server_timeout" default:"300"`
-		SmtpdMaxDataBytes        int    `name:"smtpd_max_databytes" default:"0"`
-		SmtpdMaxHops             int    `name:"smtpd_max_hops" default:"10"`
-		SmtpdMaxRcptTo           int    `name:"smtpd_max_rcpt" default:"0"`
-		SmtpdMaxBadRcptTo        int    `name:"smtpd_max_bad_rcpt" default:"0"`
-		SmtpdMaxVrfy             int    `name:"smtpd_max_vrfy" default:"0"`
-		SmtpdClamavEnabled       bool   `name:"smtpd_scan_clamav_enabled" default:"false"`
-		SmtpdClamavDsns          string `name:"smtpd_scan_clamav_dsns" default:""`
-		SmtpdConcurrencyIncoming int    `name:"smtpd_concurrency_incoming" default:"20"`
+		LaunchSmtpd               bool   `name:"smtpd_launch" default:"false"`
+		SmtpdDsns                 string `name:"smtpd_dsns" default:""`
+		SmtpdServerTimeout        int    `name:"smtpd_server_timeout" default:"300"`
+		SmtpdMaxDataBytes         int    `name:"smtpd_max_databytes" default:"0"`
+		SmtpdMaxHops              int    `name:"smtpd_max_hops" default:"10"`
+		SmtpdMaxRcptTo            int    `name:"smtpd_max_rcpt" default:"0"`
+		SmtpdMaxBadRcptTo         int    `name:"smtpd_max_bad_rcpt" default:"0"`
+		SmtpdMaxVrfy              int    `name:"smtpd_max_vrfy" default:"0"`
+		SmtpdClamavEnabled        bool   `name:"smtpd_scan_clamav_enabled" default:"false"`
+		SmtpdClamavDsns           string `name:"smtpd_scan_clamav_dsns" default:""`
+		SmtpdConcurrencyIncoming  int    `name:"smtpd_concurrency_incoming" default:"20"`
+		SmtpdHideReceivedFromAuth bool   `name:"smtpd_hide_received_from_auth" default:"true"`
 
 		LaunchDeliverd               bool   `name:"deliverd_launch" default:"false"`
 		LocalIps                     string `name:"deliverd_local_ips" default:"_"`
@@ -374,6 +375,14 @@ func (c *Config) GetSmtpdConcurrencyIncoming() int {
 	defer c.Unlock()
 	return c.cfg.SmtpdConcurrencyIncoming
 }
+
+// GetSmtpdHideReceivedFromAuth returns HideReceivedFromAuth
+func (c *Config) GetSmtpdHideReceivedFromAuth() bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.cfg.SmtpdHideReceivedFromAuth
+}
+
 
 // GetLaunchDeliverd returns true if deliverd have to be launched
 func (c *Config) GetLaunchDeliverd() bool {

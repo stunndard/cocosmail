@@ -1015,6 +1015,12 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 	}
 	s.Log("message-id:", string(HeaderMessageID))
 
+
+	authUser := ""
+	if s.user != nil {
+		authUser = s.user.Login
+	}
+
 	// Add received header
 	remoteIP, _, err := net.SplitHostPort(s.Conn.RemoteAddr().String())
 	if err != nil {
@@ -1040,10 +1046,13 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 	*/
 
 	received := "Received: from "
-	received += fmt.Sprintf("%s ([%s] ", remoteHost, remoteIP)
-	// helo
-	received += fmt.Sprintf("helo=[%s]) ", s.helo) + "\r\n"
-
+	if authUser != "" && Cfg.GetSmtpdHideReceivedFromAuth() {
+		received += fmt.Sprintf("local\r\n")
+	} else {
+		received += fmt.Sprintf("%s ([%s] ", remoteHost, remoteIP)
+		// helo
+		received += fmt.Sprintf("helo=[%s])\r\n", s.helo)
+	}
 	// local
 	// only hostname is enough?
 	//received += fmt.Sprintf("        by %s ([%s]) ", localHost, localIP)
@@ -1083,12 +1092,6 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 		return
 	}
 
-	// put message in queue
-	authUser := ""
-	if s.user != nil {
-		authUser = s.user.Login
-	}
-
 	// Plugins
 	done, drop := ExecSMTPdPlugins("beforequeue", s)
 	if done || drop {
@@ -1102,6 +1105,7 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 		return
 	}
 
+	// put message in queue
 	id, err := QueueAddMessage(&s.CurrentRawMail, s.Envelope, authUser)
 	if err != nil {
 		s.LogError("MAIL - unable to put message in queue -", err.Error())
