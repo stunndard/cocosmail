@@ -10,6 +10,11 @@ import (
 	"strings"
 )
 
+const (
+	AuthDataStart = "[cocosmail_auth_data=start] "
+	AuthDataEnd = " [cocosmail_auth_data=end]"
+)
+
 // message represents an email message
 type Message struct {
 	mail.Message
@@ -64,6 +69,13 @@ func (m *Message) GetHeader(key string) string {
 // getHeaders returns all the headers corresponding to the key key
 func (m *Message) GetHeaders(key string) []string {
 	return m.Header[textproto.CanonicalMIMEHeaderKey(key)]
+}
+
+// SetHeaders sets the header entries associated with key to
+// the multiple element value.  It replaces any existing
+// values associated with key.
+func (m *Message) SetHeaders(key string, value []string) {
+	m.Header[textproto.CanonicalMIMEHeaderKey(key)] = value
 }
 
 // getRaw returns raw message
@@ -171,5 +183,36 @@ func FoldHeader(header *[]byte) {
 		*header = append(*header, []byte{13, 10, 32, 32}...)
 	}
 	*header = append(*header, raw[lastCut:]...)
+	return
+}
+
+// RedactHeaders removes sensitive information from the email headers once
+func RedactHeaders(email string) (emailRedacted string) {
+	b := strings.Index(email, "\r\n\r\n")
+	i1 := strings.Index(email, AuthDataStart)
+	i2 := strings.Index(email, AuthDataEnd)
+	emailRedacted = email
+	if i1 > -1 && i2 > -1 && i2 > i1 && i1 < b && i2 < b{
+		authData := email[i1 : i2+len(AuthDataEnd)]
+		if !strings.ContainsAny(authData, "\r\n") {
+			emailRedacted = strings.Replace(email, authData, "local", 1)
+		}
+	}
+	return
+}
+
+// RedactHeadersRemove removes redaction marks from the email headers once.
+func RedactHeadersRemove(email string) (emailRedacted string) {
+	b := strings.Index(email, "\r\n\r\n")
+	i1 := strings.Index(email, AuthDataStart)
+	i2 := strings.Index(email, AuthDataEnd)
+	emailRedacted = email
+	if i1 > -1 && i2 > -1 && i2 > i1 && i1 < b && i2 < b{
+		authData := email[i1 : i2+len(AuthDataEnd)]
+		if !strings.ContainsAny(authData, "\r\n") {
+			emailRedacted = strings.Replace(email, AuthDataStart, "", 1)
+			emailRedacted = strings.Replace(emailRedacted, AuthDataEnd, "", 1)
+		}
+	}
 	return
 }

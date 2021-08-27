@@ -1047,12 +1047,16 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 
 	received := "Received: from "
 	if authUser != "" && Cfg.GetSmtpdHideReceivedFromAuth() {
-		received += fmt.Sprintf("local\r\n")
-	} else {
-		received += fmt.Sprintf("%s ([%s] ", remoteHost, remoteIP)
-		// helo
-		received += fmt.Sprintf("helo=[%s])\r\n", s.helo)
+		received += message.AuthDataStart
 	}
+	received += fmt.Sprintf("%s ([%s] ", remoteHost, remoteIP)
+	// helo
+	received += fmt.Sprintf("helo=[%s])", s.helo)
+	if authUser != "" && Cfg.GetSmtpdHideReceivedFromAuth() {
+		received += message.AuthDataEnd
+	}
+	received += "\r\n"
+
 	// local
 	// only hostname is enough?
 	//received += fmt.Sprintf("        by %s ([%s]) ", localHost, localIP)
@@ -1077,9 +1081,7 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 	// envelope for and timestamp
 	received += "        for " + s.Envelope.RcptTo[0] + "; " + Format822Date() + "\r\n"
 
-	h := []byte(received)
-	//message.FoldHeader(&h)
-	s.CurrentRawMail = append(h, s.CurrentRawMail...)
+	s.CurrentRawMail = append([]byte(received), s.CurrentRawMail...)
 	received = ""
 
 	// X-Env-from
