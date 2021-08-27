@@ -254,7 +254,8 @@ func newSMTPClient(d *Delivery, routes []Route, timeoutBasePerCmd int) (client *
 						Logger.Error("Bolt - ", errBolt)
 					}
 				}
-				Logger.Info(fmt.Sprintf("deliverd-remote %s - unable to get a SMTP client for %s->%s:%d - %s ", d.ID, localIP, remoteAddr.IP.String(), remoteAddr.Port, err.Error()))
+				Logger.Info(fmt.Sprintf("deliverd-remote %s - unable to get a SMTP client for %s->%s:%d - %s ",
+					d.ID, localAddr.IP.String(), remoteAddr.IP.String(), remoteAddr.Port, err.Error()))
 			}
 		}
 	}
