@@ -82,7 +82,7 @@ func NewSMTPServerSession(conn net.Conn, dsn Dsn) (*SMTPServerSession, error) {
 		seenHelo:       false,
 		seenMail:       false,
 		// timeout
-		timeout:  time.Duration(Cfg.GetSmtpdServerTimeout()) * time.Second,
+		timeout: time.Duration(Cfg.GetSmtpdServerTimeout()) * time.Second,
 	}
 	session.timer = time.AfterFunc(session.timeout, session.raiseTimeout)
 
@@ -1015,7 +1015,6 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 	}
 	s.Log("message-id:", string(HeaderMessageID))
 
-
 	authUser := ""
 	if s.user != nil {
 		authUser = s.user.Login
@@ -1190,11 +1189,7 @@ func (s *SMTPServerSession) smtpStartTLS() {
 // Pour le moment in va juste implémenter PLAIN
 func (s *SMTPServerSession) smtpAuth(rawMsg string) {
 	defer s.recoverOnPanic()
-	// TODO si pas TLS
-	//var authType, user, passwd string
-	//TODO si pas plain
 
-	//
 	splitted := strings.Split(rawMsg, " ")
 	var encoded string
 	if len(splitted) == 3 {
@@ -1258,6 +1253,19 @@ func (s *SMTPServerSession) smtpAuth(rawMsg string) {
 	//authId := string(t[0])
 	authLogin := string(t[1])
 	authPasswd := string(t[2])
+
+	// disable auth if plain connection
+	if !s.tls {
+		s.pause(2)
+		s.Out("535 authentication failed (#5.7.1)")
+		s.SMTPResponseCode = 535
+		AuthSMTPdPlugins(authLogin, authPasswd, false, s)
+		s.Log(fmt.Sprintf(
+			"AUTH attempt via plain connection login: %s password: %s auth: %s",
+			authLogin, authPasswd, rawMsg))
+		s.ExitAsap()
+		return
+	}
 
 	s.user, err = UserGet(authLogin, authPasswd)
 	if err != nil {
