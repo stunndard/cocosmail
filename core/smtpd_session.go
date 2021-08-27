@@ -1015,6 +1015,12 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 	}
 	s.Log("message-id:", string(HeaderMessageID))
 
+
+	authUser := ""
+	if s.user != nil {
+		authUser = s.user.Login
+	}
+
 	// Add received header
 	remoteIP, _, err := net.SplitHostPort(s.Conn.RemoteAddr().String())
 	if err != nil {
@@ -1040,9 +1046,16 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 	*/
 
 	received := "Received: from "
+	if authUser != "" && Cfg.GetSmtpdHideReceivedFromAuth() {
+		received += message.AuthDataStart
+	}
 	received += fmt.Sprintf("%s ([%s] ", remoteHost, remoteIP)
 	// helo
-	received += fmt.Sprintf("helo=[%s]) ", s.helo) + "\r\n"
+	received += fmt.Sprintf("helo=[%s])", s.helo)
+	if authUser != "" && Cfg.GetSmtpdHideReceivedFromAuth() {
+		received += message.AuthDataEnd
+	}
+	received += "\r\n"
 
 	// local
 	// only hostname is enough?
@@ -1068,9 +1081,7 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 	// envelope for and timestamp
 	received += "        for " + s.Envelope.RcptTo[0] + "; " + Format822Date() + "\r\n"
 
-	h := []byte(received)
-	//message.FoldHeader(&h)
-	s.CurrentRawMail = append(h, s.CurrentRawMail...)
+	s.CurrentRawMail = append([]byte(received), s.CurrentRawMail...)
 	received = ""
 
 	// X-Env-from
@@ -1081,12 +1092,6 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 	if drop {
 		s.ExitAsap()
 		return
-	}
-
-	// put message in queue
-	authUser := ""
-	if s.user != nil {
-		authUser = s.user.Login
 	}
 
 	// Plugins
@@ -1102,6 +1107,7 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 		return
 	}
 
+	// put message in queue
 	id, err := QueueAddMessage(&s.CurrentRawMail, s.Envelope, authUser)
 	if err != nil {
 		s.LogError("MAIL - unable to put message in queue -", err.Error())

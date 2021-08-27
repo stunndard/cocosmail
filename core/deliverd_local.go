@@ -23,7 +23,7 @@ type InternalDelivery interface {
 func deliverLocal(d *Delivery) {
 	var dataBuf *bytes.Buffer
 	mailboxAvailable := false
-	localRcpt := []string{}
+	var localRcpt []string
 
 	Logger.Info(fmt.Sprintf("delivery-local %s: starting new delivery from %s to %s - Message-Id: %s - Queue-Id: %s", d.ID, d.QMsg.MailFrom, d.QMsg.RcptTo, d.QMsg.MessageId, d.QMsg.Uuid))
 	deliverTo := d.QMsg.RcptTo
@@ -144,6 +144,9 @@ func deliverLocal(d *Delivery) {
 			deliverTo = user.Login
 		}
 	}
+
+	// check if Received header needs redaction before local delivery
+	*d.RawData = []byte(message.RedactHeadersRemove(string(*d.RawData)))
 
 	// TODO Remove return path
 	//msg.DelHeader("return-path")
