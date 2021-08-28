@@ -59,7 +59,7 @@ func deliverRemote(d *Delivery) {
 	client, err := newSMTPClient(d, d.RemoteRoutes, Cfg.GetDeliverdRemoteTimeout())
 	if err != nil {
 		Logger.Error(fmt.Sprintf("deliverd-remote %s - %s", d.ID, err.Error()))
-		d.dieTemp("unable to get client", false)
+		d.dieTemp(fmt.Sprintf("delverd-remote %s - %s", d.ID, err.Error()), false)
 		return
 	}
 	defer func() { _ = client.close() }()
