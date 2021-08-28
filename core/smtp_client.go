@@ -40,6 +40,7 @@ type smtpClient struct {
 
 // newSMTPClient return a connected SMTP client
 func newSMTPClient(d *Delivery, routes []Route, timeoutBasePerCmd int) (client *smtpClient, err error) {
+	lastErr := err
 	for _, route := range routes {
 		var localIPs []struct {
 			ip         net.IP
@@ -224,43 +225,29 @@ func newSMTPClient(d *Delivery, routes []Route, timeoutBasePerCmd int) (client *
 					if err == nil {
 						return client, nil
 					}
-
-					//client.text = textproto.NewConn(conn)
-					// timeout on response
-					/*connectTimer.Reset(time.Duration(30) * time.Second)
-					go func() {
-
-						client.text = textproto.NewConn(conn)
-						_, _, err = client.text.ReadResponse(220)
-						done <- err
-					}()
-					select {
-					case err = <-done:*/
-
-					// Timeout
-					/*case <-connectTimer.C:
-					conn.Close()
-					err = errors.New("timeout")
-					// todo si c'est un timeout pas la peine d'essayer les autres IP locales
-					if errBolt := setIPKO(remoteAddr.IP.String()); errBolt != nil {
-						Logger.Error("Bolt - ", errBolt)
-					}*/
-
+					lastErr = err
 				// Timeout
 				case <-connectTimer.C:
-					err = errors.New("timeout")
+					err = errors.New(fmt.Sprintf("deliverd-remote %s - timeout connecting %s->%s:%d",
+						d.ID, localAddr.IP.String(), remoteAddr.IP.String(), remoteAddr.Port))
 					// todo si c'est un timeout pas la peine d'essayer les autres IP locales
 					if errBolt := setIPKO(remoteAddr.IP.String()); errBolt != nil {
 						Logger.Error("Bolt - ", errBolt)
 					}
+					lastErr = err
 				}
 				Logger.Info(fmt.Sprintf("deliverd-remote %s - unable to get a SMTP client for %s->%s:%d - %s ",
 					d.ID, localAddr.IP.String(), remoteAddr.IP.String(), remoteAddr.Port, err.Error()))
 			}
 		}
 	}
-	// All routes have been tested -> Fail !
-	return nil, errors.New("unable to get a client, all routes have been tested")
+	if lastErr == nil {
+		// All routes have been tested -> Fail !
+		return nil, errors.New("unable to get a client, all routes have been tested")
+	} else {
+		// return the last error
+		return nil, lastErr
+	}
 }
 
 // CloseConn close connection
