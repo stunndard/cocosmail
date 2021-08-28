@@ -265,6 +265,9 @@ func (d *Delivery) bounce(errMsg string) {
 		d.RawData = &t
 	}
 
+	// check if Received header needs redaction before bouncing
+	*d.RawData = []byte(message.RedactHeadersRemove(string(*d.RawData)))
+
 	tData := templateData{Format822Date(), Cfg.GetMe(), d.QMsg.MailFrom, d.QMsg.RcptTo, errMsg, string(*d.RawData)}
 	t, err := template.ParseFiles(path.Join(Cfg.GetBasePath(), "tpl/bounce.tpl"))
 	if err != nil {
