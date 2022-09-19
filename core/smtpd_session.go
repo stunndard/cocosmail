@@ -1144,8 +1144,8 @@ func (s *SMTPServerSession) smtpStartTLS() {
 		path.Join(Cfg.GetBasePath(), fmt.Sprintf("ssl/smtp-%s.key", s.certName,
 		)))
 	if err != nil {
-		msg := "TLS failed unable to load server keys: " + err.Error()
-		s.LogError(msg)
+		msg := "TLS failed unable to load server keys"
+		s.LogError(fmt.Sprintf("%s: %s", msg, err.Error()))
 		s.Out("454 " + msg)
 		s.SMTPResponseCode = 454
 		return
