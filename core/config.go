@@ -42,7 +42,7 @@ type Config struct {
 		LaunchSmtpd               bool   `name:"smtpd_launch" default:"false"`
 		SmtpdDsns                 string `name:"smtpd_dsns" default:""`
 		SmtpdServerTimeout        int    `name:"smtpd_server_timeout" default:"300"`
-		SmtpdMaxDataBytes         int    `name:"smtpd_max_databytes" default:"0"`
+		SmtpdMaxDataBytes         uint64 `name:"smtpd_max_databytes" default:"0"`
 		SmtpdMaxHops              int    `name:"smtpd_max_hops" default:"10"`
 		SmtpdMaxRcptTo            int    `name:"smtpd_max_rcpt" default:"0"`
 		SmtpdMaxBadRcptTo         int    `name:"smtpd_max_bad_rcpt" default:"0"`
@@ -127,7 +127,7 @@ func (c *Config) stayUpToDate() {
 	}()
 }
 
-//func LoadFromEnv(prefix string, container interface{}) error {
+// func LoadFromEnv(prefix string, container interface{}) error {
 func (c *Config) loadFromEnv(prefix string) error {
 	// container should be a struct
 	elem := reflect.ValueOf(&c.cfg).Elem()
@@ -175,6 +175,12 @@ func (c *Config) loadFromEnv(prefix string) error {
 				return errors.New("Unable to convert string " + rawValue + " to " + field.Type.String() + " - " + err.Error())
 			}
 			val.SetInt(intValue)
+		case reflect.Uint32, reflect.Uint64:
+			intValue, err := strconv.ParseUint(rawValue, 0, field.Type.Bits())
+			if err != nil {
+				return errors.New("Unable to convert string " + rawValue + " to " + field.Type.String() + " - " + err.Error())
+			}
+			val.SetUint(intValue)
 		case reflect.Bool:
 			boolValue, err := strconv.ParseBool(rawValue)
 			if err != nil {
@@ -321,7 +327,7 @@ func (c *Config) GetSmtpdServerTimeout() int {
 }
 
 // GetSmtpdMaxDataBytes returns max size of accepted email
-func (c *Config) GetSmtpdMaxDataBytes() int {
+func (c *Config) GetSmtpdMaxDataBytes() uint64 {
 	c.Lock()
 	defer c.Unlock()
 	return c.cfg.SmtpdMaxDataBytes
@@ -382,7 +388,6 @@ func (c *Config) GetSmtpdHideReceivedFromAuth() bool {
 	defer c.Unlock()
 	return c.cfg.SmtpdHideReceivedFromAuth
 }
-
 
 // GetLaunchDeliverd returns true if deliverd have to be launched
 func (c *Config) GetLaunchDeliverd() bool {
