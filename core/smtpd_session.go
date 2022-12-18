@@ -664,7 +664,7 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 		s.Envelope.RcptTo = append(s.Envelope.RcptTo, s.LastRcptTo)
 		s.Log("RCPT - + " + s.LastRcptTo)
 	}
-	s.Out(250, "250 OK")
+	s.Out(250, "OK")
 }
 
 // SMTPVrfy VRFY SMTP command
