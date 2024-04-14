@@ -663,33 +663,35 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 	}
 
 	// check spf
-	if Cfg.GetSmtpdSPFCheck() && (s.user == nil || !canRelay) {
+	if Cfg.GetSmtpdSPFCheck() {
 		spfResult, _ := spf.CheckHostWithSender(remoteIP, s.helo, s.Envelope.MailFrom)
 		s.SPFResult = spfResult
 		s.LogDebug(fmt.Sprintf("RCPT - SPF Mail From: %s, SPF result: %s", s.Envelope.MailFrom, spfResult))
 
-		idx := 3
-		switch spfResult {
-		case spf.None:
-			idx = 0
-		case spf.Neutral:
-			idx = 1
-		case spf.Pass:
-			idx = 2
-		case spf.Fail:
-			idx = 3
-		case spf.SoftFail:
-			idx = 4
-		}
+		if s.user == nil || !canRelay {
+			idx := 3
+			switch spfResult {
+			case spf.None:
+				idx = 0
+			case spf.Neutral:
+				idx = 1
+			case spf.Pass:
+				idx = 2
+			case spf.Fail:
+				idx = 3
+			case spf.SoftFail:
+				idx = 4
+			}
 
-		action := strings.Split(Cfg.GetSmtpdSPFAction(), ":")[idx]
-		if action != "accept" {
-			s.Log(fmt.Sprintf("RCPT - Rejected by SPF Mail from: %s, Result: %s, Action: %s", s.Envelope.MailFrom,
-				spfResult, action))
-			s.pause(2)
-			// we don't give a clue that SPF check failed
-			s.Out(550, "5.5.1 Sorry, no mailbox here by that name")
-			return
+			action := strings.Split(Cfg.GetSmtpdSPFAction(), ":")[idx]
+			if action != "accept" {
+				s.Log(fmt.Sprintf("RCPT - Rejected by SPF Mail from: %s, Result: %s, Action: %s", s.Envelope.MailFrom,
+					spfResult, action))
+				s.pause(2)
+				// we don't give a clue that SPF check failed
+				s.Out(550, "5.5.1 Sorry, no mailbox here by that name")
+				return
+			}
 		}
 	}
 
