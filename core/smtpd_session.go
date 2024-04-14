@@ -692,10 +692,6 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 				idx = 5
 			}
 
-			if s.user != nil || canRelay {
-				s.SPFResult = ""
-			}
-
 			action := strings.Split(Cfg.GetSmtpdSPFAction(), ":")[idx]
 			if action != "accept" {
 				s.Log(fmt.Sprintf("RCPT - Rejected by SPF Mail from: %s, Result: %s, Action: %s", s.Envelope.MailFrom,
@@ -705,6 +701,10 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 				s.Out(550, "5.5.1 Sorry, no mailbox here by that name")
 				return
 			}
+		}
+
+		if s.user != nil || canRelay {
+			s.SPFResult = ""
 		}
 	}
 
