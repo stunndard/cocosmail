@@ -668,7 +668,7 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 		s.SPFResult = spfResult
 		s.LogDebug(fmt.Sprintf("RCPT - SPF Mail From: %s, SPF result: %s", s.Envelope.MailFrom, spfResult))
 
-		if s.user == nil || !canRelay {
+		if s.user == nil && !canRelay {
 			idx := 3
 			switch spfResult {
 			case spf.None:
