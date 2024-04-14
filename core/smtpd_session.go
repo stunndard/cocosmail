@@ -669,7 +669,7 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 		s.LogDebug(fmt.Sprintf("RCPT - SPF Mail From: %s, SPF result: %s", s.Envelope.MailFrom, spfResult))
 
 		if s.user == nil && !canRelay {
-			idx := 3
+			idx := 5
 			switch spfResult {
 			case spf.None:
 				idx = 0
@@ -690,6 +690,10 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 				return
 			case spf.PermError:
 				idx = 5
+			}
+
+			if s.user != nil || canRelay {
+				s.SPFResult = ""
 			}
 
 			action := strings.Split(Cfg.GetSmtpdSPFAction(), ":")[idx]
@@ -1110,7 +1114,7 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 	if Cfg.GetSmtpdSPFCheck() {
 		recvSPF := ""
 		if s.SPFResult == "" {
-			recvSPF = "Received-SPF: pass (SPF check not performed, sender is verified)\r\n"
+			recvSPF = "Received-SPF: pass (SPF check not performed, sender is otherwise verified)\r\n"
 		} else {
 			recvSPF = fmt.Sprintf("Received-SPF: %s (domain of %s designates %s as %s sender)\r\n", s.SPFResult,
 				s.Envelope.MailFrom, remoteIP, s.SPFResult)
