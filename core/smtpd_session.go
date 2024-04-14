@@ -664,7 +664,7 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 
 	// check spf
 	if Cfg.GetSmtpdSPFCheck() {
-		spfResult, _ := spf.CheckHostWithSender(remoteIP, s.helo, s.Envelope.MailFrom)
+		spfResult, _ := spf.CheckHostWithSender(remoteIP, s.helo, s.Envelope.MailFrom, spf.OverrideLookupLimit(50))
 		s.SPFResult = spfResult
 		s.LogDebug(fmt.Sprintf("RCPT - SPF Mail From: %s, SPF result: %s", s.Envelope.MailFrom, spfResult))
 
@@ -681,6 +681,15 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 				idx = 3
 			case spf.SoftFail:
 				idx = 4
+			case spf.TempError:
+				s.LogDebug(fmt.Sprintf("RCPT - SPF error from: %s, Result: %s, Action: permerror", s.Envelope.MailFrom,
+					spfResult))
+				s.pause(2)
+				// we don't give a clue that SPF check failed
+				s.Out(455, "4.3.0 Oops, problem with relay access")
+				return
+			case spf.PermError:
+				idx = 5
 			}
 
 			action := strings.Split(Cfg.GetSmtpdSPFAction(), ":")[idx]

@@ -52,7 +52,7 @@ type Config struct {
 		SmtpdConcurrencyIncoming  int    `name:"smtpd_concurrency_incoming" default:"20"`
 		SmtpdHideReceivedFromAuth bool   `name:"smtpd_hide_received_from_auth" default:"true"`
 		SmtpdSPFCheck							bool	 `name:"smtpd_spf_check" default:"true"`
-		SmtpdSPFAction						string `name:"smtpd_spf_action" default:"accept:accept:accept:accept:accept"`
+		SmtpdSPFAction						string `name:"smtpd_spf_action" default:"accept:accept:accept:accept:accept:accept"`
 
 		LaunchDeliverd               bool   `name:"deliverd_launch" default:"false"`
 		LocalIps                     string `name:"deliverd_local_ips" default:"_"`

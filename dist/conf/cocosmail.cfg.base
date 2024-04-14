@@ -142,12 +142,15 @@ export COCOSMAIL_SMTPD_HIDE_RECEIVED_FROM_AUTH="true"
 export COCOSMAIL_SMTPD_SPF_CHECK="true"
 
 # Accept or reject email message according to SPF status returned.
-# Format is: verb:verb:verb:verb:verb according to SPF RFC 7208 status (none, neutral, pass, fail, softfail).
+# Format is: verb:verb:verb:verb:verb:verb
+# according to SPF RFC 7208 status (none, neutral, pass, fail, softfail, permerror).
+# permerror means SPF DNS check failed.
 # Each verb should be either "accept" or "reject".
 # For example:
-# "reject:reject:accept:reject:accept" means: none=reject, neutral=reject, pass=accept, fail=reject, softfail=accept
-# default "accept:accept:accept:accept:accept"
-export COCOSMAIL_SMTPD_SPF_ACTION="accept:accept:accept:accept:accept"
+# "reject:reject:accept:reject:accept:accept" means:
+# none=reject, neutral=reject, pass=accept, fail=reject, softfail=accept, permerror=accept
+# default "accept:accept:accept:accept:accept:accept"
+export COCOSMAIL_SMTPD_SPF_ACTION="accept:accept:accept:accept:accept:accept"
 
 ### Filters
 # Clamav
