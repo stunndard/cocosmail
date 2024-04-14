@@ -135,6 +135,20 @@ export COCOSMAIL_SMTPD_CONCURRENCY_INCOMING=20
 # that email is authorized.
 export COCOSMAIL_SMTPD_HIDE_RECEIVED_FROM_AUTH="true"
 
+# Enable SPF checks.
+# SPF will be checked and written to email headers.
+# No other action will be performed.
+# default true
+export COCOSMAIL_SMTPD_SPF_CHECK="true"
+
+# Accept or reject email message according to SPF status returned.
+# Format is: verb:verb:verb:verb:verb according to SPF RFC 7208 status (none, neutral, pass, fail, softfail).
+# Each verb should be either "accept" or "reject".
+# For example:
+# "reject:reject:accept:reject:accept" means: none=reject, neutral=reject, pass=accept, fail=reject, softfail=accept
+# default "accept:accept:accept:accept:accept"
+export COCOSMAIL_SMTPD_SPF_ACTION="accept:accept:accept:accept:accept"
+
 ### Filters
 # Clamav
 export COCOSMAIL_SMTPD_SCAN_CLAMAV_ENABLED=false

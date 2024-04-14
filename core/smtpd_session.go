@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"blitiri.com.ar/go/spf"
 	"github.com/jinzhu/gorm"
 	"github.com/stunndard/cocosmail/message"
 	"github.com/traefik/yaegi/interp"
@@ -65,6 +66,7 @@ type SMTPServerSession struct {
 	startAt          time.Time
 	exiting          bool
 	CurrentRawMail   []byte
+	SPFResult        spf.Result
 }
 
 // NewSMTPServerSession returns a new SMTP session
@@ -595,6 +597,7 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 			return
 		}
 		// s.Envelope.RcptTo needs to be set by plugin
+		// if it changes the recipient address.
 		return
 	}
 
@@ -627,7 +630,7 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 					s.Out(550, "5.5.1 Sorry, no mailbox here by that name")
 					s.BadRcptToCount++
 					if Cfg.GetSmtpdMaxBadRcptTo() != 0 && s.BadRcptToCount > Cfg.GetSmtpdMaxBadRcptTo() {
-						s.Log("RCPT - too many bad rcpt to, connection droped")
+						s.Log("RCPT - too many bad rcpt to, connection dropped")
 						s.ExitAsap()
 					}
 					return
@@ -635,6 +638,61 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 			}
 		}
 	}
+
+	remoteHost, _, err := net.SplitHostPort(s.Conn.RemoteAddr().String())
+	if err != nil {
+		s.LogError(fmt.Sprintf("RCPT error SplitHostPort %s", s.Conn.RemoteAddr().String()))
+		s.pause(2)
+		s.Out(455, "4.3.0 Oops, problem with IP")
+		return
+	}
+	remoteIP := net.ParseIP(remoteHost)
+	if remoteIP == nil {
+		s.LogError(fmt.Sprintf("RCPT error ParseIP %s", s.Conn.RemoteAddr().String()))
+		s.pause(2)
+		s.Out(455, "4.3.0 Oops, problem with IP")
+		return
+	}
+
+	canRelay, err := IpCanRelay(remoteIP)
+	if err != nil {
+		s.LogError("RCPT - relay access failed while checking if IP is allowed to relay. " + err.Error())
+		s.pause(2)
+		s.Out(455, "4.3.0 Oops, problem with relay access")
+		return
+	}
+
+	// check spf
+	if Cfg.GetSmtpdSPFCheck() && (s.user == nil || !canRelay) {
+		spfResult, _ := spf.CheckHostWithSender(remoteIP, s.helo, s.Envelope.MailFrom)
+		s.SPFResult = spfResult
+		s.LogDebug(fmt.Sprintf("RCPT - SPF Mail From: %s, SPF result: %s", s.Envelope.MailFrom, spfResult))
+
+		idx := 3
+		switch spfResult {
+		case spf.None:
+			idx = 0
+		case spf.Neutral:
+			idx = 1
+		case spf.Pass:
+			idx = 2
+		case spf.Fail:
+			idx = 3
+		case spf.SoftFail:
+			idx = 4
+		}
+
+		action := strings.Split(Cfg.GetSmtpdSPFAction(), ":")[idx]
+		if action != "accept" {
+			s.Log(fmt.Sprintf("RCPT - Rejected by SPF Mail from: %s, Result: %s, Action: %s", s.Envelope.MailFrom,
+				spfResult, action))
+			s.pause(2)
+			// we don't give a clue that SPF check failed
+			s.Out(550, "5.5.1 Sorry, no mailbox here by that name")
+			return
+		}
+	}
+
 	// User authentified & access granted ?
 	if !s.RelayGranted && s.user != nil {
 		s.RelayGranted = s.user.AuthRelay
@@ -642,13 +700,7 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 
 	// Remote IP authorised ?
 	if !s.RelayGranted {
-		s.RelayGranted, err = IpCanRelay(s.Conn.RemoteAddr())
-		if err != nil {
-			s.LogError("RCPT - relay access failed while checking if IP is allowed to relay. " + err.Error())
-			s.pause(2)
-			s.Out(455, "4.3.0 oops, problem with relay access")
-			return
-		}
+		s.RelayGranted = canRelay
 	}
 
 	// Relay denied
@@ -1042,6 +1094,18 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 
 	// X-Env-from
 	s.CurrentRawMail = append([]byte("X-Env-From: "+s.Envelope.MailFrom+"\r\n"), s.CurrentRawMail...)
+
+	// Received-SPF
+	if Cfg.GetSmtpdSPFCheck() {
+		recvSPF := ""
+		if s.SPFResult == "" {
+			recvSPF = "Received-SPF: pass (SPF check not performed, sender is verified)\r\n"
+		} else {
+			recvSPF = fmt.Sprintf("Received-SPF: %s (domain of %s designates %s as %s sender)\r\n", s.SPFResult,
+				s.Envelope.MailFrom, remoteIP, s.SPFResult)
+		}
+		s.CurrentRawMail = append([]byte(recvSPF), s.CurrentRawMail...)
+	}
 
 	// Plugins
 	_, drop := ExecSMTPdPlugins("data", s)

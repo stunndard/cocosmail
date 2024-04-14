@@ -3,20 +3,19 @@ package core
 import (
 	"errors"
 	"net"
-	"strings"
 
 	"github.com/jinzhu/gorm"
 )
 
-// relayOkIp represents an IP that can use SMTP for relaying
+// RelayIpOk represents an IP that can use SMTP for relaying
 type RelayIpOk struct {
 	Id int64
 	Ip string `sql:"unique"`
 }
 
-// remoteIpCanUseSmtp checks if an IP can relay
-func IpCanRelay(ip net.Addr) (bool, error) {
-	err := DB.Where("ip = ?", ip.String()[:strings.Index(ip.String(), ":")]).Find(&RelayIpOk{}).Error
+// IpCanRelay checks if an IP can relay
+func IpCanRelay(ip net.IP) (bool, error) {
+	err := DB.Where("ip = ?", ip.String()).Find(&RelayIpOk{}).Error
 	if err == nil {
 		return true, nil
 	}
@@ -26,7 +25,7 @@ func IpCanRelay(ip net.Addr) (bool, error) {
 	return false, nil
 }
 
-// relayipAdd authorize IP to relay through cocosmail
+// RelayIpAdd authorize IP to relay through cocosmail
 func RelayIpAdd(ip string) error {
 	// input validation
 	if net.ParseIP(ip) == nil {
@@ -38,7 +37,7 @@ func RelayIpAdd(ip string) error {
 	return DB.Save(&rip).Error
 }
 
-// RelayIpList return all IPs authorized to relay through cocosmail
+// RelayIpGetAll return all IPs authorized to relay through cocosmail
 func RelayIpGetAll() (ips []RelayIpOk, err error) {
 	ips = []RelayIpOk{}
 	err = DB.Find(&ips).Error
