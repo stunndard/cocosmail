@@ -51,6 +51,8 @@ type Config struct {
 		SmtpdClamavDsns           string `name:"smtpd_scan_clamav_dsns" default:""`
 		SmtpdConcurrencyIncoming  int    `name:"smtpd_concurrency_incoming" default:"20"`
 		SmtpdHideReceivedFromAuth bool   `name:"smtpd_hide_received_from_auth" default:"true"`
+		SmtpdSPFCheck							bool	 `name:"smtpd_spf_check" default:"true"`
+		SmtpdSPFAction						string `name:"smtpd_spf_action" default:"accept:accept:accept:accept:accept:accept"`
 
 		LaunchDeliverd               bool   `name:"deliverd_launch" default:"false"`
 		LocalIps                     string `name:"deliverd_local_ips" default:"_"`
@@ -319,7 +321,7 @@ func (c *Config) GetSmtpdDsns() string {
 	return c.cfg.SmtpdDsns
 }
 
-// GetSmtpdTransactionTimeout return smtpdTransactionTimeout
+// GetSmtpdServerTimeout return smtpdTransactionTimeout
 func (c *Config) GetSmtpdServerTimeout() int {
 	c.Lock()
 	defer c.Unlock()
@@ -387,6 +389,20 @@ func (c *Config) GetSmtpdHideReceivedFromAuth() bool {
 	c.Lock()
 	defer c.Unlock()
 	return c.cfg.SmtpdHideReceivedFromAuth
+}
+
+// GetSmtpdSPFCheck returns SPFCheck
+func (c *Config) GetSmtpdSPFCheck() bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.cfg.SmtpdSPFCheck
+}
+
+// GetSmtpdSPFAction returns SPFAction
+func (c *Config) GetSmtpdSPFAction() string {
+	c.Lock()
+	defer c.Unlock()
+	return c.cfg.SmtpdSPFAction
 }
 
 // GetLaunchDeliverd returns true if deliverd have to be launched
@@ -572,7 +588,7 @@ func (c *Config) SetRestServerPasswd(passwd string) {
 
 // deliverd
 
-// GetDeliverdMaxInFlight returns DeliverdMaxInFlight
+// GetDeliverdConcurrencyLocal returns DeliverdMaxInFlight
 func (c *Config) GetDeliverdConcurrencyLocal() int {
 	c.Lock()
 	defer c.Unlock()
@@ -682,7 +698,7 @@ func (c *Config) GetUsersHomeBase() string {
 	return c.cfg.UsersHomeBase
 }
 
-// func GetUserMailboxDefaultQuota return the default mailbox quota
+// GetUserMailboxDefaultQuota return the default mailbox quota
 func (c *Config) GetUserMailboxDefaultQuota() string {
 	c.Lock()
 	defer c.Unlock()
@@ -710,7 +726,7 @@ func (c *Config) GetDovecotLda() string {
 	return c.cfg.DovecotLda
 }
 
-// GetLaunchPop3returns true if pop3 has to be launched
+// GetLaunchPop3 returns true if pop3 has to be launched
 func (c *Config) GetLaunchPop3() bool {
 	c.Lock()
 	r := c.cfg.LaunchPop3
@@ -718,14 +734,14 @@ func (c *Config) GetLaunchPop3() bool {
 	return r
 }
 
-// GetSmtpdDsns returns smtpd dsns
+// GetPop3Dsns returns smtpd dsns
 func (c *Config) GetPop3Dsns() string {
 	c.Lock()
 	defer c.Unlock()
 	return c.cfg.Pop3dDsns
 }
 
-// GetPop3TransactionTimeout return pop3TransactionTimeout
+// GetPop3ServerTimeout return pop3TransactionTimeout
 func (c *Config) GetPop3ServerTimeout() int {
 	c.Lock()
 	defer c.Unlock()

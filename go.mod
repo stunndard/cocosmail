@@ -3,6 +3,7 @@ module github.com/stunndard/cocosmail
 go 1.16
 
 require (
+	blitiri.com.ar/go/spf v1.5.1
 	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/bmizerany/perks v0.0.0-20141205001514-d9a9656a3a4b // indirect
 	github.com/boltdb/bolt v1.3.1
