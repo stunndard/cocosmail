@@ -37,6 +37,7 @@ func (s *Smtpd) ListenAndServe() {
 		tlsConfig = &tls.Config{
 			Certificates:       []tls.Certificate{cert},
 			InsecureSkipVerify: true,
+			MinVersion: tls.VersionTLS12,
 		}
 		listener, err = tls.Listen(s.dsn.TcpAddr.Network(), s.dsn.TcpAddr.String(), tlsConfig)
 		if err != nil {

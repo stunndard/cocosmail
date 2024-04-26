@@ -489,6 +489,7 @@ func (p *Pop3d) ListenAndServe() {
 		tlsConfig := &tls.Config{
 			Certificates:       []tls.Certificate{cert},
 			InsecureSkipVerify: true,
+			MinVersion: tls.VersionTLS12,
 		}
 		pop3Cfg.UseTls = true
 		pop3Cfg.TlsConfig = tlsConfig

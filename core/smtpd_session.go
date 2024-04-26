@@ -1113,6 +1113,7 @@ func (s *SMTPServerSession) smtpStartTLS() {
 	tlsConfig := tls.Config{
 		Certificates:       []tls.Certificate{cert},
 		InsecureSkipVerify: true,
+		MinVersion: tls.VersionTLS12,
 	}
 	tlsConfig.Rand = rand.Reader
 
