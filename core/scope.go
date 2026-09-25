@@ -80,18 +80,11 @@ func bootstrap(server bool) (err error) {
 	}
 
 	// settings stored in DB override config file and environment
-	stored, err := SettingsFromDB(DB)
+	values, inDB, err := CurrentSettings(DB)
 	if err != nil {
 		return err
 	}
-	if len(stored) > 0 {
-		values, _, _, err := ExternalSettings()
-		if err != nil {
-			return err
-		}
-		for k, v := range stored {
-			values[k] = v
-		}
+	if inDB {
 		if err = Cfg.Load(values); err != nil {
 			return errors.New("settings in database: " + err.Error())
 		}

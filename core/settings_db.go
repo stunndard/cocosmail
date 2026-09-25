@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -64,7 +65,43 @@ func SettingsToDB(db *gorm.DB, values map[string]string) error {
 			return err
 		}
 	}
+	// a running server watches the version to apply changes
+	if err := tx.Save(&DbSetting{Key: versionKey, Value: strconv.FormatInt(SettingsVersion(tx)+1, 10)}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
 	return tx.Commit().Error
+}
+
+// versionKey is the settings table row counting changes of settings
+const versionKey = "_version"
+
+// SettingsVersion returns the number of changes of settings in DB
+func SettingsVersion(db *gorm.DB) int64 {
+	var row DbSetting
+	if db.Where(&DbSetting{Key: versionKey}).First(&row).Error != nil {
+		return 0
+	}
+	v, _ := strconv.ParseInt(row.Value, 10, 64)
+	return v
+}
+
+// CurrentSettings returns the settings the server runs with: from DB if they
+// are stored there, over config file and environment. inDB is false when
+// settings are not stored in DB: config file (file mode), environment and defaults.
+func CurrentSettings(db *gorm.DB) (values map[string]string, inDB bool, err error) {
+	values, _, _, err = ExternalSettings()
+	if err != nil {
+		return nil, false, err
+	}
+	stored, err := SettingsFromDB(db)
+	if err != nil {
+		return nil, false, err
+	}
+	for k, v := range stored {
+		values[k] = v
+	}
+	return values, len(stored) > 0, nil
 }
 
 // SettingsFillMissing adds settings missing in DB, when settings are stored in DB.

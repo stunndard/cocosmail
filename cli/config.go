@@ -122,9 +122,7 @@ var Config = cgCli.Command{
 				changed, err := core.ImportSettings(core.DB, values, c.Bool("merge"))
 				cliHandleErr(err)
 				fmt.Printf("%d settings imported, %d changed.\n", len(values), len(changed))
-				if len(changed) > 0 {
-					fmt.Println("Restart cocosmail to apply.")
-				}
+				applyNotice(changed)
 				cliDieOk()
 			},
 		},
@@ -256,8 +254,23 @@ func configSet(c *cgCli.Context, key, value string) {
 			"Import your config file first: cocosmail config import conf/cocosmail.cfg"))
 	}
 	cliHandleErr(core.SettingsToDB(core.DB, map[string]string{key: value}))
-	fmt.Printf("%s=%s\nRestart cocosmail to apply.\n", core.SettingEnvName(key), value)
+	fmt.Printf("%s=%s\n", core.SettingEnvName(key), value)
+	applyNotice([]string{key})
 	cliDieOk()
+}
+
+// applyNotice tells how changed settings get applied by a running server
+func applyNotice(changed []string) {
+	if len(changed) == 0 {
+		return
+	}
+	for _, key := range changed {
+		if s, _ := core.SettingByKey(key); s.Restart {
+			fmt.Println("A running cocosmail restarts itself within a few seconds to apply it.")
+			return
+		}
+	}
+	fmt.Println("A running cocosmail applies it within a few seconds.")
 }
 
 // readConfigFile reads settings from path, prints warnings, dies on error

@@ -224,8 +224,7 @@ To sign outgoing mail with DKIM:
 ./cocosmail dkim getdnsrecord example.com   # publish this record
 ```
 
-and enable signing: `./cocosmail config set deliverd_dkim_sign true`, then
-restart cocosmail.
+and enable signing: `./cocosmail config set deliverd_dkim_sign true`.
 
 ### Ports below 1024
 
@@ -373,7 +372,7 @@ truth. At the first start, `conf/cocosmail.cfg` is imported into it. Then:
 
 ```sh
 ./cocosmail config list                        # values, and where they come from
-./cocosmail config set smtpd_max_hops 30       # restart cocosmail to apply
+./cocosmail config set smtpd_max_hops 30       # applied within a few seconds
 ./cocosmail config unset smtpd_max_hops        # back to the default
 ./cocosmail config export backup.cfg           # to keep or move settings
 ./cocosmail config import backup.cfg           # replaces all settings
@@ -381,7 +380,16 @@ truth. At the first start, `conf/cocosmail.cfg` is imported into it. Then:
 
 `import` gives settings that are not in the file their default. Use `--merge`
 to change only the settings in the file. Values are checked before they're
-saved. Editing `conf/cocosmail.cfg` after the first start changes nothing until
+saved.
+
+A running cocosmail checks for changed settings every few seconds (at once on
+`SIGHUP`). Most settings are applied immediately. Settings like listeners,
+database or log path need a restart: cocosmail first checks that it will
+start with them (certificates, free ports, POP3 encryption...), then restarts
+itself in the same process, so systemd or docker don't notice. It stops
+accepting SMTP connections, waits up to 30 seconds for open sessions and
+deliveries, then restarts. If the check fails, cocosmail keeps running with the
+previous settings, writes them back to the database and logs why. Editing `conf/cocosmail.cfg` after the first start changes nothing until
 you import it, except `COCOSMAIL_DB_DRIVER` and `COCOSMAIL_DB_SOURCE`: they're
 always read from it (or from the environment), since they can't be in the
 database.

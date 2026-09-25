@@ -2,16 +2,33 @@ package core
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log"
 	"net"
 	"path"
+	"sync"
 	"sync/atomic"
 )
 
 // Smtpd SMTP Server
 type Smtpd struct {
 	dsn Dsn
+}
+
+var (
+	smtpdListeners   []net.Listener
+	smtpdListenersMu sync.Mutex
+)
+
+// CloseSmtpdListeners stops accepting new SMTP connections, sessions go on
+func CloseSmtpdListeners() {
+	smtpdListenersMu.Lock()
+	defer smtpdListenersMu.Unlock()
+	for _, l := range smtpdListeners {
+		_ = l.Close()
+	}
+	smtpdListeners = nil
 }
 
 // NewSmtpd returns a new SmtpServer
@@ -51,10 +68,17 @@ func (s *Smtpd) ListenAndServe() {
 	}
 
 	defer func() { _ = listener.Close() }()
+	smtpdListenersMu.Lock()
+	smtpdListeners = append(smtpdListeners, listener)
+	smtpdListenersMu.Unlock()
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
+			// closed by CloseSmtpdListeners
+			if errors.Is(err, net.ErrClosed) {
+				return
+			}
 			log.Println("Client error: ", err)
 			continue
 		}

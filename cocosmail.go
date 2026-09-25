@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path"
 	"runtime"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -119,9 +120,47 @@ func askYesNo(question string) bool {
 	}
 }
 
+// executable is the binary path, taken at start: it's re-executed to restart,
+// so after the binary was replaced, the new version starts
+var executable string
+
+// restart stops the server gracefully and starts it again in the same
+// process (same PID), to apply settings that can't be applied live
+func restart(reason string, nsqDaemon *nsqd.NSQD) {
+	const drainTimeout = 30 * time.Second
+	core.Logger.Info("restarting: " + reason)
+
+	// no new SMTP sessions, let running ones finish
+	core.CloseSmtpdListeners()
+	deadline := time.Now().Add(drainTimeout)
+	for atomic.LoadInt32(&core.SmtpSessionsCount) > 0 && time.Now().Before(deadline) {
+		time.Sleep(200 * time.Millisecond)
+	}
+	if n := atomic.LoadInt32(&core.SmtpSessionsCount); n > 0 {
+		core.Logger.Info(fmt.Sprintf("restarting: %d SMTP sessions still open, clients will retry", n))
+	}
+	core.StopDeliverd(time.Until(deadline))
+
+	if core.Cfg.GetLaunchSmtpd() {
+		core.NsqQueueProducer.Stop()
+	}
+	nsqDaemon.Exit()
+	if core.Bolt != nil {
+		_ = core.Bolt.Close()
+	}
+	_ = core.DB.Close()
+
+	// file descriptors are closed on exec, stdin/stdout/stderr are kept
+	err := syscall.Exec(executable, os.Args, os.Environ())
+	log.Fatalln("restart failed:", err)
+}
+
 // MAIN
 func main() {
 	var err error
+	if executable, err = os.Executable(); err != nil {
+		executable = os.Args[0]
+	}
 	core.Version = core.CocosmailVersion
 	app := cli.NewApp()
 	app.Name = "cocosmail"
@@ -265,7 +304,14 @@ func main() {
 				go NewMonitor(60)
 			}
 
-			<-sigChan
+			// apply settings changed with cocosmail config
+			go core.WatchSettings()
+
+			select {
+			case reason := <-core.RestartRequest:
+				restart(reason, nsqDaemon)
+			case <-sigChan:
+			}
 			core.Logger.Info("Exiting...")
 
 			// close NsqQueueProducer if exists
