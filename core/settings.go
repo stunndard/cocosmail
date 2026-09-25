@@ -49,8 +49,8 @@ var Settings = []Setting{
 	{Key: "db_driver", Section: "database", Default: "sqlite3", Bootstrap: true, Restart: true,
 		Description: "Database driver: sqlite3, mysql or postgres",
 		Validate:    oneOf("sqlite3", "mysql", "postgres")},
-	{Key: "db_source", Section: "database", Bootstrap: true, Restart: true, Secret: true,
-		Description: "Database source. For sqlite3 the file, default db/cocosmail.db?_busy_timeout=60000. " +
+	{Key: "db_source", Section: "database", Default: defaultSqliteSource, Bootstrap: true, Restart: true, Secret: true,
+		Description: "Database source. For sqlite3 the file, relative to the cocosmail binary directory. " +
 			"MySQL: user:passwd@tcp(ip:port)/cocosmail?parseTime=true, " +
 			"PostgreSQL: user=cocosmail dbname=cocosmail sslmode=disable"},
 

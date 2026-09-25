@@ -59,25 +59,8 @@ func Bootstrap() (err error) {
 		return
 	}
 
-	// sqlite doesn't create missing directories
-	if Cfg.GetDbDriver() == "sqlite3" {
-		dbFile := strings.SplitN(Cfg.GetDbSource(), "?", 2)[0]
-		if !strings.HasPrefix(dbFile, "file:") && !strings.HasPrefix(dbFile, ":memory:") {
-			if err = os.MkdirAll(filepath.Dir(dbFile), 0700); err != nil {
-				return
-			}
-		}
-	}
-
-	// Init DB
-	DB, err = gorm.Open(Cfg.GetDbDriver(), Cfg.GetDbSource())
-	if err != nil {
+	if err = openDB(Cfg.GetDbDriver(), Cfg.GetDbSource()); err != nil {
 		return
-	}
-
-	// ping DB
-	if DB.DB().Ping() != nil {
-		return errors.New("I could not access to database " + Cfg.GetDbDriver() + " " + Cfg.GetDbSource())
 	}
 
 	// settings stored in DB override environment
@@ -94,10 +77,6 @@ func Bootstrap() (err error) {
 			return errors.New("settings in database: " + err.Error())
 		}
 	}
-	if err = Cfg.CheckRequired(); err != nil {
-		return err
-	}
-
 	if err = initLogger(); err != nil {
 		return err
 	}
@@ -138,6 +117,45 @@ func Bootstrap() (err error) {
 	//execCocosMailPlugins("postinit")
 
 	return
+}
+
+// OpenDB opens the database from COCOSMAIL_DB_DRIVER and COCOSMAIL_DB_SOURCE only.
+// Other settings are not loaded: config commands must work even when they're
+// missing or invalid, to fix them.
+func OpenDB() error {
+	Logger = logrus.New()
+	driver := os.Getenv(SettingEnvName("db_driver"))
+	if driver == "" {
+		driver = "sqlite3"
+	}
+	if err := ValidateSetting("db_driver", driver); err != nil {
+		return err
+	}
+	return openDB(driver, dbSource(driver, os.Getenv(SettingEnvName("db_source"))))
+}
+
+// openDB opens and pings DB
+func openDB(driver, source string) (err error) {
+	if driver != "sqlite3" && (source == "" || source == defaultSqliteSource) {
+		return errors.New("COCOSMAIL_DB_SOURCE is needed for database driver " + driver)
+	}
+	// sqlite doesn't create missing directories
+	if driver == "sqlite3" {
+		dbFile := strings.SplitN(source, "?", 2)[0]
+		if !strings.HasPrefix(dbFile, "file:") && !strings.HasPrefix(dbFile, ":memory:") {
+			if err = os.MkdirAll(filepath.Dir(dbFile), 0700); err != nil {
+				return
+			}
+		}
+	}
+	DB, err = gorm.Open(driver, source)
+	if err != nil {
+		return
+	}
+	if DB.DB().Ping() != nil {
+		return errors.New("I could not access to database " + driver + " " + source)
+	}
+	return nil
 }
 
 // initLogger sets Logger from config

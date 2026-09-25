@@ -48,6 +48,9 @@ func bootstrapServer() {
 	if err = core.Bootstrap(); err != nil {
 		log.Fatalln(err)
 	}
+	if err = core.Cfg.CheckRequired(); err != nil {
+		log.Fatalln(err)
+	}
 
 	if os.RemoveAll(path.Join(core.Cfg.GetBasePath(), "nsq")) != nil {
 		log.Fatalln("Unable to delete nsq data directory")

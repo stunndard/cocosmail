@@ -324,6 +324,7 @@ uses the same config, so load it first (`. conf/cocosmail.cfg`).
 | Command     | Subcommands                                               | Purpose                               |
 |-------------|-----------------------------------------------------------|---------------------------------------|
 | `init`      |                                                           | create database tables (safe to repeat) |
+| `config`    | `list`, `get`, `set`, `unset`, `import`, `export`, `convert` | settings, in the database or in a config file (`--file`) |
 | `rcpthost`  | `add`, `list`, `del`                                      | domains cocosmail accepts mail for (`-l` = local mailboxes) |
 | `user`      | `add`, `del`, `update`, `list`, `catchall`                | users, mailboxes, SMTP login, quota   |
 | `alias`     | `add`, `del`, `list`                                      | aliases, forwarding, pipe to command  |
@@ -358,6 +359,37 @@ ship with cocosmail:
 `conf/cocosmail.cfg.base` documents everything else, including SPF policy
 (`COCOSMAIL_SMTPD_SPF_ACTION`), message size limit, ClamAV, Dovecot LDA,
 MySQL/PostgreSQL, the REST API, queue lifetimes and RFC strictness switches.
+
+## Settings in the database
+
+Settings can be kept in the database instead of the config file. Only
+`COCOSMAIL_DB_DRIVER` and `COCOSMAIL_DB_SOURCE` stay outside, because they say
+where the database is. By default it's SQLite in `db/` next to the binary, so
+there's nothing to set.
+
+```sh
+./cocosmail config import conf/cocosmail.cfg   # once: settings go to the database
+./cocosmail                                    # no need to load the config file anymore
+./cocosmail config list                        # values, and where they come from
+./cocosmail config set smtpd_max_hops 30       # restart cocosmail to apply
+./cocosmail config export backup.cfg           # to move settings to another server
+```
+
+`import` replaces all settings: those not in the file get their default. Use
+`--merge` to change only the settings in the file. Values are checked before
+they're saved.
+
+Config files have one `COCOSMAIL_KEY=value` per line, without quotes or
+`export`, so they can also be used as a docker env file. `config get`, `set`,
+`unset` and `list` work on a file with `--file FILE`, without a database.
+Convert a config file from an older version with:
+
+```sh
+./cocosmail config convert conf/cocosmail.cfg conf/cocosmail.new.cfg
+```
+
+It fixes what it can (e.g. `true`/`false` listeners become `ssl`/`nossl`) and
+warns about settings with wrong names, which older versions silently ignored.
 
 ## Roadmap
 

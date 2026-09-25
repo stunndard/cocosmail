@@ -303,13 +303,21 @@ func (c *Config) GetDbDriver() string {
 func (c *Config) GetDbSource() string {
 	c.Lock()
 	defer c.Unlock()
-	if c.cfg.DbDriver != "sqlite3" {
-		return c.cfg.DbSource
+	return dbSource(c.cfg.DbDriver, c.cfg.DbSource)
+}
+
+// defaultSqliteSource is the database in db/ next to the binary
+const defaultSqliteSource = "db/cocosmail.db?_busy_timeout=60000"
+
+// dbSource returns the database source to open
+func dbSource(driver, source string) string {
+	if driver != "sqlite3" {
+		return source
 	}
-	if c.cfg.DbSource == "" {
-		return sqliteAbsSource("db/cocosmail.db?_busy_timeout=60000")
+	if source == "" {
+		source = defaultSqliteSource
 	}
-	return sqliteAbsSource(c.cfg.DbSource)
+	return sqliteAbsSource(source)
 }
 
 // GetStoreDriver return source driver

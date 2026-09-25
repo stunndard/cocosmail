@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/jinzhu/gorm"
@@ -83,4 +84,126 @@ func SettingsFillMissing(db *gorm.DB, current map[string]string) error {
 		}
 	}
 	return SettingsToDB(db, missing)
+}
+
+// Setting sources, from lowest to highest priority
+const (
+	SourceDefault = "default"
+	SourceEnv     = "env"
+	SourceFile    = "file"
+	SourceDB      = "db"
+)
+
+// EffectiveSettings returns the value and the source of every setting:
+// default, overridden by environment, overridden by DB.
+func EffectiveSettings(db *gorm.DB) (values, sources map[string]string, err error) {
+	values = SettingsDefaults()
+	sources = make(map[string]string, len(values))
+	for k := range values {
+		sources[k] = SourceDefault
+	}
+	for k, v := range SettingsFromEnv("cocosmail") {
+		values[k], sources[k] = v, SourceEnv
+	}
+	stored, err := SettingsFromDB(db)
+	if err != nil {
+		return nil, nil, err
+	}
+	for k, v := range stored {
+		values[k], sources[k] = v, SourceDB
+	}
+	return values, sources, nil
+}
+
+// ValidateSettings checks all values, and returns all errors
+func ValidateSettings(values map[string]string) (errs []error) {
+	for _, s := range Settings {
+		if v, ok := values[s.Key]; ok {
+			if err := ValidateSetting(s.Key, v); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+	return
+}
+
+// UpgradeLegacyValues fixes values written for older cocosmail versions,
+// it returns what was changed
+func UpgradeLegacyValues(values map[string]string) (notes []string) {
+	for _, key := range []string{"smtpd_dsns", "pop3d_dsns"} {
+		v, ok := values[key]
+		if !ok {
+			continue
+		}
+		dsns := strings.Split(v, ";")
+		for i, dsn := range dsns {
+			f := strings.Split(dsn, ":")
+			if len(f) < 5 {
+				continue
+			}
+			// SSL field was true/false, now ssl/nossl
+			switch strings.ToLower(f[len(f)-2]) {
+			case "true":
+				f[len(f)-2] = "ssl"
+			case "false":
+				f[len(f)-2] = "nossl"
+			}
+			dsns[i] = strings.Join(f, ":")
+		}
+		if nv := strings.Join(dsns, ";"); nv != v {
+			values[key] = nv
+			notes = append(notes, SettingEnvName(key)+": true/false changed to ssl/nossl")
+		}
+	}
+	return
+}
+
+// ImportSettings stores values in DB. Bootstrap settings are skipped.
+// Settings not in values get their default, unless merge: then they're kept.
+// It returns the keys whose value changed.
+func ImportSettings(db *gorm.DB, values map[string]string, merge bool) (changed []string, err error) {
+	if !db.HasTable(&DbSetting{}) {
+		if err = db.CreateTable(&DbSetting{}).Error; err != nil {
+			return nil, err
+		}
+	}
+	stored, err := SettingsFromDB(db)
+	if err != nil {
+		return nil, err
+	}
+	final := SettingsDefaults()
+	if merge {
+		for k, v := range stored {
+			final[k] = v
+		}
+	}
+	for k, v := range values {
+		final[k] = v
+	}
+	toStore := make(map[string]string)
+	for _, s := range Settings {
+		if s.Bootstrap {
+			continue
+		}
+		toStore[s.Key] = final[s.Key]
+		if s.Required && final[s.Key] == "" {
+			return nil, errors.New("setting " + SettingEnvName(s.Key) + " is missing")
+		}
+		if old, ok := stored[s.Key]; !ok || old != final[s.Key] {
+			changed = append(changed, s.Key)
+		}
+	}
+	if errs := ValidateSettings(toStore); len(errs) > 0 {
+		return nil, joinErrors(errs)
+	}
+	return changed, SettingsToDB(db, toStore)
+}
+
+// joinErrors returns one error listing errs, one per line
+func joinErrors(errs []error) error {
+	msgs := make([]string, len(errs))
+	for i, e := range errs {
+		msgs[i] = e.Error()
+	}
+	return errors.New(strings.Join(msgs, "\n"))
 }
