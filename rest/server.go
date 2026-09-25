@@ -21,6 +21,11 @@ const (
 
 // LaunchServer launches HTTP server
 func LaunchServer() {
+	// empty credentials would let anybody in
+	if core.Cfg.GetRestServerLogin() == "" || core.Cfg.GetRestServerPasswd() == "" {
+		log.Fatalln("REST server needs COCOSMAIL_REST_SERVER_LOGIN and COCOSMAIL_REST_SERVER_PASSWD")
+	}
+
 	router := httprouter.New()
 	router.HandlerFunc("GET", "/ping", func(w http.ResponseWriter, req *http.Request) {
 		httpWriteJson(w, []byte(`{"msg": "pong"}`))

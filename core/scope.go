@@ -50,54 +50,13 @@ var (
 // It's all the CLI needs; the server needs more, see InitMailQueueProducer.
 // TODO check validity of each element
 func Bootstrap() (err error) {
-	// Load config
+	// until config is loaded
+	Logger = logrus.New()
+
+	// Load config from environment, it tells where the DB is
 	Cfg, err = InitConfig("cocosmail")
 	if err != nil {
 		return
-	}
-
-	// linit logger
-	var out io.Writer
-
-	logPath := Cfg.GetLogPath()
-	Logger = logrus.New()
-	//customFormatter := new(logrus.TextFormatter)
-	//customFormatter := new(FileFormatter)
-	if logPath == "stdout" {
-		out = os.Stdout
-		f := new(logrus.TextFormatter)
-		f.TimestampFormat = time.RFC3339Nano
-		f.FullTimestamp = true
-		Logger.Formatter = f
-
-	} else if logPath == "discard" {
-		out = ioutil.Discard
-		f := new(logrus.TextFormatter)
-		f.TimestampFormat = time.RFC3339Nano
-		f.FullTimestamp = true
-		Logger.Formatter = f
-	} else {
-		file := path.Join(logPath, "current.log")
-		out, err = os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-		if err != nil {
-			return
-		}
-		f := new(FileFormatter)
-		f.TimestampFormat = time.RFC3339Nano
-		f.FullTimestamp = true
-		Logger.Formatter = f
-	}
-
-	if Cfg.GetDebugEnabled() {
-		Logger.Level = logrus.DebugLevel
-	} else {
-		Logger.Level = logrus.InfoLevel
-	}
-	Logger.Out = out
-	Logger.Debug("Logger initialized")
-
-	if os.Getenv("COCOSMAIL_BASE_PATH") != "" {
-		Logger.Warn("COCOSMAIL_BASE_PATH is not used anymore, relative paths are relative to " + BaseDir())
 	}
 
 	// sqlite doesn't create missing directories
@@ -115,12 +74,38 @@ func Bootstrap() (err error) {
 	if err != nil {
 		return
 	}
-	DB.SetLogger(Logger)
-	DB.LogMode(Cfg.GetDebugEnabled())
 
 	// ping DB
 	if DB.DB().Ping() != nil {
 		return errors.New("I could not access to database " + Cfg.GetDbDriver() + " " + Cfg.GetDbSource())
+	}
+
+	// settings stored in DB override environment
+	stored, err := SettingsFromDB(DB)
+	if err != nil {
+		return err
+	}
+	if len(stored) > 0 {
+		values := SettingsFromEnv("cocosmail")
+		for k, v := range stored {
+			values[k] = v
+		}
+		if err = Cfg.Load(values); err != nil {
+			return errors.New("settings in database: " + err.Error())
+		}
+	}
+	if err = Cfg.CheckRequired(); err != nil {
+		return err
+	}
+
+	if err = initLogger(); err != nil {
+		return err
+	}
+	DB.SetLogger(Logger)
+	DB.LogMode(Cfg.GetDebugEnabled())
+
+	if os.Getenv("COCOSMAIL_BASE_PATH") != "" {
+		Logger.Warn("COCOSMAIL_BASE_PATH is not used anymore, relative paths are relative to " + BaseDir())
 	}
 
 	/*
@@ -153,6 +138,50 @@ func Bootstrap() (err error) {
 	//execCocosMailPlugins("postinit")
 
 	return
+}
+
+// initLogger sets Logger from config
+func initLogger() (err error) {
+	var out io.Writer
+
+	logPath := Cfg.GetLogPath()
+	logger := logrus.New()
+	//customFormatter := new(logrus.TextFormatter)
+	//customFormatter := new(FileFormatter)
+	if logPath == "stdout" {
+		out = os.Stdout
+		f := new(logrus.TextFormatter)
+		f.TimestampFormat = time.RFC3339Nano
+		f.FullTimestamp = true
+		logger.Formatter = f
+
+	} else if logPath == "discard" {
+		out = ioutil.Discard
+		f := new(logrus.TextFormatter)
+		f.TimestampFormat = time.RFC3339Nano
+		f.FullTimestamp = true
+		logger.Formatter = f
+	} else {
+		file := path.Join(logPath, "current.log")
+		out, err = os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			return err
+		}
+		f := new(FileFormatter)
+		f.TimestampFormat = time.RFC3339Nano
+		f.FullTimestamp = true
+		logger.Formatter = f
+	}
+
+	if Cfg.GetDebugEnabled() {
+		logger.Level = logrus.DebugLevel
+	} else {
+		logger.Level = logrus.InfoLevel
+	}
+	logger.Out = out
+	Logger = logger
+	Logger.Debug("Logger initialized")
+	return nil
 }
 
 // InitBolt init bolt

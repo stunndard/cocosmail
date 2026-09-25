@@ -16,7 +16,7 @@ type diskStore struct {
 
 // diskStorePath returns the directory of the disk store, relative to BaseDir
 func diskStorePath(storeSource string) string {
-	if storeSource == "_" {
+	if storeSource == "" {
 		storeSource = "store"
 	}
 	return path.Clean(AbsPath(storeSource))
