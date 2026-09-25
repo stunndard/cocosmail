@@ -433,8 +433,9 @@ One YAML file holds both: `settings:`, then the data sections `domains:`,
     private keys and secret settings empty. Importing it keeps the ones
     already in the database.
 - **Checks:** everything is checked before anything is written. For example,
-  a user's domain must exist and be local, and an alias must deliver to
-  existing users.
+  the domain of a mailbox or an address alias must exist and be local. An
+  alias can deliver to any addresses: mailboxes, other aliases, or addresses
+  elsewhere (forwarding).
 
 There are two ways to run cocosmail:
 
@@ -499,7 +500,8 @@ one item per row.
   it, and in DKIM keys, F6 shows the DNS record to publish.
 - **Saving:** like settings, changes are saved with F2.
 - **Checks:** each change is checked with the rest. A domain that still has
-  users can't be deleted, and a mailbox in a new domain adds the domain.
+  users can't be deleted. A mailbox or an alias in a new domain adds the
+  domain.
 - **With settings managed by a file (file mode):** the data can still be
   edited here, only the settings are read only.
 

@@ -210,9 +210,9 @@ var usersKind = &dataKind{
 var aliasesKind = &dataKind{
 	name: "Aliases",
 	noun: "alias",
-	help: "An address alias (sales@example.com) delivers to users of its domain and/or to a command. " +
-		"Mini list: the alias becomes the sender, bounces come back to it. A domain alias " +
-		"(example.org) delivers to the same addresses of a local domain.",
+	help: "An address alias (sales@example.com) delivers to any addresses, here or elsewhere, and/or " +
+		"to a command. Mini list: the alias becomes the sender, bounces come back to it. A domain " +
+		"alias (example.org) delivers to the same addresses of a local domain.",
 	columns: []vtui.TableColumn{
 		{Title: "Alias", Width: 0, MinWidth: 16},
 		{Title: "Deliver to", Width: 0, MinWidth: 16},
@@ -241,7 +241,7 @@ var aliasesKind = &dataKind{
 		}
 		return formDialog(ed, title, []itemField{
 			{label: "&Alias", value: a.Alias, hint: "sales@example.com, or a domain: example.org"},
-			{label: "&Deliver to", value: strings.Join(a.DeliverTo, " "), hint: "users; for a domain alias: a local domain"},
+			{label: "&Deliver to", value: strings.Join(a.DeliverTo, " "), hint: "addresses; for a domain alias: a local domain"},
 			{label: "&Pipe", value: a.Pipe, hint: "command getting the mail on its input"},
 		}, []itemCheck{
 			{label: "&Mini list: the alias becomes the sender", checked: a.MiniList},
@@ -252,6 +252,10 @@ var aliasesKind = &dataKind{
 			}
 			next := ed.data.Copy()
 			next.Aliases = setItem(next.Aliases, i, na)
+			// an address in a new domain: the domain is added, local
+			if t := strings.Split(na.Alias, "@"); len(t) == 2 && t[1] != "" && !hasDomain(next, t[1]) {
+				next.Domains = append(next.Domains, core.DomainData{Name: t[1], Local: true})
+			}
 			return ed.putItem(next, na.Alias)
 		})
 	},

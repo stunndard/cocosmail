@@ -378,8 +378,9 @@ func ValidateData(d *Data) (errs []error) {
 			if a.MiniList {
 				fail("domain alias %s can't be a mini list", a.Alias)
 			}
-			if len(a.DeliverTo) > 1 {
-				fail("domain alias %s can point to one domain only", a.Alias)
+			// its addresses are checked as addresses of the domain
+			if len(a.DeliverTo) != 1 {
+				fail("domain alias %s must point to one local domain", a.Alias)
 			}
 			for _, to := range a.DeliverTo {
 				if dom, ok := domains[to]; !ok || !dom.Local {
@@ -393,21 +394,21 @@ func ValidateData(d *Data) (errs []error) {
 			fail("alias %q must be an email address or a domain", a.Alias)
 			continue
 		}
+		// only mail for a local domain is accepted and delivered here
 		if dom, ok := domains[t[1]]; !ok || !dom.Local {
 			fail("alias %s: %s must be a local domain", a.Alias, t[1])
 		}
-		if _, ok := users[a.Alias]; ok {
-			fail("alias %s is also a user", a.Alias)
+		// a mailbox gets its mail first, the alias would never be used
+		if u, ok := users[a.Alias]; ok && u.Mailbox {
+			fail("alias %s is also a user with a mailbox", a.Alias)
 		}
+		// mail is queued again for each address: local ones are delivered
+		// here (mailbox, alias, catch-all), others are forwarded
 		for _, to := range a.DeliverTo {
-			u, ok := users[to]
-			switch {
-			case !ok:
-				fail("alias %s: user %s doesn't exist", a.Alias, to)
-			case !u.Mailbox:
-				fail("alias %s: user %s has no mailbox", a.Alias, to)
-			case !strings.HasSuffix(to, "@"+t[1]):
-				fail("alias %s: %s is not in the same domain", a.Alias, to)
+			if to == a.Alias {
+				fail("alias %s can't deliver to itself", a.Alias)
+			} else if tt := strings.Split(to, "@"); len(tt) != 2 || tt[0] == "" || !validDomain(tt[1]) {
+				fail("alias %s: %q is not an email address", a.Alias, to)
 			}
 		}
 	}

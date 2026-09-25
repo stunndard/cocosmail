@@ -154,3 +154,21 @@ func TestDataDialogsLayout(t *testing.T) {
 		vtui.AssertLayout(t, dnsDialog(ed, ed.data.Dkim[0]))
 	}
 }
+
+func TestDataAddAliasNewDomain(t *testing.T) {
+	store := newMemStore()
+	ed, scr, _ := setup(t, store)
+	events := toKind(aliasesKind)
+	events = append(events, key(vtinput.VK_F7))
+	events = append(events, typeText("info@example.net")...)
+	events = append(events, key(vtinput.VK_TAB))
+	events = append(events, typeText("someone@elsewhere.example")...)
+	events = append(events, key(vtinput.VK_RETURN))
+	run(scr, events...)
+	if len(ed.data.Aliases) != 1 || ed.data.Aliases[0].DeliverTo[0] != "someone@elsewhere.example" {
+		t.Fatalf("alias not added: %+v", ed.data.Aliases)
+	}
+	if len(ed.data.Domains) != 1 || ed.data.Domains[0] != (core.DomainData{Name: "example.net", Local: true}) {
+		t.Fatalf("domain not added: %+v", ed.data.Domains)
+	}
+}

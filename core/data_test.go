@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -121,7 +122,7 @@ func TestImportDataInvalid(t *testing.T) {
 	in := testData(t)
 	in.Domains = in.Domains[1:]
 	in.Users = append(in.Users, UserData{Login: "x@relay.example.net", Password: "secret", Mailbox: true})
-	in.Aliases = append(in.Aliases, AliasData{Alias: "a@example.com", DeliverTo: []string{"nobody@example.com"}})
+	in.Aliases = append(in.Aliases, AliasData{Alias: "a@example.com", DeliverTo: []string{"nobody"}})
 	in.RelayIPs = append(in.RelayIPs, "1.2.3")
 	in.Dkim[0].PrivateKey = "junk"
 	_, err := ImportData(db, in, false, false)
@@ -129,7 +130,7 @@ func TestImportDataInvalid(t *testing.T) {
 	for _, msg := range []string{
 		"user john@example.com: example.com must be a local domain",
 		"user x@relay.example.net: relay.example.net must be a local domain",
-		"alias a@example.com: user nobody@example.com doesn't exist",
+		`alias a@example.com: "nobody" is not an email address`,
 		"domain alias example.org: example.com must be a local domain",
 		`relay IP "1.2.3" is not an IP address`,
 		"DKIM of example.com: the private key is not in PEM format",
@@ -175,4 +176,36 @@ func TestEditData(t *testing.T) {
 	out, _ := ExportData(db)
 	assert.Equal(t, []string{"198.51.100.1", "2001:db8::1"}, out.RelayIPs)
 	assert.True(t, out.Users[0].Relay)
+}
+
+func TestValidateAliases(t *testing.T) {
+	hash, _, err := HashPassword("secret1")
+	require.NoError(t, err)
+	domains := []DomainData{{Name: "example.com", Local: true}}
+	// no users: forwards anywhere, to other aliases, to a command
+	d := &Data{Domains: domains, Aliases: []AliasData{
+		{Alias: "info@example.com", DeliverTo: []string{"someone@elsewhere.example", "sales@example.com"}},
+		{Alias: "sales@example.com", Pipe: "/usr/local/bin/tickets"},
+	}}
+	assert.Empty(t, ValidateData(d))
+
+	// a login without mailbox can have the same address, not a mailbox
+	d.Users = []UserData{{Login: "info@example.com", PasswordHash: hash, Relay: true}}
+	assert.Empty(t, ValidateData(d))
+	d.Users[0].Mailbox = true
+	assert.Equal(t, []error{errors.New("alias info@example.com is also a user with a mailbox")}, ValidateData(d))
+
+	for _, c := range []struct {
+		alias AliasData
+		want  string
+	}{
+		{AliasData{Alias: "a@elsewhere.example", Pipe: "x"}, "alias a@elsewhere.example: elsewhere.example must be a local domain"},
+		{AliasData{Alias: "a@example.com", DeliverTo: []string{"a@example.com"}}, "alias a@example.com can't deliver to itself"},
+		{AliasData{Alias: "example.org", Pipe: "x"}, "domain alias example.org must point to one local domain"},
+	} {
+		alias, want := c.alias, c.want
+		errs := ValidateData(&Data{Domains: domains, Aliases: []AliasData{alias}})
+		require.Len(t, errs, 1, alias.Alias)
+		assert.EqualError(t, errs[0], want)
+	}
 }

@@ -36,8 +36,8 @@ var dataSections = []struct{ key, comment string }{
 	{"users", "Users. password: in clear text, it's hashed when imported, or password_hash and dovecot_hash " +
 		"as exported, none: the current one is kept. mailbox: gets mail, its login is its address. relay: can send mail after " +
 		"authentication. catchall: gets the mail of unknown addresses of its domain."},
-	{"aliases", "Aliases. An address alias (sales@example.com) is delivered to users of its domain " +
-		"(deliver_to) and/or to a command (pipe). minilist: the alias becomes the sender, so bounces " +
+	{"aliases", "Aliases. An address alias (sales@example.com) is delivered to any addresses " +
+		"(deliver_to), local or not, and/or to a command (pipe). minilist: the alias becomes the sender, so bounces " +
 		"come back to it. A domain alias (example.org) delivers to the same addresses of one local domain."},
 	{"relay_ips", "IP addresses allowed to send mail through cocosmail without authentication."},
 	{"routes", "Routes for outgoing mail to destination (a domain, * for all) through remote_host, " +
