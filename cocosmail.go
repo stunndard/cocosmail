@@ -186,11 +186,22 @@ func main() {
 
 			// POP3 server
 			if core.Cfg.GetLaunchPop3() {
-				pop3Dsn, err := core.GetDsnsFromString(core.Cfg.GetPop3Dsns())
+				pop3Dsns, err := core.GetDsnsFromString(core.Cfg.GetPop3Dsns())
 				if err != nil {
 					log.Fatalln("unable to parse pop3 dsn -", err)
 				}
-				go pop3.NewPop3d(pop3Dsn[0]).ListenAndServe()
+				// POP3 has no STLS: without ssl passwords would travel in clear text
+				for _, dsn := range pop3Dsns {
+					if !dsn.Ssl && !dsn.TcpAddr.IP.IsLoopback() {
+						log.Fatalln("pop3d", dsn.String(), "- nossl is only allowed on a loopback address (127.0.0.1, [::1]), use ssl")
+					}
+				}
+				if err = pop3.ClearLocks(); err != nil {
+					log.Fatalln(err)
+				}
+				for _, dsn := range pop3Dsns {
+					go pop3.NewPop3d(dsn).ListenAndServe()
+				}
 			}
 
 			// runtime stats

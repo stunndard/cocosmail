@@ -105,7 +105,7 @@ var Routes = cgCli.Command{
 				cgCli.StringFlag{
 					Name:  "localIp, l",
 					Value: "",
-					Usage: "Local IP(s) to use. If you want to add multiple IP separate them by | for round-robin or & for failover. Don't mix & and |",
+					Usage: "Local IP(s) to use. If you want to add multiple IP separate them by | for round-robin or & for failover. Don't mix & and |. IPv6 with a hostname must use brackets: [2001:db8::1]:mail.example.com",
 				},
 				cgCli.StringFlag{
 					Name:  "smtpUser, u",

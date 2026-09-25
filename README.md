@@ -1,249 +1,365 @@
 # cocosmail
 
-cocosmail is a email server (SMTP/POP3/...)
+**An email server for human beings.**
+
+cocosmail is a complete, self-hosted mail server in a single binary. It
+receives mail for your domains, delivers it to local mailboxes, lets you
+read it over POP3, and sends your outgoing mail to the rest of the
+internet. There is no Postfix + Dovecot + OpenDKIM + queue daemon + database
+server to glue together: one program, one folder, one config file.
+
+> **Status:** usable, work in progress. Configuration currently lives in a
+> plain text file (`conf/cocosmail.cfg`). An interactive, Turbo Vision style
+> text UI for configuration is planned, see [Roadmap](#roadmap).
+
+## What you get
+
+- **SMTP server**: receives mail from the internet (MX) and from your own mail
+  clients (submission). STARTTLS, implicit TLS (SMTPS), `AUTH PLAIN` and
+  `AUTH LOGIN`. Authentication is only allowed over an encrypted connection.
+  TLS 1.2 or newer only.
+- **POP3 server**: POP3 over TLS (POP3S) for reading your mail.
+- **Local mailboxes**: built-in Maildir delivery. You can also hand mail over to
+  Dovecot's LDA if you want IMAP through Dovecot.
+- **Outgoing delivery**: queue with retries and bounces, MX lookup, optional
+  static routes (per domain, sender or user), failover/round-robin across
+  several local IPs, STARTTLS to remote servers, DKIM signing.
+- **Anti-abuse**: SPF checks (adds `Received-SPF`, can reject), optional
+  ClamAV scanning, relay control per IP or per authenticated user, a fail2ban
+  style plugin.
+- **IPv4 and IPv6** for SMTP (in and out) and POP3.
+- **Aliases and catch-all**, including piping mail to a command.
+- **Plugins** written in plain Go, loaded at runtime without recompiling.
+- **Batteries included**: the message queue (nsqd) and the default database
+  (SQLite) are embedded. MySQL/MariaDB and PostgreSQL are supported too.
+- **CLI** to manage domains, users, aliases, routes, DKIM and the queue, plus a
+  small REST API.
+
+## What's in the folder
+
+Everything cocosmail needs lives in one directory (`dist/` in this repo):
+
+| Path          | What it is                                                     |
+|---------------|----------------------------------------------------------------|
+| `cocosmail`   | the binary (you build it, see below)                            |
+| `run`         | helper script: loads the config and starts the server           |
+| `conf/`       | `cocosmail.cfg.base` is the documented example config            |
+| `ssl/`        | TLS certificates and keys                                      |
+| `tpl/`        | text templates (bounce messages)                               |
+| `plugins/`    | runtime plugins and `config.go`, which enables them             |
+| `db/`         | SQLite database (created on first run)                         |
+| `store/`      | messages waiting in the queue                                  |
+| `mailboxes/`  | users' Maildirs                                                |
+
+`nsq/` and `bolt/` are created automatically for the internal queue and cache.
+
+## Quick start
+
+These steps set up a server for `example.com` whose hostname is
+`mail.example.com`. Replace them with your own names.
+
+### 1. Build
+
+You need a Go toolchain.
+
+```sh
+git clone https://github.com/stunndard/cocosmail.git
+cd cocosmail
+go build -o dist/cocosmail
+```
+
+(or `task build` if you use [Task](https://taskfile.dev)).
+
+### 2. Install
+
+Run cocosmail as its own unprivileged user:
+
+```sh
+sudo adduser --disabled-password cocosmail
+sudo cp -r dist /home/cocosmail/dist
+sudo chown -R cocosmail: /home/cocosmail/dist
+sudo -iu cocosmail
+cd ~/dist
+mkdir -p db store mailboxes
+```
+
+### 3. Configure
+
+```sh
+cp conf/cocosmail.cfg.base conf/cocosmail.cfg
+chmod 600 conf/cocosmail.cfg
+```
+
+The config file is a shell script made of `export COCOSMAIL_...=...` lines.
+Every option is documented inside it. For a first setup you only need to
+check these:
+
+| Setting                          | Set it to                                                    |
+|----------------------------------|--------------------------------------------------------------|
+| `COCOSMAIL_ME`                   | your server's hostname, e.g. `mail.example.com`              |
+| `COCOSMAIL_DB_SOURCE`            | path of the SQLite file, e.g. `/home/cocosmail/dist/db/cocosmail.db?_busy_timeout=60000` |
+| `COCOSMAIL_STORE_SOURCE`         | `/home/cocosmail/dist/store`                                 |
+| `COCOSMAIL_USERS_HOME_BASE`      | `/home/cocosmail/dist/mailboxes`                             |
+| `COCOSMAIL_PLUGIN_PATH`          | `/home/cocosmail/dist/plugins`                               |
+| `COCOSMAIL_SMTPD_DSNS`           | where SMTP listens (see [Listeners](#listeners))            |
+| `COCOSMAIL_POP3D_DSNS`           | where POP3 listens                                           |
+| `COCOSMAIL_DELIVERD_LOCAL_IPS`   | local IPs used for outgoing mail; `0.0.0.0&::` is fine for most |
 
-cocosmail is a fast and compact all-in-one solution for a personal self hosted email. The modern trends show that people move their email from big bad corporations to their personal servers. And this is where cocosmail steps in to help. Aimed to be very simple and extremely easy to setup and deploy for anyone (WIP).
+The example config already uses `/home/cocosmail/dist`. If you installed
+elsewhere, change those paths.
 
-## Features
+A typical listener setup for a public server:
 
- * SMTP, SMTP over SSL, ESMTP (SIZE, AUTH PLAIN, STARTTLS), POP3, POP3S
- * Advanced routing for outgoing mails (failover and round robin on routes, route by recipient, sender, authuser... )
- * SMTPAUTH (plain & cram-md5) for in/outgoing mails
- * STARTTLS/SSL for in/outgoing connections.
- * Manageable via CLI or REST API.
- * DKIM support for signing outgoing mails.
- * Builtin support of clamav (open-source antivirus scanner).
- * Builtin Dovecot (imap server) support.
- * Builtin deliverd supporting maildir.
- * Fully extendable via plugins
- * Easy to deploy
- * No dependencies, single binary: -> you do not have to install nor maintain libs
- * Scriptable with easy procedural scripts at every email receiving/forwarding/alias/antispam step, no more cryptic configs for complicated actions (todo)
+```sh
+export COCOSMAIL_SMTPD_DSNS="[::]:25:mail.example.com:nossl:example.com;[::]:587:mail.example.com:nossl:example.com;[::]:465:mail.example.com:ssl:example.com"
+export COCOSMAIL_POP3D_DSNS="[::]:995:mail.example.com:ssl:example.com"
+```
 
+- port 25: mail from other servers (STARTTLS available)
+- port 587: your mail clients, with STARTTLS + login
+- port 465: your mail clients, with implicit TLS + login
+- port 995: POP3 over TLS
 
-### add user cocosmail
+### 4. Certificates
 
-	adduser cocosmail
+For each listener, the last DSN field (`example.com` above) is a certificate
+name. cocosmail loads:
 
-### Fetch cocosmail dist
+- `ssl/smtp-<name>.crt` and `ssl/smtp-<name>.key` for SMTP (used for SMTPS and
+  for STARTTLS)
+- `ssl/pop3-<name>.crt` and `ssl/pop3-<name>.key` for POP3
 
-	# su cocosmail
-	$ cd
-	$ wget ftp://ftp.cocosmail./softs/cocosmail/cocosmail.zip
-	$ unzip cocosmail.zip
-	$ cd dist
+With [Let's Encrypt](https://letsencrypt.org/) (certbot), for example:
 
-Under dist you will find:
+```sh
+sudo certbot certonly --standalone -d mail.example.com
+cd /home/cocosmail/dist/ssl
+for p in smtp pop3; do
+  sudo cp /etc/letsencrypt/live/mail.example.com/fullchain.pem $p-example.com.crt
+  sudo cp /etc/letsencrypt/live/mail.example.com/privkey.pem   $p-example.com.key
+done
+sudo chown cocosmail: *.crt *.key && sudo chmod 600 *.key
+```
 
-* conf: configuration.
-* run: script used to launch cocosmail
-* ssl: is the place to store SSL cert. For testing purpose you can use those included.
-* cocosmail: cocosmail binary
-* tpl: text templates.
-* db: if you use sqlite as DB backend (MySQL and Postgresql are also supported), sqlite file will be stored in this directory.
-* store: mainly used to store raw email when they are in queue. (others kind of backend/storage engine are coming)
-* mailboxes: where mailboxes are stored if you activate Dovecot support.
+For a quick test, a self-signed certificate works too:
 
-Make run script and cocosmail runnable:
+```sh
+openssl req -x509 -newkey rsa:2048 -nodes -days 365 -subj /CN=mail.example.com \
+  -keyout ssl/smtp-example.com.key -out ssl/smtp-example.com.crt
+cp ssl/smtp-example.com.key ssl/pop3-example.com.key
+cp ssl/smtp-example.com.crt ssl/pop3-example.com.crt
+```
 
-	chmod 700 run cocosmail
+cocosmail stops at startup if a POP3 or SMTPS certificate is missing.
 
-add directories:
+### 5. First start
 
-	mkdir db
-	mkdir store
+```sh
+./run
+```
 
+On the first start cocosmail sees an empty database and asks whether to create
+the tables. Answer `y`. **Do this first start in a terminal**, not from a
+service manager, because it waits for your answer.
 
-if you want to enable Dovecot support add mailboxes directory:
+```
+Database 'driver: sqlite3, source: ...' misses some tables.
+Should i create them ? (y/n): y
+... smtpd [::]:25 launched.
+... pop3d [::]:995 SSL launched
+... deliverd launched
+```
 
-	mkdir mailboxes
+### 6. Add your domain and a mailbox
 
-See [Enabling Dovecot support for cocosmail (french)](http://cocosmail.io/doc/mailboxes/) for more info.
+In a second terminal, as the `cocosmail` user in `~/dist`:
 
+```sh
+. conf/cocosmail.cfg                              # the CLI reads the same config
+./cocosmail rcpthost add -l example.com           # accept mail for example.com, deliver locally
+./cocosmail user add -m -r you@example.com 'a-good-password'
+```
 
-### Configuration
+`-m` gives the user a mailbox and `-r` allows them to send mail out through
+the server after logging in.
 
-Init you conf file:
+Configure your mail client with:
 
-	cd conf
-	cp cocosmail.cfg.base cocosmail.cfg
-	chmod 600 cocosmail.cfg
+- incoming: POP3, `mail.example.com`, port 995, SSL/TLS, login `you@example.com`
+- outgoing: SMTP, `mail.example.com`, port 587 (STARTTLS) or 465 (SSL/TLS),
+  same login
 
-* COCOSMAIL_ME: Hostname of the SMTP server (will be used for HELO|EHLO)
+### 7. DNS
 
-* COCOSMAIL_DB_DRIVER: I recommend sqlite3 unless you want to enable clustering (or you have a lot of domains/mailboxes)
+Other servers must be able to find and trust you. At your DNS provider:
 
-* COCOSMAIL_SMTPD_DSNS: listening IP(s), port(s) and SSL options (see conf file for more info)
+| Record                          | Value                                                     |
+|---------------------------------|-----------------------------------------------------------|
+| `mail.example.com` A / AAAA     | your server's IPv4 / IPv6 address                         |
+| `example.com` MX                | `10 mail.example.com.`                                    |
+| `example.com` TXT (SPF)         | `v=spf1 mx -all`                                          |
+| DKIM TXT                        | output of `./cocosmail dkim getdnsrecord example.com`     |
+| reverse DNS (PTR)               | set `mail.example.com` for each IP, at your hosting provider |
 
-* COCOSMAIL_DELIVERD_LOCAL_IPS: IP(s) to use for sending mail to remote host.
+To sign outgoing mail with DKIM:
 
-* COCOSMAIL_SMTPD_CONCURRENCY_INCOMING: max concurent incomming proccess
+```sh
+./cocosmail dkim enable example.com
+./cocosmail dkim getdnsrecord example.com   # publish this record
+```
 
-* COCOSMAIL_DELIVERD_MAX_IN_FLIGHT: concurrent delivery proccess
+and set `COCOSMAIL_DELIVERD_DKIM_SIGN=true` in the config.
 
+### Ports below 1024
 
-### Init database
+cocosmail doesn't need root. Allow the binary to bind privileged ports:
 
-	cocosmail@dev:~/dist$ ./run
-	Database 'driver: sqlite3, source: /home/cocosmail/dist/db/cocosmail.db' misses some tables.
-	Should i create them ? (y/n): y
+```sh
+sudo setcap cap_net_bind_service=+ep /home/cocosmail/dist/cocosmail
+```
 
-	[dev.cocosmail.io - 127.0.0.1] 2015/02/02 12:42:32.449597 INFO - smtpd 151.80.115.83:2525 launched.
-	[dev.cocosmail.io - 127.0.0.1] 2015/02/02 12:42:32.449931 INFO - smtpd 151.80.115.83:5877 launched.
-	[dev.cocosmail.io - 127.0.0.1] 2015/02/02 12:42:32.450011 INFO - smtpd 151.80.115.83:4655 SSL launched.
-	[dev.cocosmail.io - 127.0.0.1] 2015/02/02 12:42:32.499728 INFO - deliverd launched
+(repeat after every rebuild), or use `AmbientCapabilities` in the systemd unit
+below.
 
-### Port forwarding
+### Running as a service (systemd)
 
-As you run cocosmail under cocosmail user, it can't open port under 1024 (and for now cocosmail can be launched as root, open port under 25 and fork itself to unprivilegied user).
+`/etc/systemd/system/cocosmail.service`:
 
-The workaround is to use iptables to forward ports.
-For example, if we have cocosmail listening on ports 2525, and 5877 and we want tu use 25 and 587 as public ports, we have to use those iptables rules:
+```ini
+[Unit]
+Description=cocosmail mail server
+After=network-online.target
+Wants=network-online.target
 
-	iptables -t nat -A PREROUTING -p tcp --dport 25 -j REDIRECT --to-port 2525
-	iptables -t nat -A PREROUTING -p tcp --dport 587 -j REDIRECT --to-port 5877
+[Service]
+User=cocosmail
+WorkingDirectory=/home/cocosmail/dist
+ExecStart=/bin/sh -c '. conf/cocosmail.cfg && exec ./cocosmail'
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+Restart=on-failure
 
-### First test
+[Install]
+WantedBy=multi-user.target
+```
 
-	$ telnet dev.cocosmail.io 25
-	Trying 151.80.115.83...
-	Connected to dev.cocosmail.io.
-	Escape character is '^]'.
-	220 cocosmail.io  cocosmail ESMTP f22815e0988b8766b6fe69cbc73fb0d965754f60
-	HELO toto
-	250 cocosmail.io
-	MAIL FROM: cocos@cocosmail.io
-	250 ok
-	RCPT TO: cocos@cocosmail.io
-	554 5.7.1 <cocos@cocosmail.io>: Relay access denied.
-	Connection closed by foreign host.
+```sh
+sudo systemctl daemon-reload
+sudo systemctl enable --now cocosmail
+journalctl -u cocosmail -f
+```
 
-Perfect !
-You got "Relay access denied" because by default noboby can use cocosmail for relaying mails.
+## Listeners
 
-### Relaying mails for @example.com
+`COCOSMAIL_SMTPD_DSNS` and `COCOSMAIL_POP3D_DSNS` are lists of listeners
+separated by `;`. Each listener is:
 
-If you want cocosmail to relay mails for example.com, just run:
+```
+IP:PORT:HOSTNAME:SSL:CERT
+```
 
-	cocosmail rcpthost add example.com
+| Field      | Meaning                                                            |
+|------------|--------------------------------------------------------------------|
+| `IP`       | address to listen on (see below)                                   |
+| `PORT`     | TCP port                                                           |
+| `HOSTNAME` | name used in the greeting and `Received:` headers                  |
+| `SSL`      | `ssl`: encrypted from the start (implicit TLS). `nossl`: starts in clear text, STARTTLS available (SMTP only) |
+| `CERT`     | certificate name: `ssl/smtp-CERT.*` or `ssl/pop3-CERT.*`           |
 
-Note: If you have activated Dovecot support and example.com is a local domain, add -l flag :
+The IP can be:
 
-	cocosmail rcpthost add -l example.com
+- an IPv4 address: `192.0.2.10:25:...`
+- an IPv6 address **in square brackets**: `[2001:db8::10]:25:...`. Link-local
+  addresses need their interface: `[fe80::1%eth0]:25:...`
+- `[::]`, `0.0.0.0` or empty (`:25:...`): all addresses, IPv4 **and** IPv6.
+  This relies on the operating system allowing dual-stack sockets, which is
+  the default on Linux.
 
-Does it work as expected ?
+POP3 has no STARTTLS (STLS), so a POP3 listener must use `ssl`. cocosmail
+refuses to start with `nossl` for POP3, except on a loopback address
+(`127.0.0.1` or `[::1]`), for example behind a local TLS proxy.
 
-	$ telnet dev.cocosmail.io 25
-	Trying 151.80.115.83...
-	Connected to dev.cocosmail.io.
-	Escape character is '^]'.
-	220 cocosmail.io  cocosmail ESMTP 96b78ef8f850253cc956820a874e8ce40773bfb7
-	HELO toto
-	250 cocosmail.io
-	mail from: cocos@cocosmail.io
-	250 ok
-	rcpt to: cocos@example.com
-	250 ok
-	data
-	354 End data with <CR><LF>.<CR><LF>
-	subject: test cocosmail
+To listen only on specific addresses, list them separately:
 
-	blabla
-	.
-	250 2.0.0 Ok: queued 2736698d73c044fd7f1994e76814d737c702a25e
-	quit
-	221 2.0.0 Bye
-	Connection closed by foreign host.
+```sh
+export COCOSMAIL_SMTPD_DSNS="192.0.2.10:25:mail.example.com:nossl:example.com;[2001:db8::10]:25:mail.example.com:nossl:example.com"
+```
 
-Yes ;)
+## Outgoing mail and IPv6
 
-### Allow relay from an IP
+`COCOSMAIL_DELIVERD_LOCAL_IPS` lists the local addresses used to connect to
+other servers:
 
-	cocosmail relayip add IP
+- `&` between addresses means failover: try them in order.
+- `|` means round-robin: pick them in random order. Don't mix `&` and `|`.
+- Add `:hostname` to use a specific HELO name for an address. IPv6 addresses
+  need brackets when followed by a hostname: `[2001:db8::10]:mail.example.com`.
+- `0.0.0.0` is any local IPv4 address and `::` is any local IPv6 address.
 
-For example:
+An IPv4 local address is only used for IPv4 destinations and an IPv6 one only
+for IPv6 destinations. The default `0.0.0.0&::` sends over IPv4 when possible
+and falls back to IPv6. `0.0.0.0` alone disables outgoing IPv6.
 
-	cocosmail relayip add 127.0.0.1
+The same syntax is used for the `-l` option of `cocosmail routes add`.
 
+## Command line
 
-### Basic routing
+Run `./cocosmail help` or `./cocosmail <command> help` for details. The CLI
+uses the same config, so load it first (`. conf/cocosmail.cfg`).
 
-By default cocosmail will use MX records for routing mails, but you can "manualy" configure alternative routing.
-If you want cocosmail to route mail from @example.com to mx.slowmail.com. It is as easy as adding this routing rule
+| Command     | Subcommands                                               | Purpose                               |
+|-------------|-----------------------------------------------------------|---------------------------------------|
+| `rcpthost`  | `add`, `list`, `del`                                      | domains cocosmail accepts mail for (`-l` = local mailboxes) |
+| `user`      | `add`, `del`, `update`, `list`, `catchall`                | users, mailboxes, SMTP login, quota   |
+| `alias`     | `add`, `del`, `list`                                      | aliases, forwarding, pipe to command  |
+| `relayip`   | `add`, `list`, `del`                                      | IPs (v4 or v6) allowed to relay without login |
+| `routes`    | `add`, `list`, `del`                                      | static routes for outgoing mail       |
+| `dkim`      | `enable`, `disable`, `getdnsrecord`, `getpubkey`, `getprivkey` | DKIM keys per domain             |
+| `queue`     | `list`, `count`, `discard`, `bounce`, `purge`             | outgoing mail queue                   |
 
-	cocosmail routes add -d example.com -rh mx.slowmail.com
+Example: send all mail for `example.net` through a smarthost:
 
-You can find more elaborated routing rules on [cocosmail routing documentation (french)](http://cocosmail.io/doc/cli-gestion-route-smtp/) (translators are welcomed ;))
+```sh
+./cocosmail routes add -d example.net -rh smtp.provider.net -rp 587 -rl login -rpwd password
+```
 
-### SMTP AUTH
+## Plugins
 
-If you want to enable relaying after SMTP AUTH for user cocos@cocosmail.io, just enter:
+Plugins are Go source files that cocosmail interprets at runtime (with
+[yaegi](https://github.com/traefik/yaegi)), so you don't need a Go toolchain
+on the server to change them. They live in `plugins/<name>/<name>.go` and hook
+into the SMTP session: `connect`, `helo`, `mailpre`, `mailpost`, `rcptto`,
+`data`, `beforequeue`, `quit`, `exitasap` and `auth`.
 
-	cocosmail user add -r cocos@cocosmail.io password
+`plugins/config.go` lists which plugins are active, in order. Two examples
+ship with cocosmail:
 
+- `fail2ban`: bans IPs after repeated failed logins.
+- `customgreeting`: replaces the SMTP greeting. This is a demo, so remove it
+  from `config.go` on a real server.
 
-If you want to delete user cocos@cocosmail.io :
+## Other options
 
-	cocosmail user del cocos@cocosmail.io
-
-
-### Let's Encrypt (TLS/SSL)
-
-If you want to activate TLS/SSL connections with a valid certificate (not an auto-signed one as it's by default) between mail clients and your cocosmail server you can get a let's Encrypt certificate, you have first to install let's Encrypt :
-
-	cd ~
-	git clone https://github.com/letsencrypt/letsencrypt
-	cd letsencrypt
-
-Then you can request a certificate
-
-	./letsencrypt-auto certonly --standalone -d your.hostname
-
-You'll have to provide a valid mail address and agree to the Let's Encrypt Term of Service. When certificate is issued you have to copy some files to the ssl/ directory
-
-	cd /home/cocosmail/dist/ssl
-	cp /etc/letsencrypt/live/your.hostname/fullchain.pem server.crt
-	cp /etc/letsencrypt/live/your.hostname/privkey.pem server.key
-	chown cocosmail.cocosmail server.*
-
-And it's done !
-
-
-## Contribute
-
-Feel free to inspect & improve cocosmail code, PR are welcomed ;)
-
-If you are not a coder, you can contribute too:
-
-* install and use cocosmail, I need feebacks.
-
-* as you can see reading this page, english is not my native language, so I need help to write english documentation.
-
+`conf/cocosmail.cfg.base` documents everything else, including SPF policy
+(`COCOSMAIL_SMTPD_SPF_ACTION`), message size limit, ClamAV, Dovecot LDA,
+MySQL/PostgreSQL, the REST API, queue lifetimes and RFC strictness switches.
 
 ## Roadmap
 
- * clustering
- * IPV6
- * write unit tests (yes i know...)
- * improve, refactor, optimize
- * test test test test
+- **Text UI configurator**: a Turbo Vision style interface, built on
+  [vtui](https://github.com/unxed/vtui), to set cocosmail up without editing
+  the config file by hand.
 
+See [TODO.md](TODO.md) for known issues.
 
-## License
-MIT, see LICENSE
+## Contributing
 
+Issues and pull requests are welcome. If you run cocosmail, feedback on what
+was hard to set up is especially useful: making setup easy is the point of
+this project.
 
-## Imported packages
+## Credits and license
 
-github.com/nsqio/nsq/...
-github.com/urfave/cli
-github.com/codegangsta/negroni
-github.com/go-sql-driver/mysql
-github.com/jinzhu/gorm
-github.com/julienschmidt/httprouter
-github.com/kless/osutil/user/crypt/...
-github.com/lib/pq
-github.com/mattn/go-sqlite3
-github.com/nbio/httpcontext
-golang.org/x/crypto/bcrypt
-golang.org/x/crypto/blowfish
+cocosmail started as [tmail](https://github.com/toorop/tmail) by Stéphane
+Depierrepont (Toorop) and is developed in this fork.
+
+MIT, see [LICENSE](LICENSE).

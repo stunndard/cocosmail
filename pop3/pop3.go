@@ -451,6 +451,12 @@ func (b *Backend) Log(s string, loglevel int) {
 	core.Logger.Debug("pop3d ", s)
 }
 
+// ClearLocks deletes stuck lock files left by a previous run.
+// Must be called once before launching pop3 servers.
+func ClearLocks() error {
+	return NewBackend().ClearLocks()
+}
+
 // pop3 Server
 type Pop3d struct {
 	dsn core.Dsn
@@ -467,10 +473,6 @@ func (p *Pop3d) ListenAndServe() {
 	var authorizator Authorizator
 
 	backend := NewBackend()
-
-	if err := backend.ClearLocks(); err != nil {
-		log.Fatal(err)
-	}
 
 	pop3Cfg := &popgun.Config{
 		ListenInterface: p.dsn.TcpAddr.String(),
@@ -501,7 +503,7 @@ func (p *Pop3d) ListenAndServe() {
 	server := popgun.NewServer(pop3Cfg, authorizator, backend)
 	err := server.Start()
 	if err != nil {
-		log.Fatal("unable to launch pop3 server")
+		log.Fatalln("unable to launch pop3 server", p.dsn.String(), "-", err)
 	}
 
 	core.Logger.Info("pop3d " + p.dsn.String() + " launched")

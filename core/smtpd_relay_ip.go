@@ -28,11 +28,13 @@ func IpCanRelay(ip net.IP) (bool, error) {
 // RelayIpAdd authorize IP to relay through cocosmail
 func RelayIpAdd(ip string) error {
 	// input validation
-	if net.ParseIP(ip) == nil {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
 		return errors.New("Invalid IP: " + ip)
 	}
+	// store canonical form, it's what IpCanRelay compares with
 	rip := RelayIpOk{
-		Ip: ip,
+		Ip: parsed.String(),
 	}
 	return DB.Save(&rip).Error
 }
@@ -47,8 +49,9 @@ func RelayIpGetAll() (ips []RelayIpOk, err error) {
 // RelayIpDel remove ip from authorized IP
 func RelayIpDel(ip string) error {
 	// input validation
-	if net.ParseIP(ip) == nil {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
 		return errors.New("Invalid IP: " + ip)
 	}
-	return DB.Where("ip = ?", ip).Delete(&RelayIpOk{}).Error
+	return DB.Where("ip = ? OR ip = ?", ip, parsed.String()).Delete(&RelayIpOk{}).Error
 }
