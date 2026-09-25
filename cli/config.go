@@ -18,7 +18,7 @@ var fileFlag = cgCli.StringFlag{
 // Config manages settings, in the database or in a config file
 var Config = cgCli.Command{
 	Name:  "config",
-	Usage: "commands to manage settings, in the database or in a config file (--file)",
+	Usage: "commands to manage settings and data, in the database or in a config file (--file)",
 	// only needs the DB, and not with --file: see configDB
 	Before: func(c *cgCli.Context) error { return nil },
 	Subcommands: []cgCli.Command{
@@ -56,9 +56,10 @@ var Config = cgCli.Command{
 		},
 		{
 			Name:  "edit",
-			Usage: "Edit settings in a text UI, in the database or in a config file (--file)",
+			Usage: "Edit settings and data (domains, users...) in a text UI, in the database or in a config file (--file)",
 			Description: "cocosmail config edit [--file FILE]\n" +
-				"   F4 or Enter edits a setting, F8 resets it to its default, F2 saves, F10 quits.",
+				"   F4 or Enter edits a setting, F8 resets it to its default, F2 saves, F10 quits.\n" +
+				"   In data sections, F7 adds an item, F4 edits it, F8 deletes it.",
 			Flags: []cgCli.Flag{fileFlag},
 			Action: func(c *cgCli.Context) {
 				var store tui.Store
@@ -115,19 +116,25 @@ var Config = cgCli.Command{
 		},
 		{
 			Name:  "import",
-			Usage: "Import settings from a config file into the database",
-			Description: "cocosmail config import FILE [--merge]\n" +
+			Usage: "Import settings and data from a config file into the database",
+			Description: "cocosmail config import FILE [--merge] [--replace] [--dry-run]\n" +
 				"   Settings not in FILE get their default, unless --merge: then they're kept.\n" +
-				"   Old style files (export COCOSMAIL_KEY=\"value\") are accepted.",
-			Flags: []cgCli.Flag{cgCli.BoolFlag{
-				Name:  "merge",
-				Usage: "only change settings that are in FILE",
-			}},
+				"   Data (domains, users, aliases, relay IPs, routes, DKIM keys) is added or\n" +
+				"   changed, the rest is kept, unless --replace: then it's deleted.\n" +
+				"   Old style files (COCOSMAIL_KEY=value) are accepted.",
+			Flags: []cgCli.Flag{
+				cgCli.BoolFlag{Name: "merge", Usage: "only change settings that are in FILE"},
+				cgCli.BoolFlag{Name: "replace", Usage: "delete data that is not in FILE"},
+				cgCli.BoolFlag{Name: "dry-run, n", Usage: "show the changes, don't import"},
+			},
 			Action: func(c *cgCli.Context) {
 				if len(c.Args()) != 1 {
 					cliDieBadArgs(c, "FILE is missing")
 				}
-				values := readConfigFile(c.Args().First())
+				path := c.Args().First()
+				f, values := readConfig(path)
+				data, err := f.Data()
+				cliHandleErr(err)
 				for _, s := range core.Settings {
 					if v, ok := values[s.Key]; ok && s.Bootstrap {
 						delete(values, s.Key)
@@ -137,26 +144,72 @@ var Config = cgCli.Command{
 					}
 				}
 				configDB()
-				dieIfManaged()
-				changed, err := core.ImportSettings(core.DB, values, c.Bool("merge"))
-				cliHandleErr(err)
-				fmt.Printf("%d settings imported, %d changed.\n", len(values), len(changed))
+				withSettings := len(values) > 0
+				if managedBy := core.SettingsManagedBy(core.DB); withSettings && managedBy != "" {
+					fmt.Printf("note: settings are not imported, they're managed by %s\n", managedBy)
+					withSettings = false
+				}
+				withData := f.HasData()
+				if !withData && c.Bool("replace") {
+					fmt.Println("note: data is not changed, " + path + " has no data sections")
+				}
+				if !withSettings && !withData {
+					cliHandleErr(errors.New("nothing to import"))
+				}
+
+				// everything is checked before anything is imported
+				var changed, dataChanges []string
+				if withSettings {
+					changed, err = core.CheckImportSettings(core.DB, values, c.Bool("merge"))
+					cliHandleErr(err)
+				}
+				if withData {
+					dataChanges, err = core.ImportData(core.DB, data, c.Bool("replace"), true)
+					cliHandleErr(err)
+				}
+				if c.Bool("dry-run") {
+					for _, k := range changed {
+						fmt.Println("set " + core.SettingEnvName(k))
+					}
+					for _, ch := range dataChanges {
+						fmt.Println(ch)
+					}
+					fmt.Printf("%d settings and %d data changes, not imported (--dry-run).\n", len(changed), len(dataChanges))
+					cliDieOk()
+				}
+				if withSettings {
+					changed, err = core.ImportSettings(core.DB, values, c.Bool("merge"))
+					cliHandleErr(err)
+					fmt.Printf("%d settings imported, %d changed.\n", len(values), len(changed))
+				}
+				if withData {
+					dataChanges, err = core.ImportData(core.DB, data, c.Bool("replace"), false)
+					cliHandleErr(err)
+					for _, ch := range dataChanges {
+						fmt.Println(ch)
+					}
+					fmt.Printf("%d data changes.\n", len(dataChanges))
+				}
 				applyNotice(changed)
 				cliDieOk()
 			},
 		},
 		{
 			Name:  "export",
-			Usage: "Export settings to a config file, or to stdout",
+			Usage: "Export settings and data to a config file, or to stdout",
 			Description: "cocosmail config export [FILE] [--no-secrets]\n" +
+				"   One file with all settings and data (domains, users, aliases, relay IPs,\n" +
+				"   routes, DKIM keys), to import on any server.\n" +
 				"   If FILE exists, its values are updated and its comments kept.",
 			Flags: []cgCli.Flag{cgCli.BoolFlag{
 				Name:  "no-secrets",
-				Usage: "leave secret values empty",
+				Usage: "leave secret values, password hashes and private keys empty",
 			}},
 			Action: func(c *cgCli.Context) {
 				configDB()
 				values, _, err := core.EffectiveSettings(core.DB)
+				cliHandleErr(err)
+				data, err := core.ExportData(core.DB)
 				cliHandleErr(err)
 				if c.Bool("no-secrets") {
 					for _, s := range core.Settings {
@@ -164,22 +217,24 @@ var Config = cgCli.Command{
 							values[s.Key] = ""
 						}
 					}
+					data.RemoveSecrets()
 				}
 				if len(c.Args()) == 0 {
-					os.Stdout.Write(core.NewConfigFile(values).Bytes())
+					os.Stdout.Write(core.NewConfigFile(values, data).Bytes())
 					cliDieOk()
 				}
 				path := c.Args().First()
-				f := core.NewConfigFile(values)
+				f := core.NewConfigFile(values, data)
 				if _, err := os.Stat(path); err == nil {
 					f, _, err = core.ReadConfigFile(path)
 					cliHandleErr(err)
 					for _, s := range core.Settings {
 						f.Set(s.Key, values[s.Key])
 					}
+					f.SetData(data)
 				}
 				cliHandleErr(f.Write(path))
-				fmt.Printf("Settings exported to %s\n", path)
+				fmt.Printf("Settings and data exported to %s\n", path)
 				cliDieOk()
 			},
 		},
@@ -187,16 +242,19 @@ var Config = cgCli.Command{
 			Name:  "convert",
 			Usage: "Convert an old style config file to the current format",
 			Description: "cocosmail config convert OLDFILE NEWFILE\n" +
-				"   Writes all settings with their description, old values are fixed when possible.",
+				"   Writes all settings with their description, and the data of OLDFILE.\n" +
+				"   Old values are fixed when possible.",
 			Action: func(c *cgCli.Context) {
 				if len(c.Args()) != 2 {
 					cliDieBadArgs(c, "OLDFILE and NEWFILE are needed")
 				}
-				values := readConfigFile(c.Args()[0])
+				f, values := readConfig(c.Args()[0])
+				data, err := f.Data()
+				cliHandleErr(err)
 				if _, err := os.Stat(c.Args()[1]); err == nil {
 					cliHandleErr(errors.New(c.Args()[1] + " exists"))
 				}
-				cliHandleErr(core.NewConfigFile(values).Write(c.Args()[1]))
+				cliHandleErr(core.NewConfigFile(values, data).Write(c.Args()[1]))
 				fmt.Printf("%s written.\n", c.Args()[1])
 				if errs := core.ValidateSettings(values); len(errs) > 0 {
 					fmt.Println("Fix these settings in it:")
@@ -250,7 +308,7 @@ func configSet(c *cgCli.Context, key, value string) {
 	s, _ := core.SettingByKey(key)
 
 	if path := c.String("file"); path != "" {
-		f := core.NewConfigFile(nil)
+		f := core.NewConfigFile(nil, nil)
 		if _, err := os.Stat(path); err == nil {
 			f, _, err = core.ReadConfigFile(path)
 			cliHandleErr(err)
@@ -270,7 +328,7 @@ func configSet(c *cgCli.Context, key, value string) {
 	cliHandleErr(err)
 	if len(stored) == 0 {
 		cliHandleErr(errors.New("settings are not in the database yet, they come from environment and defaults.\n" +
-			"Import your config file first: cocosmail config import conf/cocosmail.cfg"))
+			"Import your config file first: cocosmail config import conf/cocosmail.yaml"))
 	}
 	cliHandleErr(core.SettingsToDB(core.DB, map[string]string{key: value}))
 	fmt.Printf("%s=%s\n", core.SettingEnvName(key), value)
@@ -294,12 +352,18 @@ func applyNotice(changed []string) {
 
 // readConfigFile reads settings from path, prints warnings, dies on error
 func readConfigFile(path string) map[string]string {
-	values, warnings, err := core.ReadSettingsFile(path)
+	_, values := readConfig(path)
+	return values
+}
+
+// readConfig reads config file path and its settings, prints warnings, dies on error
+func readConfig(path string) (*core.ConfigFile, map[string]string) {
+	f, values, warnings, err := core.ReadConfig(path)
 	cliHandleErr(err)
 	for _, w := range warnings {
 		fmt.Fprintln(os.Stderr, "warning: "+path+": "+w)
 	}
-	return values
+	return f, values
 }
 
 // dieIfManaged dies if settings in DB are managed by a config file (file mode):

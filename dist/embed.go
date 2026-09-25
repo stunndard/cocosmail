@@ -6,5 +6,5 @@ import "embed"
 
 // Files are the default files, paths relative to the binary directory
 //
-//go:embed conf/cocosmail.cfg.base plugins tpl ssl/README.txt
+//go:embed conf/cocosmail.yaml.base plugins tpl ssl/README.txt
 var Files embed.FS

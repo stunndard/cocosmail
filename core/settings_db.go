@@ -210,7 +210,16 @@ func UpgradeLegacyValues(values map[string]string) (notes []string) {
 // Settings not in values get their default, unless merge: then they're kept.
 // It returns the keys whose value changed.
 func ImportSettings(db *gorm.DB, values map[string]string, merge bool) (changed []string, err error) {
-	if !db.HasTable(&DbSetting{}) {
+	return importSettings(db, values, merge, false)
+}
+
+// CheckImportSettings is ImportSettings without storing anything
+func CheckImportSettings(db *gorm.DB, values map[string]string, merge bool) (changed []string, err error) {
+	return importSettings(db, values, merge, true)
+}
+
+func importSettings(db *gorm.DB, values map[string]string, merge, dryRun bool) (changed []string, err error) {
+	if !db.HasTable(&DbSetting{}) && !dryRun {
 		if err = db.CreateTable(&DbSetting{}).Error; err != nil {
 			return nil, err
 		}
@@ -243,6 +252,9 @@ func ImportSettings(db *gorm.DB, values map[string]string, merge bool) (changed 
 	}
 	if errs := ValidateSettings(toStore); len(errs) > 0 {
 		return nil, joinErrors(errs)
+	}
+	if dryRun {
+		return changed, nil
 	}
 	return changed, SettingsToDB(db, toStore)
 }

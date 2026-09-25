@@ -17,6 +17,7 @@ func TestApplyConfigSource(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 	defer func() { ConfigFilePath = "" }()
+	require.NoError(t, InitDB(db))
 
 	path := filepath.Join(t.TempDir(), "cocosmail.cfg")
 	require.NoError(t, os.WriteFile(path, []byte(
@@ -68,4 +69,53 @@ func TestApplyConfigSource(t *testing.T) {
 	assert.Equal(t, "", SettingsManagedBy(db))
 	values, _ = SettingsFromDB(db)
 	assert.Equal(t, "changed.example.com", values["me"])
+}
+
+func TestApplyConfigSourceData(t *testing.T) {
+	Logger = logrus.New()
+	db, err := gorm.Open("sqlite3", ":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+	defer func() { ConfigFilePath = "" }()
+	require.NoError(t, InitDB(db))
+
+	path := filepath.Join(t.TempDir(), "cocosmail.yaml")
+	write := func(login string) {
+		require.NoError(t, os.WriteFile(path, []byte(
+			"settings:\n"+
+				"  me: file.example.com\n"+
+				"  smtpd_dsns: '[::1]:25:file.example.com:nossl:cert'\n"+
+				"  pop3d_dsns: '[::1]:995:file.example.com:ssl:cert'\n"+
+				"domains:\n"+
+				"  - {name: example.com, local: true}\n"+
+				"users:\n"+
+				"  - {login: "+login+", password: secret1, mailbox: true}\n"), 0600))
+	}
+	logins := func() (l []string) {
+		d, err := ExportData(db)
+		require.NoError(t, err)
+		for _, u := range d.Users {
+			l = append(l, u.Login)
+		}
+		return
+	}
+
+	// file mode, empty database: settings and data imported
+	write("john@example.com")
+	ConfigFilePath = path
+	require.NoError(t, applyConfigSource(db))
+	values, _ := SettingsFromDB(db)
+	assert.Equal(t, "file.example.com", values["me"])
+	assert.Equal(t, []string{"john@example.com"}, logins())
+
+	// next starts: settings again, data stays as changed in DB
+	write("jane@example.com")
+	require.NoError(t, applyConfigSource(db))
+	assert.Equal(t, []string{"john@example.com"}, logins())
+
+	// invalid data in an empty database: the server doesn't start
+	_, err = ImportData(db, &Data{}, true, false)
+	require.NoError(t, err)
+	write("x@nowhere.example")
+	assert.ErrorContains(t, applyConfigSource(db), "nowhere.example must be a local domain")
 }

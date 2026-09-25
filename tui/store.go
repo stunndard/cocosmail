@@ -59,7 +59,7 @@ func (s *FileStore) Save(changed map[string]string) error {
 		for k, v := range changed {
 			values[k] = v
 		}
-		return core.NewConfigFile(values).Write(s.Path)
+		return core.NewConfigFile(values, nil).Write(s.Path)
 	}
 	f, _, err := core.ReadConfigFile(s.Path)
 	if err != nil {
@@ -133,7 +133,7 @@ func (s *DBStore) ReadOnly(key string) string {
 		return "settings are managed by " + path + ", edit it with: cocosmail config edit --file " + path
 	}
 	if st, _ := core.SettingByKey(key); st.Bootstrap {
-		return "it tells where the database is: set it in conf/cocosmail.cfg or in the environment"
+		return "it tells where the database is: set it in conf/cocosmail.yaml or in the environment"
 	}
 	return ""
 }

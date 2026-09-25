@@ -24,12 +24,12 @@ tasks:
     deps: [build]
     dir: dist
     cmds:
-      - source conf/cocosmail.cfg && ./cocosmail
+      - ./cocosmail
 
   builddist:
     deps: [build]
     cmds:
-      - zip -r cocosmail.zip dist/conf/cocosmail.cfg.base
+      - zip -r cocosmail.zip dist/conf/cocosmail.yaml.base
       - zip -r cocosmail.zip dist/ssl
       - zip -r cocosmail.zip dist/tpl
       - zip -r cocosmail.zip dist/run

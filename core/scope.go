@@ -140,6 +140,15 @@ func loadDBSettings(db *gorm.DB) error {
 	return nil
 }
 
+// ApplyConfigSource imports the config file, like at server start, and
+// loads settings again. For the first start, once the database is created.
+func ApplyConfigSource() error {
+	if err := applyConfigSource(DB); err != nil {
+		return err
+	}
+	return loadDBSettings(DB)
+}
+
 // OpenDB opens the database from COCOSMAIL_DB_DRIVER and COCOSMAIL_DB_SOURCE only,
 // in environment or config file.
 // Other settings are not loaded: config commands must work even when they're

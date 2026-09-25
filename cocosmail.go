@@ -66,7 +66,9 @@ func bootstrapServer() {
 				os.Exit(1)
 			}
 			initDatabase()
-			configureOrExit(missing, false)
+			if missing = core.Cfg.MissingSettings(); len(missing) > 0 {
+				configureOrExit(missing, false)
+			}
 		default:
 			if !askYesNo(fmt.Sprintf("Database 'driver: %s, source: %s' misses some tables.\r\nShould i create them ? (y/n):", core.Cfg.GetDbDriver(), core.Cfg.GetDbSource())) {
 				log.Println("See you soon...")
@@ -125,6 +127,10 @@ func initDatabase() {
 	for _, f := range written {
 		core.Logger.Info("created " + f)
 	}
+	// the config file couldn't be imported without tables
+	if err := core.ApplyConfigSource(); err != nil {
+		log.Fatalln(err)
+	}
 }
 
 // configureOrExit is called when required settings are missing: it tells how
@@ -140,7 +146,7 @@ func configureOrExit(missing []string, ask bool) {
 	}
 	fmt.Fprintf(os.Stderr, "cocosmail is not configured yet, missing settings: %s\n"+
 		"Configure it with the text UI: %s\n"+
-		"or write them in conf/cocosmail.cfg (see conf/cocosmail.cfg.base) and start again.\n",
+		"or write them in conf/cocosmail.yaml (see conf/cocosmail.yaml.base) and start again.\n",
 		strings.Join(missing, ", "), command)
 	if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd())) {
 		os.Exit(1)
