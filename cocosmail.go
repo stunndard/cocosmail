@@ -130,8 +130,9 @@ func restart(reason string, nsqDaemon *nsqd.NSQD) {
 	const drainTimeout = 30 * time.Second
 	core.Logger.Info("restarting: " + reason)
 
-	// no new SMTP sessions, let running ones finish
+	// no new SMTP and POP3 sessions, let running ones finish
 	core.CloseSmtpdListeners()
+	pop3.Close()
 	deadline := time.Now().Add(drainTimeout)
 	for atomic.LoadInt32(&core.SmtpSessionsCount) > 0 && time.Now().Before(deadline) {
 		time.Sleep(200 * time.Millisecond)
@@ -139,6 +140,7 @@ func restart(reason string, nsqDaemon *nsqd.NSQD) {
 	if n := atomic.LoadInt32(&core.SmtpSessionsCount); n > 0 {
 		core.Logger.Info(fmt.Sprintf("restarting: %d SMTP sessions still open, clients will retry", n))
 	}
+	pop3.Wait(time.Until(deadline))
 	core.StopDeliverd(time.Until(deadline))
 
 	if core.Cfg.GetLaunchSmtpd() {

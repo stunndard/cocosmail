@@ -7,10 +7,12 @@ package popgun
 import (
 	"bufio"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -157,6 +159,8 @@ type Server struct {
 	config   Config
 	auth     Authorizator
 	backend  Backend
+	// clients being served
+	clients sync.WaitGroup
 }
 
 func NewServer(cfg *Config, auth Authorizator, backend Backend) *Server {
@@ -187,16 +191,47 @@ func (s *Server) Start() error {
 		for {
 			conn, err := s.listener.Accept()
 			if err != nil {
+				// closed by Close
+				if errors.Is(err, net.ErrClosed) {
+					return
+				}
 				s.backend.Log(fmt.Sprintf("Error: could not accept connection: %s", err), LOG_INFO)
 				continue
 			}
 
 			c := newClient(s.auth, s.backend, s.config.ServerName)
-			go c.handle(conn)
+			s.clients.Add(1)
+			go func() {
+				defer s.clients.Done()
+				c.handle(conn)
+			}()
 		}
 	}()
 
 	return nil
+}
+
+// Close stops accepting connections, clients being served go on
+func (s *Server) Close() {
+	if s.listener != nil {
+		_ = s.listener.Close()
+	}
+}
+
+// Wait waits up to timeout for clients being served.
+// It returns false if some are still connected.
+func (s *Server) Wait(timeout time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		s.clients.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
 }
 
 //---------------PRINTER

@@ -10,12 +10,14 @@ import (
 	"os/signal"
 	"path"
 	"strings"
+	"sync"
 	"syscall"
+	"time"
 
 	"github.com/jinzhu/gorm"
 	"github.com/stunndard/cocosmail/core"
-	"github.com/stunndard/go-maildir"
 	"github.com/stunndard/cocosmail/pop3/popgun"
+	"github.com/stunndard/go-maildir"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -86,9 +88,8 @@ func (a Authorizator) Authorize(user, pass string) bool {
 	return true
 }
 
-
 // Backend is a backend interface implementation
-type Backend struct {}
+type Backend struct{}
 
 func NewBackend() *Backend {
 	return &Backend{}
@@ -462,6 +463,34 @@ type Pop3d struct {
 	dsn core.Dsn
 }
 
+var (
+	servers   []*popgun.Server
+	serversMu sync.Mutex
+)
+
+// Close stops accepting POP3 connections, clients being served go on
+func Close() {
+	serversMu.Lock()
+	defer serversMu.Unlock()
+	for _, s := range servers {
+		s.Close()
+	}
+}
+
+// Wait waits up to timeout for POP3 clients being served
+func Wait(timeout time.Duration) {
+	serversMu.Lock()
+	list := servers
+	serversMu.Unlock()
+	deadline := time.Now().Add(timeout)
+	for _, s := range list {
+		if !s.Wait(time.Until(deadline)) {
+			core.Logger.Info("pop3d: clients still connected, they'll reconnect")
+			return
+		}
+	}
+}
+
 // NewPop3d returns a new SmtpServer
 func NewPop3d(d core.Dsn) *Pop3d {
 	return &Pop3d{d}
@@ -482,8 +511,7 @@ func (p *Pop3d) ListenAndServe() {
 	if p.dsn.Ssl {
 		cert, err := tls.LoadX509KeyPair(
 			path.Join(core.Cfg.GetBasePath(), fmt.Sprintf("ssl/pop3-%s.crt", p.dsn.CertName)),
-			path.Join(core.Cfg.GetBasePath(), fmt.Sprintf("ssl/pop3-%s.key", p.dsn.CertName,
-			)))
+			path.Join(core.Cfg.GetBasePath(), fmt.Sprintf("ssl/pop3-%s.key", p.dsn.CertName)))
 		if err != nil {
 			log.Fatalln("unable to load SSL keys for pop3.", "err:", err)
 		}
@@ -491,7 +519,7 @@ func (p *Pop3d) ListenAndServe() {
 		tlsConfig := &tls.Config{
 			Certificates:       []tls.Certificate{cert},
 			InsecureSkipVerify: true,
-			MinVersion: tls.VersionTLS12,
+			MinVersion:         tls.VersionTLS12,
 		}
 		pop3Cfg.UseTls = true
 		pop3Cfg.TlsConfig = tlsConfig
@@ -505,6 +533,9 @@ func (p *Pop3d) ListenAndServe() {
 	if err != nil {
 		log.Fatalln("unable to launch pop3 server", p.dsn.String(), "-", err)
 	}
+	serversMu.Lock()
+	servers = append(servers, server)
+	serversMu.Unlock()
 
 	core.Logger.Info("pop3d " + p.dsn.String() + " launched")
 
