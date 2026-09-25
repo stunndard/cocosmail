@@ -15,7 +15,7 @@ import (
 	"github.com/jinzhu/gorm"
 	"github.com/stunndard/cocosmail/core"
 	"github.com/stunndard/go-maildir"
-	"github.com/stunndard/popgun"
+	"github.com/stunndard/cocosmail/pop3/popgun"
 	"golang.org/x/crypto/bcrypt"
 )
 
