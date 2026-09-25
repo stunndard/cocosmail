@@ -7,15 +7,20 @@ import (
 	cgCli "github.com/urfave/cli"
 )
 
-// Init creates the database tables. Unlike the other commands it works on an
-// empty database, so it only needs config, logger and DB.
+// Init writes the missing default files next to the binary and creates the
+// database tables. Unlike the other commands it works on an empty database.
 var Init = cgCli.Command{
 	Name:  "init",
-	Usage: "Create database tables. Safe to run again, existing data is kept.",
-	Before: func(c *cgCli.Context) error {
-		return core.Bootstrap()
-	},
+	Usage: "Write missing default files (conf, plugins, ssl, tpl) and create database tables. Safe to run again, existing files and data are kept.",
+	// the files first, then the DB: see Action
+	Before: func(c *cgCli.Context) error { return nil },
 	Action: func(c *cgCli.Context) {
+		written, err := core.WriteDefaultFiles(core.BaseDir())
+		cliHandleErr(err)
+		for _, f := range written {
+			fmt.Println("created " + f)
+		}
+		cliHandleErr(core.Bootstrap())
 		cliHandleErr(InitDB())
 		fmt.Printf("Database '%s' is ready.\n", core.Cfg.GetDbDriver())
 		cliDieOk()

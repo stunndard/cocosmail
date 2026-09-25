@@ -38,8 +38,10 @@ server to glue together: one program, one folder, one config file.
 
 ## What's in the folder
 
-Everything cocosmail needs lives in one directory (`dist/` in this repo), next
-to the binary. Copy or zip the directory and it works on another server as is:
+Everything cocosmail needs lives in one directory, next to the binary
+(`dist/` in this repo). The default files are also embedded in the binary, and
+`cocosmail init` writes the missing ones. Copy or zip the directory and it
+works on another server as is:
 
 | Path          | What it is                                                     |
 |---------------|----------------------------------------------------------------|
@@ -92,15 +94,22 @@ CGO_ENABLED=1 go build -trimpath \
 
 ### 2. Install
 
-Run cocosmail as its own unprivileged user:
+Run cocosmail as its own unprivileged user. Only the binary is needed:
+`cocosmail init` writes the default files (config example, plugins, bounce
+template, ssl/README.txt) next to it, and creates the database:
 
 ```sh
 sudo adduser --disabled-password cocosmail
-sudo cp -r dist /home/cocosmail/dist
+sudo mkdir /home/cocosmail/dist
+sudo cp dist/cocosmail /home/cocosmail/dist/
 sudo chown -R cocosmail: /home/cocosmail/dist
 sudo -iu cocosmail
 cd ~/dist
+./cocosmail init
 ```
+
+`init` never changes existing files: run it again after an upgrade to get
+files added by the new version, or to restore a deleted one.
 
 ### 3. Configure
 
@@ -333,7 +342,7 @@ Run `./cocosmail help` or `./cocosmail <command> help` for details.
 
 | Command     | Subcommands                                               | Purpose                               |
 |-------------|-----------------------------------------------------------|---------------------------------------|
-| `init`      |                                                           | create database tables (safe to repeat) |
+| `init`      |                                                           | write missing default files, create database tables (safe to repeat) |
 | `config`    | `edit`, `list`, `get`, `set`, `unset`, `import`, `export`, `convert` | settings, in the database or in a config file (`--file`) |
 | `rcpthost`  | `add`, `list`, `del`                                      | domains cocosmail accepts mail for (`-l` = local mailboxes) |
 | `user`      | `add`, `del`, `update`, `list`, `catchall`                | users, mailboxes, SMTP login, quota   |
