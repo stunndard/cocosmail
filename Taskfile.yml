@@ -5,6 +5,16 @@ tasks:
     cmds:
       - go build -o dist/cocosmail
 
+  # fully static binary, runs on any Linux (old distros, Alpine, scratch containers)
+  # sqlite needs cgo, so it's linked statically by the external linker.
+  # netgo/osusergo: pure Go DNS resolver and user lookup, no glibc NSS at runtime.
+  # goffi_static: vtui's FFI layer would otherwise force dynamic linking.
+  build-static:
+    env:
+      CGO_ENABLED: 1
+    cmds:
+      - go build -trimpath -tags 'netgo osusergo sqlite_omit_load_extension goffi_static' -ldflags '-s -w -linkmode external -extldflags "-static"' -o dist/cocosmail
+
   run:
     deps: [build]
     dir: dist

@@ -60,7 +60,8 @@ These steps set up a server for `example.com` whose hostname is
 
 ### 1. Build
 
-You need a Go toolchain.
+You need Go 1.26.6 or newer (an older `go` command downloads it
+automatically) and a C compiler, because SQLite is built with cgo.
 
 ```sh
 git clone https://github.com/stunndard/cocosmail.git
@@ -69,6 +70,19 @@ go build -o dist/cocosmail
 ```
 
 (or `task build` if you use [Task](https://taskfile.dev)).
+
+To build a fully static binary that runs on any Linux, including old
+distributions and minimal containers (needs static glibc, `libc6-dev` on
+Debian/Ubuntu):
+
+```sh
+CGO_ENABLED=1 go build -trimpath \
+  -tags 'netgo osusergo sqlite_omit_load_extension goffi_static' \
+  -ldflags '-s -w -linkmode external -extldflags "-static"' \
+  -o dist/cocosmail
+```
+
+(or `task build-static`).
 
 ### 2. Install
 
