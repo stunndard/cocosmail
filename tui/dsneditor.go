@@ -88,20 +88,14 @@ func (de *DsnEditor) rowDialog(d core.DsnFields, isNew bool, done func(core.DsnF
 	if isNew {
 		title = " New listener "
 	}
-	var ssl *vtui.Checkbox
 	return de.itemDialog(title, []itemField{
 		{label: "&IP address", value: d.IP, hint: "empty, :: or 0.0.0.0: all addresses"},
 		{label: "&Port", value: d.Port, width: 7},
 		{label: "&Hostname", value: d.Hostname, hint: "in the greeting and Received headers"},
 		{label: "&Certificate", value: d.Cert},
-	}, func(dlg *vtui.Window, x, y int) int {
-		ssl = vtui.NewCheckbox(x, y, "&SSL from the start (off: STARTTLS)", false)
-		if d.SSL == "ssl" {
-			ssl.State = 1
-		}
-		dlg.AddItem(ssl)
-		return y + 2
-	}, func(v []string) error {
+	}, []itemCheck{
+		{label: "&SSL from the start (off: STARTTLS)", checked: d.SSL == "ssl"},
+	}, func(v []string, checked []bool) error {
 		nd := core.DsnFields{
 			IP:       strings.Trim(strings.TrimSpace(v[0]), "[]"),
 			Port:     strings.TrimSpace(v[1]),
@@ -109,7 +103,7 @@ func (de *DsnEditor) rowDialog(d core.DsnFields, isNew bool, done func(core.DsnF
 			SSL:      "nossl",
 			Cert:     strings.TrimSpace(v[3]),
 		}
-		if ssl.State == 1 {
+		if checked[0] {
 			nd.SSL = "ssl"
 		}
 		if err := de.checkDsn(nd); err != nil {

@@ -9,7 +9,7 @@ import (
 )
 
 // TestDumpScreen prints a screen, to look at it:
-// COCOSMAIL_TUI_DUMP=main|section|help|quit go test -tags goffi_static -run TestDumpScreen -v ./tui
+// COCOSMAIL_TUI_DUMP=main|section|help|quit|users|userdlg|routedlg|dkimdns go test -tags goffi_static -run TestDumpScreen -v ./tui
 func TestDumpScreen(t *testing.T) {
 	what := os.Getenv("COCOSMAIL_TUI_DUMP")
 	if what == "" {
@@ -40,6 +40,19 @@ func TestDumpScreen(t *testing.T) {
 		events = []*vtinput.InputEvent{key(vtinput.VK_F4)}
 	case "editsel":
 		events = []*vtinput.InputEvent{key(vtinput.VK_F4), {Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_A, ControlKeyState: vtinput.LeftCtrlPressed}}
+	case "users", "userdlg":
+		*store = *dataStore(t)
+		_, scr, _ = setup(t, store)
+		events = toKind(usersKind)
+		if what == "userdlg" {
+			events = append(events, key(vtinput.VK_F4))
+		}
+	case "routedlg":
+		events = append(toKind(routesKind), key(vtinput.VK_F7))
+	case "dkimdns":
+		events = append(toKind(dkimKind), key(vtinput.VK_F7))
+		events = append(events, typeText("example.com")...)
+		events = append(events, key(vtinput.VK_RETURN), key(vtinput.VK_F6))
 	case "quit":
 		events = []*vtinput.InputEvent{key(vtinput.VK_DOWN), key(vtinput.VK_RETURN), key(vtinput.VK_F10)}
 	}

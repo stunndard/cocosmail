@@ -244,72 +244,7 @@ func (le *listEditor[T]) cancel() {
 	}
 }
 
-// itemField is a field of itemDialog
-type itemField struct {
-	label string
-	value string
-	hint  string
-	width int // 0: as wide as possible
-}
-
-// itemDialog returns a dialog of labeled fields with Ok and Cancel. extra can
-// add elements at x, y and returns the next free line. ok is called with the
-// field values: the dialog closes if it returns nil, else the error is shown.
-func (le *listEditor[T]) itemDialog(title string, fields []itemField, extra func(dlg *vtui.Window, x, y int) int, ok func(values []string) error) *vtui.Window {
-	const labelW = 13
-	w := 64
-	// fields: 2 lines each with a hint, 1 without, plus air
-	h := 6
-	for _, f := range fields {
-		h += 2
-		if f.hint != "" {
-			h++
-		}
-	}
-	if extra != nil {
-		h += 2
-	}
-	x1, y1 := (le.ed.width-w)/2, (le.ed.height-1-h)/2
-	dlg := vtui.NewDialog(x1, y1, x1+w-1, y1+h-1, title)
-	x, ex, y := x1+2, x1+2+labelW+1, y1+2
-	edits := make([]*vtui.Edit, len(fields))
-	for i, f := range fields {
-		width := f.width
-		if width == 0 {
-			width = w - labelW - 5
-		}
-		edits[i] = newEdit(ex, y, width, f.value)
-		dlg.AddItem(vtui.NewLabel(x, y, f.label, edits[i]))
-		dlg.AddItem(edits[i])
-		y++
-		if f.hint != "" {
-			dlg.AddItem(vtui.NewText(ex, y, literal(f.hint), 0))
-			y++
-		}
-		y++
-	}
-	if extra != nil {
-		y = extra(dlg, ex, y)
-	}
-	okBtn := vtui.NewButton(0, 0, "&Ok")
-	okBtn.IsDefault = true
-	cancel := vtui.NewButton(0, 0, "&Cancel")
-	by := y1 + h - 3
-	okBtn.SetPosition(x1+w/2-12, by, x1+w/2-12+okBtn.X2-okBtn.X1, by)
-	cancel.SetPosition(x1+w/2+2, by, x1+w/2+2+cancel.X2-cancel.X1, by)
-	okBtn.OnClick = func() {
-		values := make([]string, len(edits))
-		for i, e := range edits {
-			values[i] = e.GetText()
-		}
-		if err := ok(values); err != nil {
-			le.ed.message("Error", err.Error())
-			return
-		}
-		dlg.SetExitCode(1)
-	}
-	cancel.OnClick = func() { dlg.SetExitCode(-1) }
-	dlg.AddItem(okBtn)
-	dlg.AddItem(cancel)
-	return dlg
+// itemDialog returns a form dialog over the list editor, see formDialog
+func (le *listEditor[T]) itemDialog(title string, fields []itemField, checks []itemCheck, ok func(values []string, checked []bool) error) *vtui.Window {
+	return formDialog(le.ed, title, fields, checks, ok)
 }

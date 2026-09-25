@@ -129,7 +129,7 @@ func (le *LocalIpsEditor) rowDialog(ip localIP, isNew bool, done func(localIP)) 
 	return le.itemDialog(title, []itemField{
 		{label: "&IP address", value: ip.IP, hint: "0.0.0.0: any local IPv4, :: any local IPv6"},
 		{label: "&Hostname", value: ip.Hostname, hint: "HELO name, empty: " + le.ed.values["me"]},
-	}, nil, func(v []string) error {
+	}, nil, func(v []string, _ []bool) error {
 		nip := localIP{IP: strings.Trim(strings.TrimSpace(v[0]), "[]"), Hostname: strings.TrimSpace(v[1])}
 		parsed := net.ParseIP(nip.IP)
 		if parsed == nil {

@@ -29,20 +29,25 @@ const sectionsWidth = 15
 
 // Editor is the configurator window: the list of sections, a table of the
 // settings of the selected section, the description of the selected setting
-// and a key bar
+// and a key bar. Below the settings sections, the data sections: domains,
+// users... one item per table row.
 type Editor struct {
 	*vtui.Window
-	store    Store
-	values   map[string]string // being edited
-	saved    map[string]string // as loaded or last saved
-	sources  map[string]string
-	sections *vtui.ListBox
-	rows     []settingRow
-	table    *vtui.Table
-	desc     [descLines]*vtui.Text
-	width    int
-	height   int
-	secrets  bool
+	store     Store
+	values    map[string]string // being edited
+	saved     map[string]string // as loaded or last saved
+	sources   map[string]string
+	data      *core.Data // being edited
+	savedData *core.Data
+	sections  *vtui.ListBox
+	rows      []settingRow
+	table     *vtui.Table
+	columns   []vtui.TableColumn // of settings
+	kind      *dataKind          // data shown, nil for settings
+	desc      [descLines]*vtui.Text
+	width     int
+	height    int
+	secrets   bool
 	// Quit is called when the user quits
 	Quit func()
 	// Err is the last save error, if any
@@ -85,11 +90,17 @@ func NewEditor(store Store, width, height int) (*Editor, error) {
 	if err != nil {
 		return nil, err
 	}
+	data, err := store.LoadData()
+	if err != nil {
+		return nil, err
+	}
 	ed := &Editor{
-		store:   store,
-		values:  values,
-		saved:   copyValues(values),
-		sources: sources,
+		store:     store,
+		values:    values,
+		saved:     copyValues(values),
+		sources:   sources,
+		data:      data,
+		savedData: data.Copy(),
 	}
 	ed.Window = vtui.NewWindow(0, 0, width-1, height-2, "")
 	var names []string
@@ -98,18 +109,29 @@ func NewEditor(store Store, width, height int) (*Editor, error) {
 			names = append(names, s.Section)
 		}
 	}
-	names = append(names, allSettings)
+	names = append(names, allSettings, dataSeparator)
+	for _, k := range dataKinds {
+		names = append(names, k.name)
+	}
 	ed.sections = vtui.NewListBox(0, 0, sectionsWidth, 5, names)
-	ed.sections.OnSelect = func(i int) { ed.showSection(names[i]) }
+	ed.sections.IsSelectable = func(i int) bool { return names[i] != dataSeparator }
+	ed.sections.OnSelect = func(i int) {
+		if k := kindByName(names[i]); k != nil {
+			ed.showData(k)
+		} else {
+			ed.showSection(names[i])
+		}
+	}
 	ed.sections.OnAction = func(int) { ed.SetFocusedItem(ed.table) }
 	// the current section stays marked when the settings have the focus
 	ed.sections.AlwaysShowCursor = true
 	ed.AddItem(ed.sections)
-	ed.table = vtui.NewTable(0, 0, 10, 5, []vtui.TableColumn{
+	ed.columns = []vtui.TableColumn{
 		{Title: "Setting", Width: 31},
 		{Title: "Value", Width: 0, MinWidth: 10},
 		{Title: "Source", Width: 8},
-	})
+	}
+	ed.table = vtui.NewTable(0, 0, 10, 5, ed.columns)
 	ed.table.ShowHeader = true
 	ed.table.QuickSearch = true
 	ed.table.OnSelect = func(int) { ed.updateDescription() }
@@ -130,6 +152,8 @@ func NewEditor(store Store, width, height int) (*Editor, error) {
 // showSection shows the settings of a section, or all settings with
 // section titles
 func (ed *Editor) showSection(name string) {
+	ed.kind = nil
+	ed.table.Columns = ed.columns
 	ed.rows = ed.rows[:0]
 	section := ""
 	for _, s := range core.Settings {
@@ -186,10 +210,17 @@ func (ed *Editor) GetKeyLabels() *vtui.KeySet {
 	if ed.secrets {
 		secrets = "HidePw"
 	}
-	return keyLabels(ed.width, map[int][2]string{
+	labels := map[int][2]string{
 		1: {"Help", "Help"}, 2: {"Save", "Save"}, 3: {secrets, "Pwd"}, 4: {"Edit", "Edit"},
 		8: {"Reset", "Dflt"}, 10: {"Quit", "End"},
-	})
+	}
+	if ed.kind != nil {
+		labels[7], labels[8] = [2]string{"New", "New"}, [2]string{"Delete", "Del"}
+	}
+	if ed.kind == dkimKind {
+		labels[6] = [2]string{"DNS", "DNS"}
+	}
+	return keyLabels(ed.width, labels)
 }
 
 // keyLabels returns key bar labels for a screen width: by function key
@@ -224,9 +255,29 @@ func (ed *Editor) ProcessKey(e *vtinput.InputEvent) bool {
 		case vtinput.VK_F4:
 			ed.edit()
 			return true
+		case vtinput.VK_F6:
+			if ed.kind == dkimKind {
+				ed.showDNS()
+				return true
+			}
+		case vtinput.VK_F7, vtinput.VK_INSERT:
+			if ed.kind != nil {
+				ed.editItem(true)
+				return true
+			}
 		case vtinput.VK_F8:
-			ed.reset()
+			if ed.kind != nil {
+				ed.deleteItem()
+			} else {
+				ed.reset()
+			}
 			return true
+		case vtinput.VK_DELETE:
+			// Del edits a quick search first
+			if ed.kind != nil && ed.table.SearchText() == "" {
+				ed.deleteItem()
+				return true
+			}
 		case vtinput.VK_F10, vtinput.VK_ESCAPE:
 			// Esc clears a quick search first
 			if e.VirtualKeyCode == vtinput.VK_ESCAPE && ed.table.SearchText() != "" {
@@ -240,7 +291,11 @@ func (ed *Editor) ProcessKey(e *vtinput.InputEvent) bool {
 }
 
 // selected returns the key of the selected setting, "" on a section title
+// or in a data section
 func (ed *Editor) selected() string {
+	if ed.kind != nil {
+		return ""
+	}
 	pos := ed.table.SelectPos
 	if ed.table.RowAt(pos) >= 0 {
 		pos = ed.table.RowAt(pos)
@@ -270,9 +325,19 @@ func (ed *Editor) changed() map[string]string {
 	return changed
 }
 
+// dataChanges describes the changes of data, one line each
+func (ed *Editor) dataChanges() []string {
+	return core.DiffData(ed.savedData, ed.data)
+}
+
+// changes returns the number of changed settings and data items
+func (ed *Editor) changes() int {
+	return len(ed.changed()) + len(ed.dataChanges())
+}
+
 func (ed *Editor) updateTitle() {
 	title := " cocosmail settings: " + ed.store.Title() + " "
-	if n := len(ed.changed()); n > 0 {
+	if n := ed.changes(); n > 0 {
 		title = fmt.Sprintf("%s(%d changed) ", title, n)
 	}
 	ed.SetTitle(title)
@@ -281,7 +346,9 @@ func (ed *Editor) updateTitle() {
 func (ed *Editor) updateDescription() {
 	lines := make([]string, descLines)
 	key := ed.selected()
-	if s, ok := core.SettingByKey(key); ok {
+	if ed.kind != nil {
+		copy(lines, wrap(ed.kind.help, ed.width-6))
+	} else if s, ok := core.SettingByKey(key); ok {
 		text := s.Description
 		switch {
 		case s.Required:
@@ -313,8 +380,13 @@ func (ed *Editor) set(key, value string) {
 	ed.updateTitle()
 }
 
-// edit edits the selected setting: bools toggle, choices and text in a dialog
+// edit edits the selected setting: bools toggle, choices and text in a
+// dialog. In a data section, the selected item.
 func (ed *Editor) edit() {
+	if ed.kind != nil {
+		ed.editItem(false)
+		return
+	}
 	key := ed.selected()
 	s, ok := core.SettingByKey(key)
 	if !ok {
@@ -364,71 +436,107 @@ func (ed *Editor) check(changed map[string]string) error {
 	return nil
 }
 
-// store saves changed settings, it tells the user if it fails
-func (ed *Editor) storeChanges(changed map[string]string) bool {
-	if err := ed.store.Save(changed); err != nil {
+// checkAll returns why changes can't be saved, if they can't
+func (ed *Editor) checkAll() error {
+	if changed := ed.changed(); len(changed) > 0 {
+		return ed.check(changed)
+	}
+	return nil
+}
+
+// storeChanges saves changed settings and data, it tells the user if it fails
+func (ed *Editor) storeChanges() bool {
+	fail := func(err error) bool {
 		ed.Err = err
 		ed.message("Error", "Not saved: "+err.Error())
 		return false
 	}
+	if changed := ed.changed(); len(changed) > 0 {
+		if err := ed.store.Save(changed); err != nil {
+			return fail(err)
+		}
+		ed.saved = copyValues(ed.values)
+	}
+	if len(ed.dataChanges()) > 0 {
+		if err := ed.store.SaveData(ed.savedData, ed.data); err != nil {
+			ed.updateTitle()
+			return fail(err)
+		}
+		// with changes made elsewhere meanwhile
+		data, err := ed.store.LoadData()
+		if err != nil {
+			return fail(err)
+		}
+		ed.data, ed.savedData = data, data.Copy()
+		if ed.kind != nil {
+			ed.refreshData()
+		}
+	}
 	ed.Err = nil
-	ed.saved = copyValues(ed.values)
 	ed.updateTitle()
 	return true
 }
 
-// save checks and saves changed settings, after confirmation
+// save checks and saves changed settings and data, after confirmation
 func (ed *Editor) save() {
 	changed := ed.changed()
-	if len(changed) == 0 {
+	dataChanges := ed.dataChanges()
+	if len(changed) == 0 && len(dataChanges) == 0 {
 		ed.message("Save", "Nothing changed.")
 		return
 	}
-	if err := ed.check(changed); err != nil {
+	if err := ed.checkAll(); err != nil {
 		ed.message("Error", err.Error())
 		return
 	}
 	keys := sortedKeys(changed)
+	lines := make([]string, 0, len(keys)+len(dataChanges))
+	for _, k := range keys {
+		lines = append(lines, k+" = "+ed.displayValue(k))
+	}
+	lines = append(lines, dataChanges...)
 	var text strings.Builder
-	for i, k := range keys {
+	for i, l := range lines {
 		if i == 8 {
-			fmt.Fprintf(&text, "and %d more\n", len(keys)-8)
+			fmt.Fprintf(&text, "and %d more\n", len(lines)-8)
 			break
 		}
-		fmt.Fprintf(&text, "%s = %s\n", k, ed.displayValue(k))
+		text.WriteString(l + "\n")
 	}
-	text.WriteString("\n" + ed.store.ApplyNote(keys))
+	if len(keys) > 0 {
+		text.WriteString("\n" + ed.store.ApplyNote(keys))
+	}
 	if ed.values["smtpd_launch"] != "true" && ed.values["deliverd_launch"] != "true" && ed.values["pop3d_launch"] != "true" {
 		text.WriteString("\nNote: nothing will run, smtpd_launch, deliverd_launch and pop3d_launch are all false.")
 	}
 	dlg := vtui.ShowMessage("Save", literal(text.String()), []string{"&Save", "&Cancel"})
 	dlg.OnResult = func(code int) {
 		if code == 0 {
-			ed.storeChanges(changed)
+			ed.storeChanges()
 		}
 	}
 }
 
 // quit quits, asking what to do with unsaved changes
 func (ed *Editor) quit() {
-	if len(ed.changed()) == 0 {
+	n := ed.changes()
+	if n == 0 {
 		ed.doQuit()
 		return
 	}
-	changed := ed.changed()
-	text := "1 changed setting is not saved.\nSave it before quitting?"
-	if len(changed) > 1 {
-		text = fmt.Sprintf("%d changed settings are not saved.\nSave them before quitting?", len(changed))
+	text := "1 change is not saved.\nSave it before quitting?"
+	if n > 1 {
+		text = fmt.Sprintf("%d changes are not saved.\nSave them before quitting?", n)
 	}
 	dlg := vtui.ShowMessage("Quit", text, []string{"&Save", "&Don't save", "&Cancel"})
 	dlg.OnResult = func(code int) {
 		switch code {
 		case 0:
-			if err := ed.check(changed); err != nil {
+			if err := ed.checkAll(); err != nil {
 				ed.message("Error", err.Error())
 				return
 			}
-			if ed.storeChanges(changed) {
+			if ed.storeChanges() {
 				ed.doQuit()
 			}
 		case 1:
@@ -444,6 +552,12 @@ var helpKeys = [][2]string{
 	{"F3", "Show or hide passwords and other secret values"},
 	{"F4, Enter", "Edit the selected setting (true/false ones are switched)"},
 	{"F8", "Reset the selected setting to its default"},
+	{"", "In data sections (Domains, Users...):"},
+	{"F4, Enter", "Edit the selected item"},
+	{"F7, Ins", "Add an item"},
+	{"F8, Del", "Delete the selected item"},
+	{"F6", "DKIM keys: show the DNS record"},
+	{"", ""},
 	{"F10, Esc", "Quit, asks to save unsaved changes"},
 	{"Tab", "Switch between the section list and the settings"},
 	{"Typing", "Search a setting by name in the section, Esc clears"},

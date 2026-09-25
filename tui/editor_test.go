@@ -11,11 +11,13 @@ import (
 	"github.com/unxed/vtui"
 )
 
-// memStore keeps settings in memory
+// memStore keeps settings and data in memory
 type memStore struct {
-	values   map[string]string
-	saves    []map[string]string
-	readOnly map[string]bool
+	values    map[string]string
+	saves     []map[string]string
+	readOnly  map[string]bool
+	data      *core.Data
+	dataSaves int
 }
 
 func newMemStore() *memStore {
@@ -23,7 +25,7 @@ func newMemStore() *memStore {
 	values["me"] = "mail.example.com"
 	values["smtpd_dsns"] = "[::]:25:mail.example.com:nossl:example.com"
 	values["pop3d_dsns"] = "[::]:995:mail.example.com:ssl:example.com"
-	return &memStore{values: values, readOnly: map[string]bool{}}
+	return &memStore{values: values, readOnly: map[string]bool{}, data: &core.Data{}}
 }
 
 func (s *memStore) Title() string { return "memory" }
@@ -48,6 +50,12 @@ func (s *memStore) ReadOnly(key string) string {
 	return ""
 }
 func (s *memStore) ApplyNote(changed []string) string { return "applied" }
+func (s *memStore) LoadData() (*core.Data, error)     { return s.data.Copy(), nil }
+func (s *memStore) SaveData(old, new *core.Data) error {
+	s.dataSaves++
+	s.data = core.MergeEdit(s.data, old, new)
+	return nil
+}
 
 const testW, testH = 100, 30
 
@@ -80,6 +88,16 @@ func typeText(s string) (events []*vtinput.InputEvent) {
 		events = append(events, &vtinput.InputEvent{Type: vtinput.KeyEventType, KeyDown: true, Char: r})
 	}
 	return
+}
+
+// toAllSettings moves from the section list to "all settings": up from the
+// last data section, over the separator
+func toAllSettings() []*vtinput.InputEvent {
+	events := []*vtinput.InputEvent{key(vtinput.VK_END)}
+	for range dataKinds {
+		events = append(events, key(vtinput.VK_UP))
+	}
+	return events
 }
 
 // run processes events, then returns the screen text
@@ -142,7 +160,7 @@ func TestEditorSections(t *testing.T) {
 		t.Errorf("selected %q", ed.selected())
 	}
 	// last entry: all settings, with section titles
-	screen = run(scr, key(vtinput.VK_END))
+	screen = run(scr, toAllSettings()...)
 	if !strings.Contains(screen, "[general]") || !strings.Contains(screen, "[database]") {
 		t.Error("all settings not shown")
 	}
@@ -226,7 +244,8 @@ func TestEditorRejectsInvalid(t *testing.T) {
 	store := newMemStore()
 	ed, scr, _ := setup(t, store)
 	// all settings, then select smtpd_max_hops with quick search, and edit it
-	events := []*vtinput.InputEvent{key(vtinput.VK_TAB), key(vtinput.VK_END), key(vtinput.VK_TAB)}
+	events := append([]*vtinput.InputEvent{key(vtinput.VK_TAB)}, toAllSettings()...)
+	events = append(events, key(vtinput.VK_TAB))
 	events = append(events, typeText("smtpd_max_h")...)
 	events = append(events, key(vtinput.VK_F4), key(vtinput.VK_END))
 	for range ed.values["smtpd_max_hops"] {

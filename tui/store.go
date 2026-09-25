@@ -19,6 +19,10 @@ type Store interface {
 	ReadOnly(key string) string
 	// ApplyNote tells what happens to changed settings after saving
 	ApplyNote(changed []string) string
+	// LoadData returns the data: domains, users, aliases...
+	LoadData() (*core.Data, error)
+	// SaveData saves the changes of data from old (as loaded) to new
+	SaveData(old, new *core.Data) error
 }
 
 // FileStore edits a config file, it doesn't need a database
@@ -71,6 +75,38 @@ func (s *FileStore) Save(changed map[string]string) error {
 	return f.Write(s.Path)
 }
 
+// LoadData reads the data of the file, none if it doesn't exist
+func (s *FileStore) LoadData() (*core.Data, error) {
+	if _, err := os.Stat(s.Path); err != nil {
+		return &core.Data{}, nil
+	}
+	f, _, err := core.ReadConfigFile(s.Path)
+	if err != nil {
+		return nil, err
+	}
+	return f.Data()
+}
+
+// SaveData writes the changes of data in the file, keeping its comments
+func (s *FileStore) SaveData(old, new *core.Data) error {
+	f := core.NewConfigFile(nil, nil)
+	if _, err := os.Stat(s.Path); err == nil {
+		if f, _, err = core.ReadConfigFile(s.Path); err != nil {
+			return err
+		}
+	}
+	base, err := f.Data()
+	if err != nil {
+		return err
+	}
+	next := core.MergeEdit(base, old, new)
+	if errs := core.ValidateData(next); len(errs) > 0 {
+		return errs[0]
+	}
+	f.SetData(next)
+	return f.Write(s.Path)
+}
+
 // ReadOnly: everything can be changed in a file
 func (s *FileStore) ReadOnly(key string) string {
 	return ""
@@ -87,7 +123,7 @@ type DBStore struct{}
 // Title of the store
 func (s *DBStore) Title() string {
 	if path := core.SettingsManagedBy(core.DB); path != "" {
-		return "database, managed by " + path + " (read only)"
+		return "database, settings managed by " + path + " (read only)"
 	}
 	return "database"
 }
@@ -124,6 +160,19 @@ func (s *DBStore) Save(changed map[string]string) error {
 		}
 	}
 	_, err = core.ImportSettings(core.DB, toImport, false)
+	return err
+}
+
+// LoadData returns the data in the database
+func (s *DBStore) LoadData() (*core.Data, error) {
+	return core.ExportData(core.DB)
+}
+
+// SaveData saves the changes of data in the database. Data can be changed
+// even when settings are managed by a config file: it's imported only into
+// an empty database.
+func (s *DBStore) SaveData(old, new *core.Data) error {
+	_, err := core.EditData(core.DB, old, new)
 	return err
 }
 
