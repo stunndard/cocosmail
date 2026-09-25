@@ -102,7 +102,7 @@ func TestEditorLayout(t *testing.T) {
 	ed.layout(80, 25)
 	vtui.AssertLayoutWithRules(t, ed, rules)
 	ed.layout(testW, testH)
-	vtui.AssertLayout(t, ed.helpDialog())
+	vtui.AssertLayout(t, helpDialog(ed, helpKeys))
 	me, _ := core.SettingByKey("me")
 	vtui.AssertLayout(t, ed.editDialog(*me))
 	lda, _ := core.SettingByKey("lda_type")
@@ -285,5 +285,17 @@ func TestEditorQuitSaveInvalid(t *testing.T) {
 	}
 	if *quit || len(store.saves) != 0 {
 		t.Fatalf("quit %v, saves %v", *quit, store.saves)
+	}
+}
+
+func TestKeyLabels(t *testing.T) {
+	labels := map[int][2]string{3: {"ShowPw", "Pwd"}, 10: {"Quit", "End"}}
+	wide := keyLabels(100, labels)
+	if wide.Normal[2] != "ShowPw" || wide.Normal[9] != "Quit" {
+		t.Errorf("100 columns: %q %q", wide.Normal[2], wide.Normal[9])
+	}
+	narrow := keyLabels(80, labels)
+	if narrow.Normal[2] != "Pwd" || narrow.Normal[9] != "End" {
+		t.Errorf("80 columns: %q %q", narrow.Normal[2], narrow.Normal[9])
 	}
 }

@@ -38,17 +38,9 @@ func GetDsnsFromString(dsnsStr string) (dsns []Dsn, err error) {
 		if strings.Count(dsnStr, ":") < 4 {
 			return dsns, errors.New("bad dsn " + dsnStr + " found in config " + dsnsStr)
 		}
-		f := strings.Split(dsnStr, ":")
-		n := len(f)
+		fields := SplitDsn(dsnStr)
 		// IP is not lowercased: an IPv6 zone (fe80::1%eth0) is an interface name
-		ip := strings.Join(f[:n-4], ":")
-		if strings.HasPrefix(ip, "[") && strings.HasSuffix(ip, "]") {
-			ip = ip[1 : len(ip)-1]
-		}
-		t := []string{ip}
-		for _, field := range f[n-4:] {
-			t = append(t, strings.ToLower(field))
-		}
+		t := []string{fields.IP, fields.Port, strings.ToLower(fields.Hostname), strings.ToLower(fields.SSL), strings.ToLower(fields.Cert)}
 		// ip & port valid ?
 		tcpAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(t[0], t[1]))
 		if err != nil {
@@ -80,4 +72,40 @@ func GetDsnsFromString(dsnsStr string) (dsns []Dsn, err error) {
 		})
 	}
 	return
+}
+
+// DsnFields are the parts of a dsn IP:PORT:HOSTNAME:SSL:CERT, as written
+type DsnFields struct {
+	// IP without brackets, "" for all addresses
+	IP       string
+	Port     string
+	Hostname string
+	// SSL is "ssl" or "nossl"
+	SSL  string
+	Cert string
+}
+
+// SplitDsn splits one dsn in its fields, without checking them. The last 4
+// fields are taken from the right, the IP is what's before, IPv6 in brackets
+// or not.
+func SplitDsn(dsn string) (d DsnFields) {
+	f := strings.Split(strings.TrimSpace(dsn), ":")
+	n := len(f)
+	if n < 5 {
+		return DsnFields{IP: strings.TrimSpace(dsn)}
+	}
+	ip := strings.Join(f[:n-4], ":")
+	if strings.HasPrefix(ip, "[") && strings.HasSuffix(ip, "]") {
+		ip = ip[1 : len(ip)-1]
+	}
+	return DsnFields{IP: ip, Port: f[n-4], Hostname: f[n-3], SSL: f[n-2], Cert: f[n-1]}
+}
+
+// String joins the fields in a dsn, with IPv6 in brackets
+func (d DsnFields) String() string {
+	ip := d.IP
+	if strings.Contains(ip, ":") {
+		ip = "[" + ip + "]"
+	}
+	return strings.Join([]string{ip, d.Port, d.Hostname, d.SSL, d.Cert}, ":")
 }

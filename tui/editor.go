@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/stunndard/cocosmail/core"
@@ -185,8 +186,25 @@ func (ed *Editor) GetKeyLabels() *vtui.KeySet {
 	if ed.secrets {
 		secrets = "HidePw"
 	}
+	return keyLabels(ed.width, map[int][2]string{
+		1: {"Help", "Help"}, 2: {"Save", "Save"}, 3: {secrets, "Pwd"}, 4: {"Edit", "Edit"},
+		8: {"Reset", "Dflt"}, 10: {"Quit", "End"},
+	})
+}
+
+// keyLabels returns key bar labels for a screen width: by function key
+// number, the long label if it fits in the key bar slot, else the short one
+func keyLabels(width int, labels map[int][2]string) *vtui.KeySet {
 	ks := &vtui.KeySet{}
-	ks.Normal = vtui.KeyBarLabels{"Help", "Save", secrets, "Edit", "", "", "", "Reset", "", "Quit", "", ""}
+	for n, l := range labels {
+		// slot: number, label, one space
+		room := width/12 - len(strconv.Itoa(n)) - 1
+		if len(l[0]) <= room {
+			ks.Normal[n-1] = l[0]
+		} else {
+			ks.Normal[n-1] = l[1]
+		}
+	}
 	return ks
 }
 
@@ -195,7 +213,7 @@ func (ed *Editor) ProcessKey(e *vtinput.InputEvent) bool {
 	if e.KeyDown {
 		switch e.VirtualKeyCode {
 		case vtinput.VK_F1:
-			vtui.FrameManager.Push(ed.helpDialog())
+			vtui.FrameManager.Push(helpDialog(ed, helpKeys))
 			return true
 		case vtinput.VK_F2:
 			ed.save()
@@ -304,6 +322,10 @@ func (ed *Editor) edit() {
 	}
 	if why := ed.store.ReadOnly(key); why != "" {
 		ed.message("Read only", core.SettingEnvName(key)+": "+why)
+		return
+	}
+	if _, ok := dsnSettings[key]; ok {
+		vtui.FrameManager.Push(newDsnEditor(ed, key))
 		return
 	}
 	if isBool(key) {
@@ -425,7 +447,7 @@ var helpKeys = [][2]string{
 }
 
 // helpDialog returns the dialog listing keys
-func (ed *Editor) helpDialog() *vtui.Window {
+func helpDialog(ed *Editor, helpKeys [][2]string) *vtui.Window {
 	keyW, textW := 0, 0
 	for _, k := range helpKeys {
 		if len(k[0]) > keyW {

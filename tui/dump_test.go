@@ -15,13 +15,24 @@ func TestDumpScreen(t *testing.T) {
 	if what == "" {
 		t.Skip("set COCOSMAIL_TUI_DUMP")
 	}
-	_, scr, _ := setup(t, newMemStore())
+	store := newMemStore()
+	store.values["smtpd_dsns"] = "[::]:25:mail.example.com:nossl:example.com;[::]:587:mail.example.com:nossl:example.com;[::]:465:mail.example.com:ssl:example.com"
+	_, scr, _ := setup(t, store)
 	var events []*vtinput.InputEvent
 	switch what {
 	case "section":
 		events = []*vtinput.InputEvent{key(vtinput.VK_TAB), key(vtinput.VK_DOWN), key(vtinput.VK_DOWN), key(vtinput.VK_DOWN), key(vtinput.VK_DOWN), key(vtinput.VK_RETURN)}
 	case "help":
 		events = []*vtinput.InputEvent{key(vtinput.VK_F1)}
+	case "dsn", "dsnrow":
+		events = openDsnEditor()
+		if what == "dsnrow" {
+			events = append(events, key(vtinput.VK_F7))
+		}
+	case "edit":
+		events = []*vtinput.InputEvent{key(vtinput.VK_F4)}
+	case "editsel":
+		events = []*vtinput.InputEvent{key(vtinput.VK_F4), {Type: vtinput.KeyEventType, KeyDown: true, VirtualKeyCode: vtinput.VK_A, ControlKeyState: vtinput.LeftCtrlPressed}}
 	case "quit":
 		events = []*vtinput.InputEvent{key(vtinput.VK_DOWN), key(vtinput.VK_RETURN), key(vtinput.VK_F10)}
 	}
