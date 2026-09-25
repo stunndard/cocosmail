@@ -1,7 +1,10 @@
 TODO
 
 ## Planned
-- [ ] Turbo Vision style TUI configurator (https://github.com/unxed/vtui)
+- [x] Turbo Vision style TUI configurator (https://github.com/unxed/vtui)
+- [x] Domains, users, aliases, relay IPs, routes and DKIM keys in the configurator, and with settings in one YAML file (`config export/import`)
+- [ ] DKIM keys are 1024-bit RSA; 2048 is recommended today, but its DNS record must be split in 255-char strings
+- [ ] `User.Active` is never checked and the mailbox quota is stored but not enforced (not shown in the configurator)
 
 ## Setup friction
 - [x] First start asks interactively to create DB tables; it panics without stdin (e.g. under systemd). Added `cocosmail init`.
