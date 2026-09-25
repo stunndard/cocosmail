@@ -26,7 +26,7 @@ func init() {
 		"CR":                               reflect.ValueOf(constant.MakeFromLiteral("13", token.INT, 0)),
 		"CRAMMD5Auth":                      reflect.ValueOf(core.CRAMMD5Auth),
 		"Cfg":                              reflect.ValueOf(&core.Cfg).Elem(),
-		"CocosmailVersion":                 reflect.ValueOf(constant.MakeFromLiteral("\"0.2.0\"", token.STRING, 0)),
+		"CocosmailVersion":                 reflect.ValueOf(constant.MakeFromLiteral("\"0.3.0\"", token.STRING, 0)),
 		"DB":                               reflect.ValueOf(&core.DB).Elem(),
 		"DelRoute":                         reflect.ValueOf(core.DelRoute),
 		"DeliverdConcurrencyLocalCount":    reflect.ValueOf(&core.DeliverdConcurrencyLocalCount).Elem(),

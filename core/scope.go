@@ -22,7 +22,7 @@ import (
 
 const (
 	// CocosmailVersion version of cocosmail
-	CocosmailVersion = "0.2.0"
+	CocosmailVersion = "0.3.0"
 )
 
 const (
