@@ -445,6 +445,13 @@ setting below. It works on the database, or on a config file with
 The last entry of the section list, "all settings", shows every section at
 once.
 
+Lists have their own editor, one row per item, opened with Enter: the
+listeners (`smtpd_dsns`, `pop3d_dsns`: IP, port, hostname, SSL, certificate)
+and the local IPs for outgoing mail (`deliverd_local_ips`: IP, HELO hostname,
+F3 switches failover and round robin). There, F7 or Ins adds, F4 or Enter
+edits, F5 copies, F8 or Del deletes, Ctrl+Up/Down moves, F2 applies and F10
+closes; the key bar at the bottom shows them.
+
 Values are checked before they're accepted. Settings that tell where the
 database is, and settings managed by a file in file mode, are read only.
 

@@ -303,7 +303,7 @@ func (ed *Editor) updateDescription() {
 		}
 	}
 	for i, t := range ed.desc {
-		t.SetText(lines[i])
+		t.SetText(literal(lines[i]))
 	}
 }
 
@@ -326,6 +326,10 @@ func (ed *Editor) edit() {
 	}
 	if _, ok := dsnSettings[key]; ok {
 		vtui.FrameManager.Push(newDsnEditor(ed, key))
+		return
+	}
+	if key == "deliverd_local_ips" {
+		vtui.FrameManager.Push(newLocalIpsEditor(ed))
 		return
 	}
 	if isBool(key) {
@@ -397,7 +401,7 @@ func (ed *Editor) save() {
 	if ed.values["smtpd_launch"] != "true" && ed.values["deliverd_launch"] != "true" && ed.values["pop3d_launch"] != "true" {
 		text.WriteString("\nNote: nothing will run, smtpd_launch, deliverd_launch and pop3d_launch are all false.")
 	}
-	dlg := vtui.ShowMessage("Save", text.String(), []string{"&Save", "&Cancel"})
+	dlg := vtui.ShowMessage("Save", literal(text.String()), []string{"&Save", "&Cancel"})
 	dlg.OnResult = func(code int) {
 		if code == 0 {
 			ed.storeChanges(changed)
@@ -462,8 +466,8 @@ func helpDialog(ed *Editor, helpKeys [][2]string) *vtui.Window {
 	x1, y1 := (ed.width-w)/2, (ed.height-1-h)/2
 	dlg := vtui.NewDialog(x1, y1, x1+w-1, y1+h-1, " Help ")
 	for i, k := range helpKeys {
-		dlg.AddItem(vtui.NewText(x1+2, y1+2+i, k[0], 0))
-		dlg.AddItem(vtui.NewText(x1+2+keyW+2, y1+2+i, k[1], 0))
+		dlg.AddItem(vtui.NewText(x1+2, y1+2+i, literal(k[0]), 0))
+		dlg.AddItem(vtui.NewText(x1+2+keyW+2, y1+2+i, literal(k[1]), 0))
 	}
 	ok := vtui.NewButton(0, 0, "&Ok")
 	ok.IsDefault = true
@@ -481,7 +485,7 @@ func (ed *Editor) doQuit() {
 }
 
 func (ed *Editor) message(title, text string) {
-	vtui.ShowMessage(title, text, []string{"&Ok"})
+	vtui.ShowMessage(title, literal(text), []string{"&Ok"})
 }
 
 // editDialog returns a dialog to edit a text value, or to choose one of s.Choices
@@ -495,7 +499,7 @@ func (ed *Editor) editDialog(s core.Setting) *vtui.Window {
 	x1, y1 := (ed.width-w)/2, (ed.height-1-h)/2
 	dlg := vtui.NewDialog(x1, y1, x1+w-1, y1+h-1, " "+core.SettingEnvName(s.Key)+" ")
 	for i, l := range textLines {
-		dlg.AddItem(vtui.NewText(x1+2, y1+2+i, l, 0))
+		dlg.AddItem(vtui.NewText(x1+2, y1+2+i, literal(l), 0))
 	}
 	y := y1 + 2 + len(textLines) + 1
 	var getValue func() string
@@ -575,6 +579,11 @@ func setPalette() {
 	selected := vtui.SetRGBBoth(0, 0xFFFFFF, 0x0000A0)
 	vtui.Palette[vtui.ColDialogEditSelected] = selected
 	vtui.Palette[vtui.ColDialogEditUnchanged] = selected
+}
+
+// literal escapes & in text shown by vtui, where & marks a hotkey
+func literal(text string) string {
+	return strings.ReplaceAll(text, "&", "&&")
 }
 
 // newEdit returns an Edit with value, in the normal text color and the cursor

@@ -29,6 +29,13 @@ func TestDumpScreen(t *testing.T) {
 		if what == "dsnrow" {
 			events = append(events, key(vtinput.VK_F7))
 		}
+	case "localips", "localipsrow":
+		events = openLocalIpsEditor()
+		if what == "localipsrow" {
+			events = append(events, key(vtinput.VK_F7))
+		}
+	case "deliverd":
+		events = []*vtinput.InputEvent{key(vtinput.VK_TAB), key(vtinput.VK_DOWN), key(vtinput.VK_DOWN), key(vtinput.VK_DOWN), key(vtinput.VK_DOWN), key(vtinput.VK_DOWN), key(vtinput.VK_RETURN), key(vtinput.VK_DOWN)}
 	case "edit":
 		events = []*vtinput.InputEvent{key(vtinput.VK_F4)}
 	case "editsel":
