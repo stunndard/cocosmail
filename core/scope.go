@@ -7,7 +7,6 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -197,8 +196,10 @@ func initLogger() (err error) {
 		f.FullTimestamp = true
 		logger.Formatter = f
 	} else {
-		file := path.Join(logPath, "current.log")
-		out, err = os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err = os.MkdirAll(filepath.Dir(logPath), 0700); err != nil {
+			return err
+		}
+		out, err = os.OpenFile(logPath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
 		if err != nil {
 			return err
 		}
@@ -216,6 +217,9 @@ func initLogger() (err error) {
 	logger.Out = out
 	Logger = logger
 	Logger.Debug("Logger initialized")
+	if v := Cfg.Values()["logpath"]; strings.ContainsAny(v, `/\`) {
+		Logger.Warn(SettingEnvName("logpath") + " is a file name now, not a directory: logging to " + logPath)
+	}
 	return nil
 }
 

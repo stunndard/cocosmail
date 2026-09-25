@@ -19,7 +19,8 @@ COCOSMAIL_HIDE_SERVER_SIGNATURE=false
 # Log debug messages (default: false)
 COCOSMAIL_DEBUG_ENABLED=false
 
-# Where to log: "stdout", "discard" or an existing directory (default: stdout)
+# Where to log: "stdout", "discard" or a file name, the file is log/NAME next
+# to the binary (default: stdout)
 COCOSMAIL_LOGPATH=stdout
 
 # Temporary directory for scanning and filtering, a RAM disk like /dev/shm is

@@ -54,6 +54,7 @@ works on another server as is:
 | `db/`         | SQLite database (created on first run)                         |
 | `store/`      | messages waiting in the queue                                  |
 | `mailboxes/`  | users' Maildirs                                                |
+| `log/`        | log file, when `COCOSMAIL_LOGPATH` is a file name (default: stdout) |
 
 `nsq/` and `bolt/` are created automatically for the internal queue and cache.
 

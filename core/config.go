@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -288,14 +289,22 @@ func (c *Config) GetTempDir() string {
 	return AbsPath(c.cfg.TempDir)
 }
 
-// GetLogPath return log path: "stdout", "discard" or a directory
+// LogDir is the directory of the log file, next to the binary
+const LogDir = "log"
+
+// GetLogPath returns where to log: "stdout", "discard" or the log file,
+// log/NAME next to the binary. Only the last part of a path is used: before,
+// the setting was a directory.
 func (c *Config) GetLogPath() string {
 	c.Lock()
 	defer c.Unlock()
-	if c.cfg.LogPath == "stdout" || c.cfg.LogPath == "discard" {
-		return c.cfg.LogPath
+	switch c.cfg.LogPath {
+	case "", "stdout":
+		return "stdout"
+	case "discard":
+		return "discard"
 	}
-	return AbsPath(c.cfg.LogPath)
+	return filepath.Join(BaseDir(), LogDir, filepath.Base(c.cfg.LogPath))
 }
 
 // GetDbDriver returns database driver

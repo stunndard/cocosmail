@@ -1,6 +1,7 @@
 package core
 
 import (
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -134,4 +135,20 @@ func TestSettingsDB(t *testing.T) {
 	require.NoError(t, err)
 	_, hasOld := values["old_setting"]
 	assert.False(t, hasOld)
+}
+
+func TestLogPath(t *testing.T) {
+	cases := map[string]string{
+		"":                   "stdout",
+		"stdout":             "stdout",
+		"discard":            "discard",
+		"cocosmail.log":      filepath.Join(BaseDir(), "log", "cocosmail.log"),
+		"newlog":             filepath.Join(BaseDir(), "log", "newlog"),
+		"/var/log/cocosmail": filepath.Join(BaseDir(), "log", "cocosmail"),
+	}
+	for value, want := range cases {
+		var cfg Config
+		require.NoError(t, cfg.Load(map[string]string{"logpath": value}))
+		assert.Equal(t, want, cfg.GetLogPath(), value)
+	}
 }

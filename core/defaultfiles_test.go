@@ -13,7 +13,7 @@ func TestWriteDefaultFiles(t *testing.T) {
 	base := t.TempDir()
 	written, err := WriteDefaultFiles(base)
 	require.NoError(t, err)
-	for _, want := range []string{"conf/", "conf/cocosmail.cfg.base", "plugins/config.go", "plugins/fail2ban/fail2ban.go", "tpl/bounce.tpl", "ssl/", "ssl/README.txt"} {
+	for _, want := range []string{"conf/", "conf/cocosmail.cfg.base", "plugins/config.go", "plugins/fail2ban/fail2ban.go", "tpl/bounce.tpl", "ssl/", "ssl/README.txt", "log/"} {
 		assert.Contains(t, written, want)
 	}
 	// no shared test keys, no config that would be imported

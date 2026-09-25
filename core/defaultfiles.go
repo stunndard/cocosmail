@@ -51,5 +51,19 @@ func WriteDefaultFiles(base string) (written []string, err error) {
 		written = append(written, name)
 		return nil
 	})
-	return written, err
+	if err != nil {
+		return written, err
+	}
+	// empty directories
+	for _, dir := range []string{LogDir} {
+		target := filepath.Join(base, dir)
+		if _, err := os.Stat(target); err == nil {
+			continue
+		}
+		if err := os.MkdirAll(target, 0700); err != nil {
+			return written, err
+		}
+		written = append(written, dir+"/")
+	}
+	return written, nil
 }

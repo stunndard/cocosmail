@@ -43,7 +43,7 @@ var Settings = []Setting{
 	{Key: "debug_enabled", Section: "general", Default: "false", Restart: true,
 		Description: "Log debug messages"},
 	{Key: "logpath", Section: "general", Default: "stdout", Restart: true,
-		Description: `Where to log: "stdout", "discard" or an existing directory`},
+		Description: `Where to log: "stdout", "discard" or a file name, the file is log/NAME next to the binary`},
 	{Key: "tempdir", Section: "general", Default: "/tmp",
 		Description: "Temporary directory for scanning and filtering, a RAM disk like /dev/shm is recommended"},
 	{Key: "plugin_path", Section: "general", Default: "plugins",

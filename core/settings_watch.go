@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 	"syscall"
@@ -162,7 +163,10 @@ func preflight(next *Config, keys []string) error {
 	}
 	if changed["logpath"] {
 		if p := next.GetLogPath(); p != "stdout" && p != "discard" {
-			f, err := os.OpenFile(path.Join(p, "current.log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+			if err := os.MkdirAll(filepath.Dir(p), 0700); err != nil {
+				return errors.New(SettingEnvName("logpath") + ": " + err.Error())
+			}
+			f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
 			if err != nil {
 				return errors.New(SettingEnvName("logpath") + ": " + err.Error())
 			}
