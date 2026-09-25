@@ -57,6 +57,7 @@ func setup(t *testing.T, store Store) (*Editor, *vtui.ScreenBuf, *bool) {
 	scr := vtui.NewSilentScreenBuf()
 	scr.AllocBuf(testW, testH)
 	vtui.FrameManager.Init(scr)
+	setPalette()
 	vtui.FrameManager.KeyBar = vtui.NewKeyBar()
 	vtui.FrameManager.KeyBar.SetPosition(0, testH-1, testW-1, testH-1)
 	vtui.FrameManager.Push(vtui.NewDesktop())

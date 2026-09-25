@@ -421,6 +421,7 @@ var helpKeys = [][2]string{
 	{"F10, Esc", "Quit, asks to save unsaved changes"},
 	{"Tab", "Switch between the section list and the settings"},
 	{"Typing", "Search a setting by name in the section, Esc clears"},
+	{"Ctrl+A", "In a field: select the whole value, typing replaces it"},
 }
 
 // helpDialog returns the dialog listing keys
@@ -483,7 +484,7 @@ func (ed *Editor) editDialog(s core.Setting) *vtui.Window {
 		dlg.AddItem(cb)
 		getValue = cb.Edit.GetText
 	} else {
-		edit := vtui.NewEdit(x1+2, y, w-4, ed.values[s.Key])
+		edit := newEdit(x1+2, y, w-4, ed.values[s.Key])
 		edit.PasswordMode = s.Secret && !ed.secrets
 		dlg.AddItem(edit)
 		getValue = edit.GetText
@@ -531,6 +532,7 @@ func Run(store Store) error {
 	scr := vtui.NewScreenBuf()
 	scr.AllocBuf(width, height)
 	vtui.FrameManager.Init(scr)
+	setPalette()
 	vtui.FrameManager.KeyBar = vtui.NewKeyBar()
 	vtui.FrameManager.KeyBar.SetPosition(0, height-1, width-1, height-1)
 	vtui.FrameManager.Push(vtui.NewDesktop())
@@ -542,6 +544,24 @@ func Run(store Store) error {
 	vtui.FrameManager.Push(ed)
 	vtui.FrameManager.Run(vtinput.NewReader(os.Stdin, false))
 	return ed.Err
+}
+
+// setPalette adjusts vtui's palette: selected text in input fields is white on
+// blue. vtui's is black on light grey, like the dialog background, or dark grey
+// on cyan after select all (Ctrl+A), like the field: both hardly visible.
+func setPalette() {
+	selected := vtui.SetRGBBoth(0, 0xFFFFFF, 0x0000A0)
+	vtui.Palette[vtui.ColDialogEditSelected] = selected
+	vtui.Palette[vtui.ColDialogEditUnchanged] = selected
+}
+
+// newEdit returns an Edit with value, in the normal text color and the cursor
+// at the end. vtui's default text would be selected, replaced by typing, and
+// shown dark grey on cyan: hardly readable.
+func newEdit(x, y, width int, value string) *vtui.Edit {
+	e := vtui.NewEdit(x, y, width, "")
+	e.SetText(value)
+	return e
 }
 
 // isBool returns true if the setting is a bool
