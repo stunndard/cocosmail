@@ -351,8 +351,8 @@ into the SMTP session: `connect`, `helo`, `mailpre`, `mailpost`, `rcptto`,
 ship with cocosmail:
 
 - `fail2ban`: bans IPs after repeated failed logins.
-- `customgreeting`: replaces the SMTP greeting. This is a demo, so remove it
-  from `config.go` on a real server.
+- `customgreeting`: replaces the SMTP greeting. It's an example, not enabled
+  by default.
 
 ## Other options
 

@@ -7,7 +7,7 @@ TODO
 - [x] First start asks interactively to create DB tables; it panics without stdin (e.g. under systemd). Added `cocosmail init`.
 - [ ] `dist/ssl` ships `server.crt/key`, but listeners expect `smtp-<cert>.*` / `pop3-<cert>.*`, so a fresh install with the example config fails on POP3.
 - [x] `dist/run` starts `cocosmail32` on anything that isn't x86_64 (breaks arm64).
-- [ ] Demo plugin `customgreeting` is enabled by default in `dist/plugins/config.go`, and doesn't compile against the current API (`s.Out` needs a code), so it is silently skipped.
+- [x] Demo plugin `customgreeting` is enabled by default in `dist/plugins/config.go`, and doesn't compile against the current API (`s.Out` needs a code), so it is silently skipped.
 - [x] Config paths in `cocosmail.cfg.base` are absolute (`/home/cocosmail/dist`); make them relative to the binary directory.
 
 ## Bugs
