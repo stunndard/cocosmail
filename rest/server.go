@@ -36,9 +36,6 @@ func LaunchServer() {
 	// Queue
 	addQueueHandlers(router)
 
-	// Microservice data handler
-	router.Handler("GET", "/msdata/:id", http.StripPrefix("/msdata/", http.FileServer(http.Dir(core.Cfg.GetTempDir()))))
-
 	// Server
 	n := negroni.New(negroni.NewRecovery(), NewLogger())
 	n.UseHandler(router)

@@ -219,40 +219,6 @@ settings:
   # REST HTTP auth password
   rest_server_passwd: passwd
 
-  # --- microservices ---
-  #
-  # URLs called on new SMTP connection, separated by ;
-  ms_smtpd_newclient: ""
-
-  # URLs called after HELO/EHLO, separated by ;
-  ms_smtpd_helo: ""
-
-  # URLs called after MAIL FROM, separated by ;
-  ms_smtpd_mail_from: ""
-
-  # URLs called after RCPT TO to check if relay is granted, separated by ;
-  ms_smtpd_rcptto: ""
-
-  # URLs called after DATA, separated by ;
-  ms_smtpd_data: ""
-
-  # URLs called before queueing, can change envelope, separated by ;
-  ms_smtpd_before_queueing: ""
-
-  # URLs receiving smtpd telemetry, separated by ;
-  ms_smtpd_send_telemetry: ""
-
-  # URLs returning remote routes for deliverd, separated by ;
-  ms_deliverd_get_routes: ""
-
-  # URLs receiving deliverd telemetry, separated by ;
-  ms_deliverd_send_telemetry: ""
-
-  # --- openstack ---
-  #
-  # OpenStack object storage support (not available) (default: false)
-  openstack_enable: false
-
 # Data sections, e.g.:
 #
 # domains:

@@ -178,30 +178,22 @@ var Settings = []Setting{
 		Description: "REST HTTP auth login"},
 	{Key: "rest_server_passwd", Section: "rest", Secret: true,
 		Description: "REST HTTP auth password"},
+}
 
-	// microservices
-	{Key: "ms_smtpd_newclient", Section: "microservices",
-		Description: "URLs called on new SMTP connection, separated by ;"},
-	{Key: "ms_smtpd_helo", Section: "microservices",
-		Description: "URLs called after HELO/EHLO, separated by ;"},
-	{Key: "ms_smtpd_mail_from", Section: "microservices",
-		Description: "URLs called after MAIL FROM, separated by ;"},
-	{Key: "ms_smtpd_rcptto", Section: "microservices",
-		Description: "URLs called after RCPT TO to check if relay is granted, separated by ;"},
-	{Key: "ms_smtpd_data", Section: "microservices",
-		Description: "URLs called after DATA, separated by ;"},
-	{Key: "ms_smtpd_before_queueing", Section: "microservices",
-		Description: "URLs called before queueing, can change envelope, separated by ;"},
-	{Key: "ms_smtpd_send_telemetry", Section: "microservices",
-		Description: "URLs receiving smtpd telemetry, separated by ;"},
-	{Key: "ms_deliverd_get_routes", Section: "microservices",
-		Description: "URLs returning remote routes for deliverd, separated by ;"},
-	{Key: "ms_deliverd_send_telemetry", Section: "microservices",
-		Description: "URLs receiving deliverd telemetry, separated by ;"},
-
-	// openstack
-	{Key: "openstack_enable", Section: "openstack", Default: "false", Restart: true,
-		Description: "OpenStack object storage support (not available)"},
+// removedSettings were settings of older versions, for features that were
+// never used: microservices (URLs called by smtpd and deliverd) and OpenStack
+// object storage. They're ignored, and deleted from the database.
+var removedSettings = map[string]bool{
+	"ms_smtpd_newclient":         true,
+	"ms_smtpd_helo":              true,
+	"ms_smtpd_mail_from":         true,
+	"ms_smtpd_rcptto":            true,
+	"ms_smtpd_data":              true,
+	"ms_smtpd_before_queueing":   true,
+	"ms_smtpd_send_telemetry":    true,
+	"ms_deliverd_get_routes":     true,
+	"ms_deliverd_send_telemetry": true,
+	"openstack_enable":           true,
 }
 
 var settingsByKey = func() map[string]*Setting {

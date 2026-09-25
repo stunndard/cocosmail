@@ -90,22 +90,6 @@ func bootstrap(server bool) (err error) {
 		Logger.Warn("COCOSMAIL_BASE_PATH is not used anymore, relative paths are relative to " + BaseDir())
 	}
 
-	/*
-		// openstack
-		if Cfg.GetOpenstackEnable() {
-			if !context.Keyring.IsPopulate() {
-				return errors.New("No credentials found from ENV. See http://docs.openstack.org/cli-reference/content/cli_openrc.html")
-			}
-			// Do auth
-			err = identity.DoAuth()
-			if err != nil {
-				return err
-			}
-			// auto update Token
-			identity.AutoUpdate(30, new(log.Logger))
-		}
-	*/
-
 	// init store
 	if Cfg.GetStoreDriver() == "disk" {
 		if err = os.MkdirAll(diskStorePath(Cfg.GetStoreSource()), 0700); err != nil {

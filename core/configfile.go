@@ -69,6 +69,9 @@ func unknownSetting(key string) string {
 	if key == "base_path" {
 		return "not used anymore, files are relative to the cocosmail binary directory"
 	}
+	if removedSettings[key] {
+		return "not used anymore, removed"
+	}
 	if real, ok := misnamedSettings[key]; ok {
 		return "wrong name, cocosmail never used it. The setting is " + real
 	}

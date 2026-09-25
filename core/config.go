@@ -82,20 +82,6 @@ type configValues struct {
 
 	RFCMailFromLocalpartSize bool `name:"rfc_mailfrom_localpart_size"`
 
-	// microservices
-	MsUriSmtpdNewClient        string `name:"ms_smtpd_newclient"`
-	MSUriSmtpdHelo             string `name:"ms_smtpd_helo"`
-	MSUriSmtpdMailFrom         string `name:"ms_smtpd_mail_from"`
-	MsUriSmtpdRcptTo           string `name:"ms_smtpd_rcptto"`
-	MsUriSmtpdData             string `name:"ms_smtpd_data"`
-	MsUriSmtpdBeforeQueueing   string `name:"ms_smtpd_before_queueing"`
-	MsUriSmtpdSendTelemetry    string `name:"ms_smtpd_send_telemetry"`
-	MsUriDeliverdGetRoutes     string `name:"ms_deliverd_get_routes"`
-	MsUriDeliverdSendTelemetry string `name:"ms_deliverd_send_telemetry"`
-
-	// Openstack
-	OpenstackEnable bool `name:"openstack_enable"`
-
 	LaunchRestServer bool   `name:"rest_server_launch"`
 	RestServerIp     string `name:"rest_server_ip"`
 	RestServerPort   int    `name:"rest_server_port"`
@@ -515,63 +501,6 @@ func (c *Config) GetNSQLookupdHttpAddresses() (addr []string) {
 		addr = append(addr, a)
 	}
 	return
-}
-
-// openstack
-
-// GetOpenstackEnable returns if openstack support is enabled
-func (c *Config) GetOpenstackEnable() bool {
-	c.Lock()
-	defer c.Unlock()
-	return c.cfg.OpenstackEnable
-}
-
-// microservices
-
-// GetMicroservicesUri returns defined URI for a hookId
-func (c *Config) GetMicroservicesUri(hookId string) []string {
-	c.Lock()
-	defer c.Unlock()
-	switch hookId {
-	case "smtpdnewclient":
-		if c.cfg.MsUriSmtpdNewClient != "" {
-			return strings.Split(c.cfg.MsUriSmtpdNewClient, ";")
-		}
-	case "smtpdhelo":
-		if c.cfg.MSUriSmtpdHelo != "" {
-			return strings.Split(c.cfg.MSUriSmtpdHelo, ";")
-		}
-	case "smtpdmailfrom":
-		if c.cfg.MSUriSmtpdMailFrom != "" {
-			return strings.Split(c.cfg.MSUriSmtpdMailFrom, ";")
-		}
-	case "smtpdrcptto":
-		if c.cfg.MsUriSmtpdRcptTo != "" {
-			return strings.Split(c.cfg.MsUriSmtpdRcptTo, ";")
-		}
-	case "smtpddata":
-		if c.cfg.MsUriSmtpdData != "" {
-			return strings.Split(c.cfg.MsUriSmtpdData, ";")
-		}
-	case "smtpdbeforequeueing":
-		if c.cfg.MsUriSmtpdBeforeQueueing != "" {
-			return strings.Split(c.cfg.MsUriSmtpdBeforeQueueing, ";")
-		}
-	case "smtpdsendtelemetry":
-		if c.cfg.MsUriSmtpdSendTelemetry != "" {
-			return strings.Split(c.cfg.MsUriSmtpdSendTelemetry, ";")
-		}
-
-	case "deliverdgetroutes":
-		if c.cfg.MsUriDeliverdGetRoutes != "" {
-			return strings.Split(c.cfg.MsUriDeliverdGetRoutes, ";")
-		}
-	case "deliverdsendtelemetry":
-		if c.cfg.MsUriDeliverdSendTelemetry != "" {
-			return strings.Split(c.cfg.MsUriDeliverdSendTelemetry, ";")
-		}
-	}
-	return []string{}
 }
 
 // REST server

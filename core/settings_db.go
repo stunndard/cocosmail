@@ -39,6 +39,10 @@ func SettingsFromDB(db *gorm.DB) (map[string]string, error) {
 		}
 		// setting removed from cocosmail, keep it in DB but ignore it
 		if _, ok := SettingByKey(r.Key); !ok {
+			if removedSettings[r.Key] {
+				// deleted by SettingsFillMissing
+				continue
+			}
 			Logger.Warn("unknown setting " + SettingEnvName(r.Key) + " in database, ignored")
 			continue
 		}
@@ -107,8 +111,14 @@ func CurrentSettings(db *gorm.DB) (values map[string]string, inDB bool, err erro
 // SettingsFillMissing adds settings missing in DB, when settings are stored in DB.
 // Needed when a new version adds settings. A missing setting gets its current
 // value (from environment) if any, otherwise its default: environment values
-// must not be lost when only some settings are in DB.
+// must not be lost when only some settings are in DB. Settings removed from
+// cocosmail are deleted.
 func SettingsFillMissing(db *gorm.DB, current map[string]string) error {
+	for key := range removedSettings {
+		if err := db.Delete(&DbSetting{Key: key}).Error; err != nil {
+			return err
+		}
+	}
 	stored, err := SettingsFromDB(db)
 	if err != nil || len(stored) == 0 {
 		return err

@@ -152,3 +152,26 @@ func TestLogPath(t *testing.T) {
 		assert.Equal(t, want, cfg.GetLogPath(), value)
 	}
 }
+
+func TestRemovedSettings(t *testing.T) {
+	Logger = logrus.New()
+	db, err := gorm.Open("sqlite3", ":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+	require.NoError(t, db.AutoMigrate(&DbSetting{}).Error)
+	require.NoError(t, db.Save(&DbSetting{Key: "me", Value: "mail.example.com"}).Error)
+	require.NoError(t, db.Save(&DbSetting{Key: "openstack_enable", Value: "false"}).Error)
+	require.NoError(t, db.Save(&DbSetting{Key: "ms_smtpd_helo", Value: ""}).Error)
+
+	values, err := SettingsFromDB(db)
+	require.NoError(t, err)
+	assert.NotContains(t, values, "openstack_enable")
+	require.NoError(t, SettingsFillMissing(db, nil))
+	var n int
+	require.NoError(t, db.Model(&DbSetting{}).Where(&DbSetting{Key: "openstack_enable"}).Count(&n).Error)
+	assert.Equal(t, 0, n)
+
+	_, warnings, err := ParseConfigFile([]byte("settings:\n  ms_smtpd_helo: x\n"))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"line 2: ms_smtpd_helo: not used anymore, removed, ignored"}, warnings)
+}

@@ -134,7 +134,7 @@ func TestEditorShowsSettings(t *testing.T) {
 	store.values["rest_server_passwd"] = "topsecret"
 	_, scr, _ := setup(t, store)
 	screen := run(scr)
-	for _, want := range []string{"cocosmail settings: memory", "general", "database", "microservices", "all settings", "me", "mail.example.com", "hide_server_signature", "Hostname of this server", "Help", "Save", "ShowPw", "Quit"} {
+	for _, want := range []string{"cocosmail settings: memory", "general", "database", "pop3d", "all settings", "me", "mail.example.com", "hide_server_signature", "Hostname of this server", "Help", "Save", "ShowPw", "Quit"} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("screen misses %q", want)
 		}
