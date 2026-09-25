@@ -4,7 +4,7 @@ TODO
 - [ ] Turbo Vision style TUI configurator (https://github.com/unxed/vtui)
 
 ## Setup friction
-- [ ] First start asks interactively to create DB tables; it panics without stdin (e.g. under systemd). Add an `initdb` command or flag.
+- [x] First start asks interactively to create DB tables; it panics without stdin (e.g. under systemd). Added `cocosmail init`.
 - [ ] `dist/ssl` ships `server.crt/key`, but listeners expect `smtp-<cert>.*` / `pop3-<cert>.*`, so a fresh install with the example config fails on POP3.
 - [ ] `dist/run` starts `cocosmail32` on anything that isn't x86_64 (breaks arm64).
 - [ ] Demo plugin `customgreeting` is enabled by default in `dist/plugins/config.go`, and doesn't compile against the current API (`s.Out` needs a code), so it is silently skipped.

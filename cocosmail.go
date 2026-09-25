@@ -3,10 +3,10 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -19,19 +19,35 @@ import (
 	"github.com/stunndard/cocosmail/plugin"
 	"github.com/stunndard/cocosmail/pop3"
 	"github.com/urfave/cli"
+	"golang.org/x/term"
 
 	tcli "github.com/stunndard/cocosmail/cli"
 	"github.com/stunndard/cocosmail/core"
 	"github.com/stunndard/cocosmail/rest"
 )
 
-func init() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
+// bootstrapCli prepares what CLI commands need: config, logger, DB and store.
+// It must not touch the queue or its files: the server may be running.
+func bootstrapCli(c *cli.Context) error {
+	// "cocosmail user" or "cocosmail user help" only show help
+	if c.NArg() == 0 || c.Args().First() == "help" || c.Args().First() == "h" {
+		return nil
+	}
+	if err := core.Bootstrap(); err != nil {
+		return err
+	}
+	if !core.IsOkDB(core.DB) {
+		return errors.New("database is not initialized, run: cocosmail init")
+	}
+	return nil
+}
+
+// bootstrapServer prepares everything the server needs
+func bootstrapServer() {
 	var err error
 	if err = core.Bootstrap(); err != nil {
 		log.Fatalln(err)
 	}
-	core.Version = core.CocosmailVersion
 
 	if os.RemoveAll(path.Join(core.Cfg.GetBasePath(), "nsq")) != nil {
 		log.Fatalln("Unable to delete nsq data directory")
@@ -47,32 +63,30 @@ func init() {
 	// TODO: if clusterMode check if nsqlookupd is available
 
 	// check DB
-	// TODO: do check in CLI call (raise error & ask for user to run cocosmail initdb|checkdb)
 	if !core.IsOkDB(core.DB) {
-		var r []byte
-		for {
-			fmt.Printf("Database 'driver: %s, source: %s' misses some tables.\r\nShould i create them ? (y/n):", core.Cfg.GetDbDriver(), core.Cfg.GetDbSource())
-			r, _, _ = bufio.NewReader(os.Stdin).ReadLine()
-			if r[0] == 110 || r[0] == 121 {
-				break
-			}
+		// nobody to answer (systemd, docker...)
+		if !term.IsTerminal(int(os.Stdin.Fd())) {
+			log.Fatalln("database is not initialized, run: cocosmail init")
 		}
-		if r[0] == 121 {
-			if err = core.InitDB(core.DB); err != nil {
-				log.Fatalln(err)
-			}
-		} else {
+		if !askYesNo(fmt.Sprintf("Database 'driver: %s, source: %s' misses some tables.\r\nShould i create them ? (y/n):", core.Cfg.GetDbDriver(), core.Cfg.GetDbSource())) {
 			log.Println("See you soon...")
 			os.Exit(0)
 		}
+		if err = core.InitDB(core.DB); err != nil {
+			log.Fatalln(err)
+		}
 	}
 	// sync tables from structs
-	if err := core.AutoMigrateDB(core.DB); err != nil {
+	if err = core.AutoMigrateDB(core.DB); err != nil {
 		log.Fatalln(err)
 	}
 
-	// init rand seed
-	rand.Seed(time.Now().UTC().UnixNano())
+	// init NSQ MailQueueProducer
+	if core.Cfg.GetLaunchSmtpd() {
+		if err = core.InitMailQueueProducer(); err != nil {
+			log.Fatalln(err)
+		}
+	}
 
 	// Dovecot support
 	if core.Cfg.GetDovecotSupportEnabled() {
@@ -83,19 +97,47 @@ func init() {
 	}
 }
 
+// askYesNo asks question until answer is y or n. EOF means no.
+func askYesNo(question string) bool {
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Print(question)
+		r, _, err := reader.ReadLine()
+		if err != nil {
+			fmt.Println()
+			return false
+		}
+		switch string(r) {
+		case "y":
+			return true
+		case "n":
+			return false
+		}
+	}
+}
+
 // MAIN
 func main() {
 	var err error
+	core.Version = core.CocosmailVersion
 	app := cli.NewApp()
 	app.Name = "cocosmail"
 	app.Usage = "Email system"
 	app.Version = core.CocosmailVersion
 	app.Commands = tcli.CliCommands
+	// CLI commands need config & DB, but only when they run, not for help
+	for i := range app.Commands {
+		if app.Commands[i].Before == nil {
+			app.Commands[i].Before = bootstrapCli
+		}
+	}
 	// no know command ? Launch server
 	app.Action = func(c *cli.Context) {
 		if len(c.Args()) != 0 {
 			_ = cli.ShowAppHelp(c)
 		} else {
+			bootstrapServer()
+
 			// if there is nothing to do then... do nothing
 			if !core.Cfg.GetLaunchDeliverd() && !core.Cfg.GetLaunchSmtpd() {
 				log.Fatalln("I have nothing to do, so i do nothing. Bye.")
@@ -224,7 +266,9 @@ func main() {
 			os.Exit(0)
 		}
 	}
-	_ = app.Run(os.Args)
+	if err = app.Run(os.Args); err != nil {
+		log.Fatalln(err)
+	}
 
 }
 

@@ -168,21 +168,24 @@ cocosmail stops at startup if a POP3 or SMTPS certificate is missing.
 
 ### 5. First start
 
+Create the database tables, then start the server:
+
 ```sh
+. conf/cocosmail.cfg
+./cocosmail init
 ./run
 ```
 
-On the first start cocosmail sees an empty database and asks whether to create
-the tables. Answer `y`. **Do this first start in a terminal**, not from a
-service manager, because it waits for your answer.
-
 ```
-Database 'driver: sqlite3, source: ...' misses some tables.
-Should i create them ? (y/n): y
+Database 'sqlite3' is ready.
 ... smtpd [::]:25 launched.
 ... pop3d [::]:995 SSL launched
 ... deliverd launched
 ```
+
+`cocosmail init` is safe to run again, existing data is kept. If you skip it
+and start the server in a terminal, cocosmail offers to create the tables. From
+a service manager or Docker it stops and tells you to run `cocosmail init`.
 
 ### 6. Add your domain and a mailbox
 
@@ -322,6 +325,7 @@ uses the same config, so load it first (`. conf/cocosmail.cfg`).
 
 | Command     | Subcommands                                               | Purpose                               |
 |-------------|-----------------------------------------------------------|---------------------------------------|
+| `init`      |                                                           | create database tables (safe to repeat) |
 | `rcpthost`  | `add`, `list`, `del`                                      | domains cocosmail accepts mail for (`-l` = local mailboxes) |
 | `user`      | `add`, `del`, `update`, `list`, `catchall`                | users, mailboxes, SMTP login, quota   |
 | `alias`     | `add`, `del`, `list`                                      | aliases, forwarding, pipe to command  |

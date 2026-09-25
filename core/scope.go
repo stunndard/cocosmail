@@ -44,7 +44,8 @@ var (
 	Store                            Storer
 )
 
-// Bootstrap DB, config,...
+// Bootstrap loads config and opens logger, DB and store.
+// It's all the CLI needs; the server needs more, see InitMailQueueProducer.
 // TODO check validity of each element
 func Bootstrap() (err error) {
 	// Load config
@@ -106,15 +107,6 @@ func Bootstrap() (err error) {
 		return errors.New("I could not access to database " + Cfg.GetDbDriver() + " " + Cfg.GetDbSource())
 	}
 
-	// TODO remove from bootstrap
-	// init NSQ MailQueueProducer (Nmqp)
-	if Cfg.GetLaunchSmtpd() {
-		err = initMailQueueProducer()
-		if err != nil {
-			return err
-		}
-	}
-
 	/*
 		// openstack
 		if Cfg.GetOpenstackEnable() {
@@ -159,8 +151,8 @@ func InitBolt() error {
 	})
 }
 
-// initMailQueueProducer init producer for queue
-func initMailQueueProducer() (err error) {
+// InitMailQueueProducer init producer for queue, used by smtpd
+func InitMailQueueProducer() (err error) {
 	nsqCfg := nsq.NewConfig()
 	nsqCfg.UserAgent = "cocosmail.queue"
 	NsqQueueProducer, err = nsq.NewProducer("127.0.0.1:4150", nsqCfg)
