@@ -98,6 +98,10 @@ func TestEditorLayout(t *testing.T) {
 	rules := vtui.DefaultLayoutRules
 	rules.MaxWidth = 0
 	vtui.AssertLayoutWithRules(t, ed, rules)
+	ed.layout(80, 25)
+	vtui.AssertLayoutWithRules(t, ed, rules)
+	ed.layout(testW, testH)
+	vtui.AssertLayout(t, ed.helpDialog())
 	me, _ := core.SettingByKey("me")
 	vtui.AssertLayout(t, ed.editDialog(*me))
 	lda, _ := core.SettingByKey("lda_type")
@@ -111,13 +115,67 @@ func TestEditorShowsSettings(t *testing.T) {
 	store.values["rest_server_passwd"] = "topsecret"
 	_, scr, _ := setup(t, store)
 	screen := run(scr)
-	for _, want := range []string{"cocosmail settings: memory", "[general]", "me", "mail.example.com", "hide_server_signature", "Hostname of this server", "Save", "Quit"} {
+	for _, want := range []string{"cocosmail settings: memory", "general", "database", "microservices", "all settings", "me", "mail.example.com", "hide_server_signature", "Hostname of this server", "Help", "Save", "ShowPw", "Quit"} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("screen misses %q", want)
 		}
 	}
 	if strings.Contains(screen, "topsecret") {
 		t.Error("secret shown")
+	}
+	// only the general section is shown
+	if strings.Contains(screen, "smtpd_dsns") {
+		t.Error("other sections shown")
+	}
+}
+
+func TestEditorSections(t *testing.T) {
+	ed, scr, _ := setup(t, newMemStore())
+	// Tab to the section list, down to database
+	screen := run(scr, key(vtinput.VK_TAB), key(vtinput.VK_DOWN))
+	if !strings.Contains(screen, "db_driver") || strings.Contains(screen, "hide_server_signature") {
+		t.Error("database section not shown")
+	}
+	// Enter goes to the settings, F4 edits db_driver: read only in memStore? no, choices
+	if ed.selected() != "db_driver" {
+		t.Errorf("selected %q", ed.selected())
+	}
+	// last entry: all settings, with section titles
+	screen = run(scr, key(vtinput.VK_END))
+	if !strings.Contains(screen, "[general]") || !strings.Contains(screen, "[database]") {
+		t.Error("all settings not shown")
+	}
+}
+
+func TestEditorHelp(t *testing.T) {
+	_, scr, _ := setup(t, newMemStore())
+	screen := run(scr, key(vtinput.VK_F1))
+	for _, want := range []string{" Help ", "Show or hide passwords", "Reset the selected setting", "Quit, asks to save"} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("help misses %q", want)
+		}
+	}
+	// F3 label follows the state
+	screen = run(scr, key(vtinput.VK_RETURN), key(vtinput.VK_F3))
+	if !strings.Contains(screen, "HidePw") {
+		t.Error("F3 label not switched")
+	}
+}
+
+func TestEditorQuitSave(t *testing.T) {
+	store := newMemStore()
+	_, scr, quit := setup(t, store)
+	// change, quit, Save: saved and quit at once
+	screen := run(scr, key(vtinput.VK_DOWN), key(vtinput.VK_RETURN), key(vtinput.VK_F10))
+	if !strings.Contains(screen, "Save it before quitting?") {
+		t.Error("not asked")
+	}
+	run(scr, key(vtinput.VK_RETURN))
+	if len(store.saves) != 1 || store.saves[0]["hide_server_signature"] != "true" {
+		t.Fatalf("not saved: %v", store.saves)
+	}
+	if !*quit {
+		t.Fatal("not quit after Save")
 	}
 }
 
@@ -162,8 +220,9 @@ func TestEditorEditText(t *testing.T) {
 func TestEditorRejectsInvalid(t *testing.T) {
 	store := newMemStore()
 	ed, scr, _ := setup(t, store)
-	// select smtpd_max_hops with quick search, then edit it
-	events := typeText("smtpd_max_h")
+	// all settings, then select smtpd_max_hops with quick search, and edit it
+	events := []*vtinput.InputEvent{key(vtinput.VK_TAB), key(vtinput.VK_END), key(vtinput.VK_TAB)}
+	events = append(events, typeText("smtpd_max_h")...)
 	events = append(events, key(vtinput.VK_F4), key(vtinput.VK_END))
 	for range ed.values["smtpd_max_hops"] {
 		events = append(events, key(vtinput.VK_BACK))
@@ -207,5 +266,19 @@ func TestEditorQuitWithChanges(t *testing.T) {
 	}
 	if len(store.saves) != 0 {
 		t.Fatal("saved after Discard")
+	}
+}
+
+func TestEditorQuitSaveInvalid(t *testing.T) {
+	store := newMemStore()
+	store.values["me"] = ""
+	_, scr, quit := setup(t, store)
+	// change something, quit, Save: me is required, not saved, not quit
+	screen := run(scr, key(vtinput.VK_DOWN), key(vtinput.VK_RETURN), key(vtinput.VK_F10), key(vtinput.VK_RETURN))
+	if !strings.Contains(screen, "Required: COCOSMAIL_ME") {
+		t.Error("error not shown")
+	}
+	if *quit || len(store.saves) != 0 {
+		t.Fatalf("quit %v, saves %v", *quit, store.saves)
 	}
 }

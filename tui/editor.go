@@ -20,20 +20,28 @@ const secretMask = "********"
 // descLines is the number of lines describing the selected setting
 const descLines = 3
 
-// Editor is the configurator window: a table of all settings, the
-// description of the selected one and a key bar
+// allSettings is the last entry of the section list: all sections at once
+const allSettings = "all settings"
+
+// sectionsWidth is the width of the section list
+const sectionsWidth = 15
+
+// Editor is the configurator window: the list of sections, a table of the
+// settings of the selected section, the description of the selected setting
+// and a key bar
 type Editor struct {
 	*vtui.Window
-	store   Store
-	values  map[string]string // being edited
-	saved   map[string]string // as loaded or last saved
-	sources map[string]string
-	rows    []settingRow
-	table   *vtui.Table
-	desc    [descLines]*vtui.Text
-	width   int
-	height  int
-	secrets bool
+	store    Store
+	values   map[string]string // being edited
+	saved    map[string]string // as loaded or last saved
+	sources  map[string]string
+	sections *vtui.ListBox
+	rows     []settingRow
+	table    *vtui.Table
+	desc     [descLines]*vtui.Text
+	width    int
+	height   int
+	secrets  bool
 	// Quit is called when the user quits
 	Quit func()
 	// Err is the last save error, if any
@@ -83,26 +91,26 @@ func NewEditor(store Store, width, height int) (*Editor, error) {
 		sources: sources,
 	}
 	ed.Window = vtui.NewWindow(0, 0, width-1, height-2, "")
-	section := ""
+	var names []string
 	for _, s := range core.Settings {
-		if s.Section != section {
-			section = s.Section
-			ed.rows = append(ed.rows, settingRow{ed: ed, section: section})
+		if len(names) == 0 || names[len(names)-1] != s.Section {
+			names = append(names, s.Section)
 		}
-		ed.rows = append(ed.rows, settingRow{ed: ed, key: s.Key, section: s.Section})
 	}
+	names = append(names, allSettings)
+	ed.sections = vtui.NewListBox(0, 0, sectionsWidth, 5, names)
+	ed.sections.OnSelect = func(i int) { ed.showSection(names[i]) }
+	ed.sections.OnAction = func(int) { ed.SetFocusedItem(ed.table) }
+	// the current section stays marked when the settings have the focus
+	ed.sections.AlwaysShowCursor = true
+	ed.AddItem(ed.sections)
 	ed.table = vtui.NewTable(0, 0, 10, 5, []vtui.TableColumn{
-		{Title: "Setting", Width: 34},
+		{Title: "Setting", Width: 31},
 		{Title: "Value", Width: 0, MinWidth: 10},
 		{Title: "Source", Width: 8},
 	})
 	ed.table.ShowHeader = true
 	ed.table.QuickSearch = true
-	rows := make([]vtui.TableRow, len(ed.rows))
-	for i, r := range ed.rows {
-		rows[i] = r
-	}
-	ed.table.SetRows(rows)
 	ed.table.OnSelect = func(int) { ed.updateDescription() }
 	ed.table.OnSearchChange = func(string) { ed.updateDescription() }
 	ed.table.OnAction = func(int) { ed.edit() }
@@ -112,11 +120,40 @@ func NewEditor(store Store, width, height int) (*Editor, error) {
 		ed.AddItem(ed.desc[i])
 	}
 	ed.layout(width, height)
-	// first setting, not the section title
-	ed.table.SelectPos = 1
-	ed.updateDescription()
+	ed.showSection(names[0])
+	ed.SetFocusedItem(ed.table)
 	ed.updateTitle()
 	return ed, nil
+}
+
+// showSection shows the settings of a section, or all settings with
+// section titles
+func (ed *Editor) showSection(name string) {
+	ed.rows = ed.rows[:0]
+	section := ""
+	for _, s := range core.Settings {
+		if name == allSettings {
+			if s.Section != section {
+				section = s.Section
+				ed.rows = append(ed.rows, settingRow{ed: ed, section: section})
+			}
+		} else if s.Section != name {
+			continue
+		}
+		ed.rows = append(ed.rows, settingRow{ed: ed, key: s.Key, section: s.Section})
+	}
+	rows := make([]vtui.TableRow, len(ed.rows))
+	for i, r := range ed.rows {
+		rows[i] = r
+	}
+	ed.table.ClearSearch()
+	ed.table.SetRows(rows)
+	ed.table.SelectPos, ed.table.TopPos = 0, 0
+	if name == allSettings {
+		// first setting, not the section title
+		ed.table.SelectPos = 1
+	}
+	ed.updateDescription()
 }
 
 // layout places the elements for a screen of width x height
@@ -124,11 +161,14 @@ func (ed *Editor) layout(width, height int) {
 	ed.width, ed.height = width, height
 	ed.Window.SetPosition(0, 0, width-1, height-2)
 	bottom := height - 4 // last line inside the frame, with one line of air
-	ed.table.SetPosition(2, 2, width-3, bottom-descLines-1)
+	ed.sections.SetPosition(2, 2, 2+sectionsWidth-1, bottom-descLines-1)
+	ed.table.SetPosition(2+sectionsWidth+1, 2, width-3, bottom-descLines-1)
 	for i, t := range ed.desc {
 		y := bottom - descLines + 1 + i
 		t.SetPosition(2, y, width-3, y)
 	}
+	// wrapped for the new width
+	ed.updateDescription()
 }
 
 // ResizeConsole follows the terminal size
@@ -141,8 +181,12 @@ func (ed *Editor) ResizeConsole(w, h int) {
 
 // GetKeyLabels are the key bar labels
 func (ed *Editor) GetKeyLabels() *vtui.KeySet {
+	secrets := "ShowPw"
+	if ed.secrets {
+		secrets = "HidePw"
+	}
 	ks := &vtui.KeySet{}
-	ks.Normal = vtui.KeyBarLabels{"", "Save", "Secret", "Edit", "", "", "", "Reset", "", "Quit", "", ""}
+	ks.Normal = vtui.KeyBarLabels{"Help", "Save", secrets, "Edit", "", "", "", "Reset", "", "Quit", "", ""}
 	return ks
 }
 
@@ -150,6 +194,9 @@ func (ed *Editor) GetKeyLabels() *vtui.KeySet {
 func (ed *Editor) ProcessKey(e *vtinput.InputEvent) bool {
 	if e.KeyDown {
 		switch e.VirtualKeyCode {
+		case vtinput.VK_F1:
+			vtui.FrameManager.Push(ed.helpDialog())
+			return true
 		case vtinput.VK_F2:
 			ed.save()
 			return true
@@ -280,6 +327,30 @@ func (ed *Editor) reset() {
 	ed.set(key, s.Default)
 }
 
+// check returns why changed settings can't be saved, if they can't
+func (ed *Editor) check(changed map[string]string) error {
+	if errs := core.ValidateSettings(changed); len(errs) > 0 {
+		return errs[0]
+	}
+	if missing := core.MissingSettings(ed.values); len(missing) > 0 {
+		return errors.New("Required: " + strings.Join(missing, ", "))
+	}
+	return nil
+}
+
+// store saves changed settings, it tells the user if it fails
+func (ed *Editor) storeChanges(changed map[string]string) bool {
+	if err := ed.store.Save(changed); err != nil {
+		ed.Err = err
+		ed.message("Error", "Not saved: "+err.Error())
+		return false
+	}
+	ed.Err = nil
+	ed.saved = copyValues(ed.values)
+	ed.updateTitle()
+	return true
+}
+
 // save checks and saves changed settings, after confirmation
 func (ed *Editor) save() {
 	changed := ed.changed()
@@ -287,12 +358,8 @@ func (ed *Editor) save() {
 		ed.message("Save", "Nothing changed.")
 		return
 	}
-	if errs := core.ValidateSettings(changed); len(errs) > 0 {
-		ed.message("Error", errs[0].Error())
-		return
-	}
-	if missing := core.MissingSettings(ed.values); len(missing) > 0 {
-		ed.message("Error", "Required: "+strings.Join(missing, ", "))
+	if err := ed.check(changed); err != nil {
+		ed.message("Error", err.Error())
 		return
 	}
 	keys := sortedKeys(changed)
@@ -307,17 +374,9 @@ func (ed *Editor) save() {
 	text.WriteString("\n" + ed.store.ApplyNote(keys))
 	dlg := vtui.ShowMessage("Save", text.String(), []string{"&Save", "&Cancel"})
 	dlg.OnResult = func(code int) {
-		if code != 0 {
-			return
+		if code == 0 {
+			ed.storeChanges(changed)
 		}
-		if err := ed.store.Save(changed); err != nil {
-			ed.Err = err
-			ed.message("Error", "Not saved: "+err.Error())
-			return
-		}
-		ed.Err = nil
-		ed.saved = copyValues(ed.values)
-		ed.updateTitle()
 	}
 }
 
@@ -327,15 +386,66 @@ func (ed *Editor) quit() {
 		ed.doQuit()
 		return
 	}
-	dlg := vtui.ShowMessage("Quit", "Settings were changed and not saved.", []string{"&Save", "&Discard", "&Cancel"})
+	changed := ed.changed()
+	text := "1 changed setting is not saved.\nSave it before quitting?"
+	if len(changed) > 1 {
+		text = fmt.Sprintf("%d changed settings are not saved.\nSave them before quitting?", len(changed))
+	}
+	dlg := vtui.ShowMessage("Quit", text, []string{"&Save", "&Don't save", "&Cancel"})
 	dlg.OnResult = func(code int) {
 		switch code {
 		case 0:
-			ed.save()
+			if err := ed.check(changed); err != nil {
+				ed.message("Error", err.Error())
+				return
+			}
+			if ed.storeChanges(changed) {
+				ed.doQuit()
+			}
 		case 1:
 			ed.doQuit()
 		}
 	}
+}
+
+// helpKeys are shown by the help dialog
+var helpKeys = [][2]string{
+	{"F1", "This help"},
+	{"F2", "Save changes, after showing what changed"},
+	{"F3", "Show or hide passwords and other secret values"},
+	{"F4, Enter", "Edit the selected setting (true/false ones are switched)"},
+	{"F8", "Reset the selected setting to its default"},
+	{"F10, Esc", "Quit, asks to save unsaved changes"},
+	{"Tab", "Switch between the section list and the settings"},
+	{"Typing", "Search a setting by name in the section, Esc clears"},
+}
+
+// helpDialog returns the dialog listing keys
+func (ed *Editor) helpDialog() *vtui.Window {
+	keyW, textW := 0, 0
+	for _, k := range helpKeys {
+		if len(k[0]) > keyW {
+			keyW = len(k[0])
+		}
+		if len(k[1]) > textW {
+			textW = len(k[1])
+		}
+	}
+	w := keyW + textW + 8
+	h := len(helpKeys) + 7
+	x1, y1 := (ed.width-w)/2, (ed.height-1-h)/2
+	dlg := vtui.NewDialog(x1, y1, x1+w-1, y1+h-1, " Help ")
+	for i, k := range helpKeys {
+		dlg.AddItem(vtui.NewText(x1+2, y1+2+i, k[0], 0))
+		dlg.AddItem(vtui.NewText(x1+2+keyW+2, y1+2+i, k[1], 0))
+	}
+	ok := vtui.NewButton(0, 0, "&Ok")
+	ok.IsDefault = true
+	y := y1 + 2 + len(helpKeys) + 1
+	ok.SetPosition(x1+(w-6)/2, y, x1+(w-6)/2+ok.X2-ok.X1, y)
+	ok.OnClick = func() { dlg.SetExitCode(1) }
+	dlg.AddItem(ok)
+	return dlg
 }
 
 func (ed *Editor) doQuit() {

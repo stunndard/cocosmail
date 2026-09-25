@@ -416,18 +416,24 @@ database mode, keeping the settings.
 
 ### Text UI
 
-`./cocosmail config edit` shows all settings by section, with the description
-of the selected one. It works on the database, or on a config file with
+`./cocosmail config edit` shows the sections on the left and the settings of
+the selected section on the right, with the description of the selected
+setting below. It works on the database, or on a config file with
 `--file FILE` (no database needed, e.g. to prepare a file for docker).
 
-| Key            | Action                                            |
-|----------------|---------------------------------------------------|
-| Enter, F4      | edit the setting, `true`/`false` ones are toggled |
-| typing         | search a setting by name, Esc clears the search   |
-| F8             | reset the setting to its default                  |
-| F3             | show or hide secret values                        |
-| F2             | save, after showing what changed                  |
-| F10, Esc       | quit, asks what to do with unsaved changes        |
+| Key            | Action                                                   |
+|----------------|----------------------------------------------------------|
+| F1             | help                                                     |
+| Tab            | switch between the section list and the settings         |
+| Enter, F4      | edit the setting, `true`/`false` ones are switched       |
+| typing         | search a setting by name in the section, Esc clears it   |
+| F8             | reset the setting to its default                         |
+| F3             | show or hide passwords and other secret values (ShowPw)  |
+| F2             | save, after showing what changed                         |
+| F10, Esc       | quit, asks to save unsaved changes                       |
+
+The last entry of the section list, "all settings", shows every section at
+once.
 
 Values are checked before they're accepted. Settings that tell where the
 database is, and settings managed by a file in file mode, are read only.
