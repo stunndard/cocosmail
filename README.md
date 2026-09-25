@@ -68,10 +68,14 @@ automatically) and a C compiler, because SQLite is built with cgo.
 ```sh
 git clone https://github.com/stunndard/cocosmail.git
 cd cocosmail
-go build -o dist/cocosmail
+go build -tags goffi_static -o dist/cocosmail
 ```
 
-(or `task build` if you use [Task](https://taskfile.dev)).
+(or `task build` if you use [Task](https://taskfile.dev)). The `goffi_static`
+tag is needed: the text UI library pulls in an FFI layer (for graphical
+backends cocosmail doesn't use) that doesn't link in cgo builds otherwise.
+Without it, the build stops with `undefined:
+build_with_go_build_tags_goffi_static`. Tests: `go test -tags goffi_static ./...`
 
 To build a fully static binary that runs on any Linux, including old
 distributions and minimal containers (needs static glibc, `libc6-dev` on
@@ -324,7 +328,7 @@ Run `./cocosmail help` or `./cocosmail <command> help` for details.
 | Command     | Subcommands                                               | Purpose                               |
 |-------------|-----------------------------------------------------------|---------------------------------------|
 | `init`      |                                                           | create database tables (safe to repeat) |
-| `config`    | `list`, `get`, `set`, `unset`, `import`, `export`, `convert` | settings, in the database or in a config file (`--file`) |
+| `config`    | `edit`, `list`, `get`, `set`, `unset`, `import`, `export`, `convert` | settings, in the database or in a config file (`--file`) |
 | `rcpthost`  | `add`, `list`, `del`                                      | domains cocosmail accepts mail for (`-l` = local mailboxes) |
 | `user`      | `add`, `del`, `update`, `list`, `catchall`                | users, mailboxes, SMTP login, quota   |
 | `alias`     | `add`, `del`, `list`                                      | aliases, forwarding, pipe to command  |
@@ -371,6 +375,7 @@ there's nothing to set. There are two ways to run cocosmail:
 truth. At the first start, `conf/cocosmail.cfg` is imported into it. Then:
 
 ```sh
+./cocosmail config edit                        # text UI, see below
 ./cocosmail config list                        # values, and where they come from
 ./cocosmail config set smtpd_max_hops 30       # applied within a few seconds
 ./cocosmail config unset smtpd_max_hops        # back to the default
@@ -402,6 +407,24 @@ mount the file and edit it outside the container, e.g. with
 `./cocosmail config set --file cocosmail.cfg KEY VALUE`. The file can also be
 used as a docker env file. Starting once without `--config` switches back to
 database mode, keeping the settings.
+
+### Text UI
+
+`./cocosmail config edit` shows all settings by section, with the description
+of the selected one. It works on the database, or on a config file with
+`--file FILE` (no database needed, e.g. to prepare a file for docker).
+
+| Key            | Action                                            |
+|----------------|---------------------------------------------------|
+| Enter, F4      | edit the setting, `true`/`false` ones are toggled |
+| typing         | search a setting by name, Esc clears the search   |
+| F8             | reset the setting to its default                  |
+| F3             | show or hide secret values                        |
+| F2             | save, after showing what changed                  |
+| F10, Esc       | quit, asks what to do with unsaved changes        |
+
+Values are checked before they're accepted. Settings that tell where the
+database is, and settings managed by a file in file mode, are read only.
 
 Config files have one `COCOSMAIL_KEY=value` per line, without quotes or
 `export`. `config get`, `set`, `unset` and `list` work on a file with

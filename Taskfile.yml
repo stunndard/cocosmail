@@ -3,7 +3,12 @@ version: '2'
 tasks:
   build:
     cmds:
-      - go build -o dist/cocosmail
+      # goffi_static: vtui's FFI layer doesn't link in cgo builds otherwise
+      - go build -tags goffi_static -o dist/cocosmail
+
+  test:
+    cmds:
+      - go test -tags goffi_static -vet=off ./...
 
   # fully static binary, runs on any Linux (old distros, Alpine, scratch containers)
   # sqlite needs cgo, so it's linked statically by the external linker.

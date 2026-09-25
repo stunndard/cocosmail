@@ -25,7 +25,9 @@ type Setting struct {
 	Secret bool
 	// Bootstrap settings tell where the database is, so they're never stored in it
 	Bootstrap bool
-	// Validate checks a value, in addition to the type check
+	// Choices are the allowed values, if limited
+	Choices []string
+	// Validate checks a value, in addition to the type and choices check
 	Validate func(value string) error
 }
 
@@ -48,7 +50,7 @@ var Settings = []Setting{
 	// database
 	{Key: "db_driver", Section: "database", Default: "sqlite3", Bootstrap: true, Restart: true,
 		Description: "Database driver: sqlite3, mysql or postgres",
-		Validate:    oneOf("sqlite3", "mysql", "postgres")},
+		Choices:     []string{"sqlite3", "mysql", "postgres"}},
 	{Key: "db_source", Section: "database", Default: defaultSqliteSource, Bootstrap: true, Restart: true, Secret: true,
 		Description: "Database source. For sqlite3 the file, relative to the cocosmail binary directory. " +
 			"MySQL: user:passwd@tcp(ip:port)/cocosmail?parseTime=true, " +
@@ -57,7 +59,7 @@ var Settings = []Setting{
 	// store
 	{Key: "store_driver", Section: "store", Default: "disk", Restart: true,
 		Description: "Where messages waiting in queue are stored: disk",
-		Validate:    oneOf("disk")},
+		Choices:     []string{"disk"}},
 	{Key: "store_source", Section: "store", Default: "store", Restart: true,
 		Description: "Directory of the disk store"},
 
@@ -145,7 +147,7 @@ var Settings = []Setting{
 		Description: "Default mailbox quota, e.g. 1G, 100M, 100K"},
 	{Key: "lda_type", Section: "users", Default: "maildir", Restart: true,
 		Description: "Local delivery: maildir (built in) or dovecot (Dovecot LDA)",
-		Validate:    oneOf("maildir", "dovecot")},
+		Choices:     []string{"maildir", "dovecot"}},
 	{Key: "dovecot_lda", Section: "users", Default: "/usr/lib/dovecot/dovecot-lda",
 		Description: "Path of dovecot-lda when lda_type is dovecot"},
 
@@ -243,6 +245,11 @@ func ValidateSetting(key, value string) error {
 	if err := setConfigField(field, value); err != nil {
 		return errors.New(SettingEnvName(key) + ": " + err.Error())
 	}
+	if len(s.Choices) > 0 {
+		if err := oneOf(s.Choices...)(value); err != nil {
+			return errors.New(SettingEnvName(key) + ": " + err.Error())
+		}
+	}
 	if s.Validate != nil {
 		if err := s.Validate(value); err != nil {
 			return errors.New(SettingEnvName(key) + ": " + err.Error())
@@ -305,4 +312,13 @@ func validatePort(v string) error {
 		return fmt.Errorf("%q is not a port (1-65535)", v)
 	}
 	return nil
+}
+
+// SettingKind returns the type of a setting: reflect.String, Int, Uint64 or Bool
+func SettingKind(key string) reflect.Kind {
+	i, ok := configFields[key]
+	if !ok {
+		return reflect.Invalid
+	}
+	return reflect.TypeOf(configValues{}).Field(i).Type.Kind()
 }

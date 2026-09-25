@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/stunndard/cocosmail/core"
+	"github.com/stunndard/cocosmail/tui"
 	cgCli "github.com/urfave/cli"
 )
 
@@ -50,6 +51,24 @@ var Config = cgCli.Command{
 					}
 					fmt.Printf("  %-*s  %-7s  %s\n", width, core.SettingEnvName(s.Key), sources[s.Key], v)
 				}
+				cliDieOk()
+			},
+		},
+		{
+			Name:  "edit",
+			Usage: "Edit settings in a text UI, in the database or in a config file (--file)",
+			Description: "cocosmail config edit [--file FILE]\n" +
+				"   F4 or Enter edits a setting, F8 resets it to its default, F2 saves, F10 quits.",
+			Flags: []cgCli.Flag{fileFlag},
+			Action: func(c *cgCli.Context) {
+				var store tui.Store
+				if path := c.String("file"); path != "" {
+					store = &tui.FileStore{Path: path}
+				} else {
+					configDB()
+					store = &tui.DBStore{}
+				}
+				cliHandleErr(tui.Run(store))
 				cliDieOk()
 			},
 		},
