@@ -32,9 +32,6 @@ export COCOSMAIL_LOGPATH="stdout"
 ###
 # nsqd
 
-# dis|enable logging
-export COCOSMAIL_NSQD_ENABLE_LOGGIN=false
-
 # lookupd-tcp-address
 # Format "IP1:PORT1;IP2:PORT2"
 export COCOSMAIL_NSQ_LOOKUPD_TCP_ADDRESSES="127.0.0.1:4160"
@@ -132,11 +129,11 @@ export COCOSMAIL_SMTPD_MAX_HOPS=50
 # Maximum of RCPT TO per transaction
 # when is reached serveur will reply with a 451 error (4.1.0)
 # to be full RFC compliant it should be 0
-export COCOSMAIL_SMTP_MAX_RCPT=0
+export COCOSMAIL_SMTPD_MAX_RCPT=0
 
-# Drop smtp session after COCOSMAIL_SMTP_MAX_BAD_RCPT unavailable RCPT TO
+# Drop smtp session after COCOSMAIL_SMTPD_MAX_BAD_RCPT unavailable RCPT TO
 # to be full RFC compliant it should be 0
-export COCOSMAIL_SMTP_MAX_BAD_RCPT=0
+export COCOSMAIL_SMTPD_MAX_BAD_RCPT=0
 
 # Number of simultaneous incoming SMTP sessions
 # Default 20
@@ -223,13 +220,13 @@ export COCOSMAIL_DELIVERD_LOCAL_IPS="0.0.0.0&::"
 # then such email cannot be delivered.
 # Set this to false to deliver the email from any host configured in COCOSMAIL_DELIVERD_LOCAL_IPS or in COCOSMAIL_ME,
 # regardless of the receiving host.
-export COCOSMAIL_DELIVERD_USE_SAME_HOST="true"
+export COCOSMAIL_DELIVERD_REMOTE_USE_SAME_HOST="true"
 
 # Local Concurrency
-export COCOSMAIL_DELIVERD_LOCAL_CONCURRENCY=50
+export COCOSMAIL_DELIVERD_CONCURRENCY_LOCAL=50
 
 # Remote Concurrency
-export COCOSMAIL_DELIVERD_REMOTE_CONCURRENCY=50
+export COCOSMAIL_DELIVERD_CONCURRENCY_REMOTE=50
 
 # SMTP client timeout per command
 export COCOSMAIL_DELIVERD_REMOTE_TIMEOUT=300
