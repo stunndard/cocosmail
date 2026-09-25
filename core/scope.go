@@ -8,6 +8,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -94,6 +96,20 @@ func Bootstrap() (err error) {
 	Logger.Out = out
 	Logger.Debug("Logger initialized")
 
+	if os.Getenv("COCOSMAIL_BASE_PATH") != "" {
+		Logger.Warn("COCOSMAIL_BASE_PATH is not used anymore, relative paths are relative to " + BaseDir())
+	}
+
+	// sqlite doesn't create missing directories
+	if Cfg.GetDbDriver() == "sqlite3" {
+		dbFile := strings.SplitN(Cfg.GetDbSource(), "?", 2)[0]
+		if !strings.HasPrefix(dbFile, "file:") && !strings.HasPrefix(dbFile, ":memory:") {
+			if err = os.MkdirAll(filepath.Dir(dbFile), 0700); err != nil {
+				return
+			}
+		}
+	}
+
 	// Init DB
 	DB, err = gorm.Open(Cfg.GetDbDriver(), Cfg.GetDbSource())
 	if err != nil {
@@ -124,6 +140,11 @@ func Bootstrap() (err error) {
 	*/
 
 	// init store
+	if Cfg.GetStoreDriver() == "disk" {
+		if err = os.MkdirAll(diskStorePath(Cfg.GetStoreSource()), 0700); err != nil {
+			return
+		}
+	}
 	Store, err = NewStore(Cfg.GetStoreDriver(), Cfg.GetStoreSource())
 	if err != nil {
 		return err

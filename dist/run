@@ -1,8 +1,4 @@
 #!/bin/sh
 
-if [ "$(uname -m)" = "x86_64" ];
-  then
-    . conf/cocosmail.cfg && ./cocosmail
-  else
-    . conf/cocosmail.cfg && ./cocosmail32
-fi
+# everything is in the directory of this script
+cd "$(dirname "$0")" && . conf/cocosmail.cfg && exec ./cocosmail "$@"

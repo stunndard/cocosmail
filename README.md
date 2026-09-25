@@ -37,7 +37,8 @@ server to glue together: one program, one folder, one config file.
 
 ## What's in the folder
 
-Everything cocosmail needs lives in one directory (`dist/` in this repo):
+Everything cocosmail needs lives in one directory (`dist/` in this repo), next
+to the binary. Copy or zip the directory and it works on another server as is:
 
 | Path          | What it is                                                     |
 |---------------|----------------------------------------------------------------|
@@ -94,7 +95,6 @@ sudo cp -r dist /home/cocosmail/dist
 sudo chown -R cocosmail: /home/cocosmail/dist
 sudo -iu cocosmail
 cd ~/dist
-mkdir -p db store mailboxes
 ```
 
 ### 3. Configure
@@ -111,16 +111,14 @@ check these:
 | Setting                          | Set it to                                                    |
 |----------------------------------|--------------------------------------------------------------|
 | `COCOSMAIL_ME`                   | your server's hostname, e.g. `mail.example.com`              |
-| `COCOSMAIL_DB_SOURCE`            | path of the SQLite file, e.g. `/home/cocosmail/dist/db/cocosmail.db?_busy_timeout=60000` |
-| `COCOSMAIL_STORE_SOURCE`         | `/home/cocosmail/dist/store`                                 |
-| `COCOSMAIL_USERS_HOME_BASE`      | `/home/cocosmail/dist/mailboxes`                             |
-| `COCOSMAIL_PLUGIN_PATH`          | `/home/cocosmail/dist/plugins`                               |
 | `COCOSMAIL_SMTPD_DSNS`           | where SMTP listens (see [Listeners](#listeners))            |
 | `COCOSMAIL_POP3D_DSNS`           | where POP3 listens                                           |
 | `COCOSMAIL_DELIVERD_LOCAL_IPS`   | local IPs used for outgoing mail; `0.0.0.0&::` is fine for most |
 
-The example config already uses `/home/cocosmail/dist`. If you installed
-elsewhere, change those paths.
+Paths in the config (database, store, mailboxes, plugins) are relative to
+the directory of the `cocosmail` binary, and missing directories are created.
+You can install it anywhere, and later move or copy the whole directory to
+another server as is.
 
 A typical listener setup for a public server:
 

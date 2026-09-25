@@ -122,5 +122,8 @@ func AutoMigrateDB(DB *gorm.DB) error {
 	if err := DB.AutoMigrate(&User{}, &Alias{}, &RcptHost{}, &RelayIpOk{}, &QMessage{}, &Route{}, &DkimConfig{}, &Plugin{}).Error; err != nil {
 		return errors.New("Unable autoMigrateDB - " + err.Error())
 	}
+	if err := RelativizeUserHomes(); err != nil {
+		return errors.New("Unable to make user homes relative - " + err.Error())
+	}
 	return nil
 }

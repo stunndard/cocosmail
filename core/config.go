@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -21,18 +20,17 @@ type Config struct {
 	cfg struct {
 		ClusterModeEnabled  bool   `name:"cluster_mode_enabled" default:"false"`
 		Me                  string `name:"me" default:""`
-		BasePath            string `name:"base_path" default:"_"`
-		PluginPath          string `name:"plugin_path" default:"_"`
+		PluginPath          string `name:"plugin_path" default:"plugins"`
 		TempDir             string `name:"tempdir" default:"/tmp"`
 		LogPath             string `name:"logpath" default:"stdout"`
 		DebugEnabled        bool   `name:"debug_enabled" default:"false"`
 		HideServerSignature bool   `name:"hide_server_signature" default:"false"`
 
-		DbDriver string `name:"db_driver"`
-		DbSource string `name:"db_source"`
+		DbDriver string `name:"db_driver" default:"sqlite3"`
+		DbSource string `name:"db_source" default:"_"`
 
 		// mail spool driver and location
-		StoreDriver string `name:"store_driver"`
+		StoreDriver string `name:"store_driver" default:"disk"`
 		StoreSource string `name:"store_source" default:"_"`
 
 		//NsqdEnbleLogging        bool   `name:"nsqd_eanble_logging" default:"false"`
@@ -97,7 +95,7 @@ type Config struct {
 		RestServerLogin  string `name:"rest_server_login" default:""`
 		RestServerPasswd string `name:"rest_server_passwd" default:""`
 
-		UsersHomeBase           string `name:"users_home_base" default:"/home"`
+		UsersHomeBase           string `name:"users_home_base" default:"mailboxes"`
 		UserMailboxDefaultQuota string `name:"users_mailbox_default_quota" default:""`
 
 		DovecotLda string `name:"dovecot_lda" default:""`
@@ -219,33 +217,16 @@ func (c *Config) GetMe() string {
 	return c.cfg.Me
 }
 
-// GetBasePath return base directory
+// GetBasePath return base directory: where the binary is, see BaseDir
 func (c *Config) GetBasePath() string {
-	c.Lock()
-	defer c.Unlock()
-	p := ""
-	if c.cfg.BasePath == "_" {
-		// same dir as executable
-		p, _ = filepath.Abs(filepath.Dir(os.Args[0]))
-	} else {
-		p = c.cfg.BasePath
-	}
-	return p
+	return BaseDir()
 }
 
 // GetPluginPath return plugin directory
 func (c *Config) GetPluginPath() string {
 	c.Lock()
 	defer c.Unlock()
-	p := ""
-	if c.cfg.PluginPath == "_" {
-		// same dir as executable
-		p, _ = filepath.Abs(filepath.Dir(os.Args[0]))
-		p = filepath.Join(p, "plugins")
-	} else {
-		p = c.cfg.PluginPath
-	}
-	return p
+	return AbsPath(c.cfg.PluginPath)
 }
 
 // GetDebugEnabled returns debugEnabled
@@ -266,14 +247,17 @@ func (c *Config) GetHideServerSignature() bool {
 func (c *Config) GetTempDir() string {
 	c.Lock()
 	defer c.Unlock()
-	return c.cfg.TempDir
+	return AbsPath(c.cfg.TempDir)
 }
 
-// GetLogPath return log path
+// GetLogPath return log path: "stdout", "discard" or a directory
 func (c *Config) GetLogPath() string {
 	c.Lock()
 	defer c.Unlock()
-	return c.cfg.LogPath
+	if c.cfg.LogPath == "stdout" || c.cfg.LogPath == "discard" {
+		return c.cfg.LogPath
+	}
+	return AbsPath(c.cfg.LogPath)
 }
 
 // GetDbDriver returns database driver
@@ -284,10 +268,17 @@ func (c *Config) GetDbDriver() string {
 }
 
 // GetDbSource return database source
+// sqlite file is relative to BaseDir, default is db/cocosmail.db
 func (c *Config) GetDbSource() string {
 	c.Lock()
 	defer c.Unlock()
-	return c.cfg.DbSource
+	if c.cfg.DbDriver != "sqlite3" {
+		return c.cfg.DbSource
+	}
+	if c.cfg.DbSource == "_" {
+		return sqliteAbsSource("db/cocosmail.db?_busy_timeout=60000")
+	}
+	return sqliteAbsSource(c.cfg.DbSource)
 }
 
 // GetStoreDriver return source driver
@@ -695,7 +686,7 @@ func (c *Config) GetDeliverdDkimSign() bool {
 func (c *Config) GetUsersHomeBase() string {
 	c.Lock()
 	defer c.Unlock()
-	return c.cfg.UsersHomeBase
+	return AbsPath(c.cfg.UsersHomeBase)
 }
 
 // GetUserMailboxDefaultQuota return the default mailbox quota

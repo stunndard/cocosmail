@@ -332,7 +332,7 @@ func (b *Backend) Lock(user string) (inUse bool, err error) {
 		return false, fmt.Errorf("cannot get user: %s: %w", user, err)
 	}
 	// get user home path
-	mdUserHome := usr.Home
+	mdUserHome := usr.HomePath()
 	_, err = os.Stat(mdUserHome)
 	if err != nil {
 		err = os.MkdirAll(mdUserHome, 0700)
@@ -410,7 +410,7 @@ func (b *Backend) Unlock(user string) error {
 		return fmt.Errorf("cannot get user: %s: %w", user, err)
 	}
 
-	lockfile := usr.Home + "/lock"
+	lockfile := usr.HomePath() + "/lock"
 	if err := os.Remove(lockfile); err != nil {
 		return fmt.Errorf("error unlocking user: %w", err)
 	}
@@ -433,7 +433,7 @@ func (b *Backend) ClearLocks() error {
 		if !usr.HaveMailbox {
 			continue
 		}
-		lockfile := usr.Home + "/lock"
+		lockfile := usr.HomePath() + "/lock"
 		if _, err = os.Stat(lockfile); err != nil {
 			continue
 		}

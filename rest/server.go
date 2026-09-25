@@ -4,9 +4,7 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"path"
-	"path/filepath"
 	"strconv"
 
 	"github.com/codegangsta/negroni"
@@ -62,6 +60,5 @@ func wrapHandler(h func(http.ResponseWriter, *http.Request)) httprouter.Handle {
 
 // getBasePath is a helper for retrieving app path
 func getBasePath() string {
-	p, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return p
+	return core.BaseDir()
 }

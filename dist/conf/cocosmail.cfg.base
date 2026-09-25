@@ -7,9 +7,9 @@
 # Who am i (used in SMTP transaction for HELO)
 export COCOSMAIL_ME="cocosmail.io"
 
-# Base path for server files.
-# If empty, will use the same directory where binary is.
-export COCOSMAIL_BASE_PATH=""
+# All cocosmail files live in the directory of the cocosmail binary.
+# Relative paths below (db, store, mailboxes, plugins, log...) are relative
+# to that directory, so the whole directory can be copied to another server.
 
 # Server signature
 export COCOSMAIL_HIDE_SERVER_SIGNATURE=false
@@ -58,20 +58,20 @@ export COCOSMAIL_NSQ_LOOKUPD_HTTP_ADDRESSES="127.0.0.1:4161"
 ## Mysql socket
 # export COCOSMAIL_DB_SOURCE="user:passwd@unix(/path/to/socket)/cocosmail?parseTime=true"
 # export COCOSMAIL_DB_DRIVER="mysql"
-## sqlite
-# "sqlite3" "/tmp/gorm.db"
+## sqlite (default)
+# the file is relative to the binary directory, the directory is created if needed
 export COCOSMAIL_DB_DRIVER="sqlite3"
-export COCOSMAIL_DB_SOURCE="/home/cocosmail/dist/db/cocosmail.db?_busy_timeout=60000"
+export COCOSMAIL_DB_SOURCE="db/cocosmail.db?_busy_timeout=60000"
 
 
 ##
 # Store
 #
 # Drivers supported
-# disk: source is baspath
+# disk: source is a directory, created if needed
 #
 export COCOSMAIL_STORE_DRIVER="disk"
-export COCOSMAIL_STORE_SOURCE="/home/cocosmail/dist/store"
+export COCOSMAIL_STORE_SOURCE="store"
 
 
 ###
@@ -282,8 +282,8 @@ export COCOSMAIL_RFC_MAILFROM_LOCALPART_SIZE=true
 ##
 # users
 
-# Base path for users "home". Currently ysed to store mailboxes
-export COCOSMAIL_USERS_HOME_BASE="/home/cocosmail/dist/mailboxes"
+# Base path for users "home". Currently used to store mailboxes
+export COCOSMAIL_USERS_HOME_BASE="mailboxes"
 
 # Default quota for user mailboxes in bytes (not bit)
 # eg: 1G, 100M, 100K, 10000000
@@ -397,4 +397,4 @@ export COCOSMAIL_DOVECOT_LDA="/usr/lib/dovecot/dovecot-lda"
 
 ##
 # Path where plugin files reside
-export COCOSMAIL_PLUGIN_PATH="/home/cocosmail/dist/plugins"
+export COCOSMAIL_PLUGIN_PATH="plugins"

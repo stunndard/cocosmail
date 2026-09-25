@@ -33,7 +33,7 @@ func (d *DeliveryMaildir) Deliver(id, deliverTo string, rawMsg *bytes.Buffer) (p
 	if err != nil {
 		return false, fmt.Errorf("cannot get user: %s", err)
 	}
-	mdPath := usr.Home
+	mdPath := usr.HomePath()
 
 	err = os.MkdirAll(mdPath, 0700)
 	if err != nil {

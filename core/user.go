@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/mail"
+	"path/filepath"
 	"strings"
 
 	"github.com/jinzhu/gorm"
@@ -22,7 +23,47 @@ type User struct {
 	HaveMailbox  bool   `sql:"default:false"`
 	IsCatchall   bool   `sql:"default:false"`
 	MailboxQuota string `sql:"null"`
-	Home         string `sql:"null"` // used by dovecot to store mailbox
+	// Home is the mailbox directory, relative to COCOSMAIL_USERS_HOME_BASE
+	// so the install can be moved. It's absolute with dovecot LDA, because
+	// dovecot reads it from the DB. Use HomePath() to get the full path.
+	Home string `sql:"null"`
+}
+
+// HomePath returns the absolute path of the user's mailbox directory
+func (u *User) HomePath() string {
+	if filepath.IsAbs(u.Home) {
+		return u.Home
+	}
+	return filepath.Join(Cfg.GetUsersHomeBase(), u.Home)
+}
+
+// userHome returns the home to store in DB for login user@domain
+func userHome(user, domain string) string {
+	// home = d/domain/u/user
+	home := filepath.Join(string(domain[0]), domain, string(user[0]), user)
+	if Cfg.GetDovecotSupportEnabled() {
+		return filepath.Join(Cfg.GetUsersHomeBase(), home)
+	}
+	return home
+}
+
+// RelativizeUserHomes makes homes under COCOSMAIL_USERS_HOME_BASE relative to it,
+// for users created before homes were relative. Not with dovecot LDA.
+func RelativizeUserHomes() error {
+	if Cfg.GetDovecotSupportEnabled() {
+		return nil
+	}
+	base := Cfg.GetUsersHomeBase() + string(filepath.Separator)
+	var users []User
+	if err := DB.Where("home LIKE ?", base+"%").Find(&users).Error; err != nil {
+		return err
+	}
+	for _, u := range users {
+		if err := DB.Model(&u).Update("home", strings.TrimPrefix(u.Home, base)).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // UserAdd add an user
@@ -97,8 +138,7 @@ func UserAdd(login, passwd, mbQuota string, haveMailbox, authRelay, isCatchall b
 		} else if rcpthost.IsAlias {
 			return errors.New("rcpthost " + t[1] + " is an domain alias. You can't add user for this kind of domain")
 		}
-		// home = base/d/domain/u/user
-		user.Home = Cfg.GetUsersHomeBase() + "/" + string(t[1][0]) + "/" + t[1] + "/" + string(t[0][0]) + "/" + t[0]
+		user.Home = userHome(t[0], t[1])
 
 		// catchall
 		if isCatchall {

@@ -100,7 +100,7 @@ var user = cgCli.Command{
 					}
 					line += " - have mailbox: "
 					if user.HaveMailbox {
-						line += "yes - home: " + user.Home
+						line += "yes - home: " + user.HomePath()
 					} else {
 						line += "no"
 					}
