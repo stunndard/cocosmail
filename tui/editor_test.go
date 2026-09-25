@@ -190,8 +190,12 @@ func TestEditorToggleAndSave(t *testing.T) {
 	if !strings.Contains(screen, "(1 changed)") || !strings.Contains(screen, "changed") {
 		t.Error("change not shown")
 	}
-	// F2, Enter on Save
-	run(scr, key(vtinput.VK_F2), key(vtinput.VK_RETURN))
+	// F2: nothing is launched in memStore, the dialog says so. Enter on Save
+	screen = run(scr, key(vtinput.VK_F2))
+	if !strings.Contains(screen, "nothing will run") {
+		t.Error("no warning when nothing is launched")
+	}
+	run(scr, key(vtinput.VK_RETURN))
 	if len(store.saves) != 1 || store.saves[0]["hide_server_signature"] != "true" || len(store.saves[0]) != 1 {
 		t.Fatalf("not saved: %v", store.saves)
 	}

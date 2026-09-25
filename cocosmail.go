@@ -51,8 +51,32 @@ func bootstrapServer() {
 	if err = core.BootstrapServer(); err != nil {
 		log.Fatalln(err)
 	}
-	if missing := core.Cfg.MissingSettings(); len(missing) > 0 {
-		configureOrExit(missing)
+
+	// empty database and/or missing settings: set up, then start again
+	missing := core.Cfg.MissingSettings()
+	if !core.IsOkDB(core.DB) {
+		switch {
+		// nobody to answer (systemd, docker...)
+		case !term.IsTerminal(int(os.Stdin.Fd())):
+			log.Fatalln("database is not initialized, run: cocosmail init")
+		case len(missing) > 0:
+			// fresh install: one question for both
+			fmt.Printf("cocosmail is not set up yet: the database is empty and settings are missing: %s\n", strings.Join(missing, ", "))
+			if !askYesNo("Create the database and run the configurator now? (y/n): ") {
+				os.Exit(1)
+			}
+			initDatabase()
+			configureOrExit(missing, false)
+		default:
+			if !askYesNo(fmt.Sprintf("Database 'driver: %s, source: %s' misses some tables.\r\nShould i create them ? (y/n):", core.Cfg.GetDbDriver(), core.Cfg.GetDbSource())) {
+				log.Println("See you soon...")
+				os.Exit(0)
+			}
+			initDatabase()
+		}
+	}
+	if len(missing) > 0 {
+		configureOrExit(missing, true)
 	}
 
 	if os.RemoveAll(path.Join(core.Cfg.GetBasePath(), "nsq")) != nil {
@@ -68,20 +92,6 @@ func bootstrapServer() {
 
 	// TODO: if clusterMode check if nsqlookupd is available
 
-	// check DB
-	if !core.IsOkDB(core.DB) {
-		// nobody to answer (systemd, docker...)
-		if !term.IsTerminal(int(os.Stdin.Fd())) {
-			log.Fatalln("database is not initialized, run: cocosmail init")
-		}
-		if !askYesNo(fmt.Sprintf("Database 'driver: %s, source: %s' misses some tables.\r\nShould i create them ? (y/n):", core.Cfg.GetDbDriver(), core.Cfg.GetDbSource())) {
-			log.Println("See you soon...")
-			os.Exit(0)
-		}
-		if err = core.InitDB(core.DB); err != nil {
-			log.Fatalln(err)
-		}
-	}
 	// sync tables from structs
 	if err = core.AutoMigrateDB(core.DB); err != nil {
 		log.Fatalln(err)
@@ -103,10 +113,25 @@ func bootstrapServer() {
 	}
 }
 
+// initDatabase creates the tables and writes missing default files, like cocosmail init
+func initDatabase() {
+	if err := core.InitDB(core.DB); err != nil {
+		log.Fatalln(err)
+	}
+	written, err := core.WriteDefaultFiles(core.BaseDir())
+	if err != nil {
+		log.Fatalln(err)
+	}
+	for _, f := range written {
+		core.Logger.Info("created " + f)
+	}
+}
+
 // configureOrExit is called when required settings are missing: it tells how
-// to configure cocosmail and, in a terminal, offers to run the configurator.
-// After it, the server starts again with the new settings.
-func configureOrExit(missing []string) {
+// to configure cocosmail and, in a terminal, offers to run the configurator
+// (ask is false when the user already agreed). After it, the server starts
+// again with the new settings.
+func configureOrExit(missing []string, ask bool) {
 	var store tui.Store = &tui.DBStore{}
 	command := "cocosmail config edit"
 	if core.ConfigFilePath != "" {
@@ -120,7 +145,7 @@ func configureOrExit(missing []string) {
 	if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd())) {
 		os.Exit(1)
 	}
-	if !askYesNo("Run the configurator now? (y/n): ") {
+	if ask && !askYesNo("Run the configurator now? (y/n): ") {
 		os.Exit(1)
 	}
 	if err := tui.Run(store); err != nil {
@@ -232,8 +257,9 @@ func main() {
 			bootstrapServer()
 
 			// if there is nothing to do then... do nothing
-			if !core.Cfg.GetLaunchDeliverd() && !core.Cfg.GetLaunchSmtpd() {
-				log.Fatalln("I have nothing to do, so i do nothing. Bye.")
+			if !core.Cfg.GetLaunchDeliverd() && !core.Cfg.GetLaunchSmtpd() && !core.Cfg.GetLaunchPop3() {
+				log.Fatalln("Nothing to run: the SMTP server, delivery and POP3 are all off.\n" +
+					"Turn on COCOSMAIL_SMTPD_LAUNCH, COCOSMAIL_DELIVERD_LAUNCH or COCOSMAIL_POP3D_LAUNCH, e.g. with: cocosmail config edit")
 			}
 
 			// Init Bolt (used as cache)
