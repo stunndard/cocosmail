@@ -119,3 +119,44 @@ func TestApplyConfigSourceData(t *testing.T) {
 	write("x@nowhere.example")
 	assert.ErrorContains(t, applyConfigSource(db), "nowhere.example must be a local domain")
 }
+
+func TestImportDefaultConfig(t *testing.T) {
+	Logger = logrus.New()
+	db, err := gorm.Open("sqlite3", ":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+	require.NoError(t, InitDB(db))
+	old := BaseDir()
+	baseDir = t.TempDir()
+	defer func() { baseDir = old }()
+
+	// no file: nothing to import
+	path, err := ImportDefaultConfig(db)
+	require.NoError(t, err)
+	assert.Equal(t, "", path)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(baseDir, "conf"), 0700))
+	file := filepath.Join(baseDir, DefaultConfigFile)
+	require.NoError(t, os.WriteFile(file, []byte("settings:\n  me: mail.example.com\n  smtpd_dsns: 'x'\n"), 0600))
+	_, err = ImportDefaultConfig(db)
+	assert.ErrorContains(t, err, file+": ")
+
+	require.NoError(t, os.WriteFile(file, []byte(
+		"settings:\n"+
+			"  me: mail.example.com\n"+
+			"  smtpd_dsns: '[::1]:25:mail.example.com:nossl:cert'\n"+
+			"  pop3d_dsns: '[::1]:995:mail.example.com:ssl:cert'\n"+
+			"relay_ips: [192.0.2.1]\n"), 0600))
+	path, err = ImportDefaultConfig(db)
+	require.NoError(t, err)
+	assert.Equal(t, file, path)
+	values, _ := SettingsFromDB(db)
+	assert.Equal(t, "mail.example.com", values["me"])
+	d, _ := ExportData(db)
+	assert.Equal(t, []string{"192.0.2.1"}, d.RelayIPs)
+
+	// settings in the database: the file is not imported again
+	path, err = ImportDefaultConfig(db)
+	require.NoError(t, err)
+	assert.Equal(t, "", path)
+}

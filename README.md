@@ -115,8 +115,10 @@ files added by the new version, or to restore a deleted one.
 ### 3. Configure
 
 The easiest way is the text UI: `./cocosmail config edit` (see
-[Text UI](#text-ui)). Starting cocosmail without the required settings also
-offers to open it. Or write a config file:
+[Text UI](#text-ui)). It works in a fresh directory: like `cocosmail init`, it
+creates the database and the missing default files, and it imports
+`conf/cocosmail.yaml` if there is one. Starting cocosmail without the
+required settings also offers to open it. Or write a config file:
 
 ```sh
 cp conf/cocosmail.yaml.base conf/cocosmail.yaml

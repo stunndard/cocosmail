@@ -66,7 +66,7 @@ var Config = cgCli.Command{
 				if path := c.String("file"); path != "" {
 					store = &tui.FileStore{Path: path}
 				} else {
-					configDB()
+					configDBReady()
 					store = &tui.DBStore{}
 				}
 				cliHandleErr(tui.Run(store))
@@ -143,7 +143,7 @@ var Config = cgCli.Command{
 						}
 					}
 				}
-				configDB()
+				configTables()
 				withSettings := len(values) > 0
 				if managedBy := core.SettingsManagedBy(core.DB); withSettings && managedBy != "" {
 					fmt.Printf("note: settings are not imported, they're managed by %s\n", managedBy)
@@ -206,7 +206,7 @@ var Config = cgCli.Command{
 				Usage: "leave secret values, password hashes and private keys empty",
 			}},
 			Action: func(c *cgCli.Context) {
-				configDB()
+				configTables()
 				values, _, err := core.EffectiveSettings(core.DB)
 				cliHandleErr(err)
 				data, err := core.ExportData(core.DB)
@@ -283,6 +283,39 @@ func configDB() {
 	cliHandleErr(core.OpenDB())
 }
 
+// configTables opens the database and creates missing default files and
+// tables, like cocosmail init: data needs the tables
+func configTables() {
+	configDB()
+	if core.IsOkDB(core.DB) {
+		return
+	}
+	written, err := core.WriteDefaultFiles(core.BaseDir())
+	cliHandleErr(err)
+	for _, f := range written {
+		fmt.Println("created " + f)
+	}
+	cliHandleErr(core.InitDB(core.DB))
+	fmt.Println("database created")
+}
+
+// configDBReady is configTables, then conf/cocosmail.yaml is imported if
+// there are no settings yet, like at the first start. If the file can't be
+// imported, it tells why and goes on: the settings can be fixed in the
+// configurator.
+func configDBReady() {
+	configTables()
+	// in file mode, the server loads the file at every start
+	if core.ConfigFilePath != "" || core.SettingsManagedBy(core.DB) != "" {
+		return
+	}
+	if path, err := core.ImportDefaultConfig(core.DB); err != nil {
+		fmt.Fprintln(os.Stderr, "warning: not imported: "+err.Error())
+	} else if path != "" {
+		fmt.Println("imported " + path)
+	}
+}
+
 // configValues returns settings values and sources, from --file or from database
 func configValues(c *cgCli.Context) (values, sources map[string]string) {
 	if path := c.String("file"); path != "" {
@@ -322,7 +355,7 @@ func configSet(c *cgCli.Context, key, value string) {
 	if s.Bootstrap {
 		cliHandleErr(errors.New(core.SettingEnvName(key) + " tells where the database is, set it in environment"))
 	}
-	configDB()
+	configDBReady()
 	dieIfManaged()
 	stored, err := core.SettingsFromDB(core.DB)
 	cliHandleErr(err)

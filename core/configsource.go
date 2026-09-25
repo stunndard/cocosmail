@@ -140,18 +140,26 @@ func applyConfigSource(db *gorm.DB) error {
 			return err
 		}
 	}
+	_, err := ImportDefaultConfig(db)
+	return err
+}
+
+// ImportDefaultConfig imports conf/cocosmail.yaml, settings and data, if the
+// database has no settings yet, like at the first start in database mode. It
+// returns the file imported, "" if none.
+func ImportDefaultConfig(db *gorm.DB) (path string, err error) {
 	stored, err := SettingsFromDB(db)
 	if err != nil || len(stored) > 0 {
-		return err
+		return "", err
 	}
-	path := DefaultConfigPath()
+	path = DefaultConfigPath()
 	if path == "" {
 		// settings from environment and defaults, like older versions
-		return nil
+		return "", nil
 	}
 	values, warnings, err := ReadSettingsFile(path)
 	if err != nil {
-		return err
+		return "", err
 	}
 	for _, w := range warnings {
 		Logger.Warn(path + ": " + w)
@@ -161,10 +169,10 @@ func applyConfigSource(db *gorm.DB) error {
 		values[k] = v
 	}
 	if _, err = ImportSettings(db, withoutBootstrap(values), false); err != nil {
-		return err
+		return "", errors.New(path + ": " + err.Error())
 	}
 	Logger.Info("settings imported from " + path + ", from now on the database is the source of truth")
-	return importFileData(db, path, false)
+	return path, importFileData(db, path, false)
 }
 
 // importFileData imports the data of config file path, if the database has
