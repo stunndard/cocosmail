@@ -77,28 +77,24 @@ func newSMTPClient(d *Delivery, routes []Route, timeoutBasePerCmd int) (client *
 			sIps = strings.Split(route.LocalIp.String, sep)
 
 			// if roundRobin we need to shuffle IPs
-			rSIps := make([]string, len(sIps))
-			perm := rand.Perm(len(sIps))
-			for i, v := range perm {
-				rSIps[v] = sIps[i]
+			if roundRobin {
+				rSIps := make([]string, len(sIps))
+				perm := rand.Perm(len(sIps))
+				for i, v := range perm {
+					rSIps[v] = sIps[i]
+				}
+				sIps = rSIps
 			}
-			sIps = rSIps
-			rSIps = nil
 		}
 
 		// IP:systemname string to net.IP and systemname
 		for _, ipStr := range sIps {
-			ipAndName := strings.Split(ipStr, ":")
-			if len(ipAndName) == 0 {
-				return nil, errors.New(fmt.Sprintf("invalid IP:name %s found in localIp routes: %s", ipStr, route.LocalIp.String))
+			ip, sysName, err := ParseIPAndName(ipStr)
+			if err != nil {
+				return nil, errors.New("invalid IP " + ipStr + " found in localIp routes: " + route.LocalIp.String + " - " + err.Error())
 			}
-			ip := net.ParseIP(ipAndName[0])
-			if ip == nil {
-				return nil, errors.New("invalid IP " + ipStr + " found in localIp routes: " + route.LocalIp.String)
-			}
-			sysName := Cfg.GetMe()
-			if len(ipAndName) > 1 {
-				sysName = ipAndName[1]
+			if sysName == "" {
+				sysName = Cfg.GetMe()
 			}
 			localIPs = append(localIPs, struct {
 				ip         net.IP
@@ -190,7 +186,7 @@ func newSMTPClient(d *Delivery, routes []Route, timeoutBasePerCmd int) (client *
 					continue
 				}
 
-				localAddr, err := net.ResolveTCPAddr("tcp", localIP.ip.String()+":0")
+				localAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(localIP.ip.String(), "0"))
 				if err != nil {
 					return nil, errors.New("bad local IP: " + localIP.ip.String() + ". " + err.Error())
 				}
@@ -228,16 +224,16 @@ func newSMTPClient(d *Delivery, routes []Route, timeoutBasePerCmd int) (client *
 					lastErr = err
 				// Timeout
 				case <-connectTimer.C:
-					err = errors.New(fmt.Sprintf("deliverd-remote %s - timeout connecting %s->%s:%d",
-						d.ID, localAddr.IP.String(), remoteAddr.IP.String(), remoteAddr.Port))
+					err = errors.New(fmt.Sprintf("deliverd-remote %s - timeout connecting %s->%s",
+						d.ID, localAddr.IP.String(), remoteAddr.String()))
 					// todo si c'est un timeout pas la peine d'essayer les autres IP locales
 					if errBolt := setIPKO(remoteAddr.IP.String()); errBolt != nil {
 						Logger.Error("Bolt - ", errBolt)
 					}
 					lastErr = err
 				}
-				Logger.Info(fmt.Sprintf("deliverd-remote %s - unable to get a SMTP client for %s->%s:%d - %s ",
-					d.ID, localAddr.IP.String(), remoteAddr.IP.String(), remoteAddr.Port, err.Error()))
+				Logger.Info(fmt.Sprintf("deliverd-remote %s - unable to get a SMTP client for %s->%s - %s ",
+					d.ID, localAddr.IP.String(), remoteAddr.String(), err.Error()))
 			}
 		}
 	}

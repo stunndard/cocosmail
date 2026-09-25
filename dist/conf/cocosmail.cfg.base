@@ -84,24 +84,35 @@ export COCOSMAIL_SMTPD_LAUNCH=true;
 # Defines dnsS for smtpd to launch
 # A dns is in the form
 # IP:PORT:HOSTNAME:SSL:SSL_CERTIFICATE
+# Multiple dsns are separated by ";"
 # IP: ip address to listen to
+#     IPv4: 192.0.2.10
+#     IPv6: must be enclosed in brackets: [2001:db8::10]
+#     0.0.0.0, [::] or empty means all addresses, both IPv4 and IPv6
+#     (the system must allow dual-stack sockets, it's the default on Linux)
 # PORT: associated port
 # HOSTNAME: used in SMTP greeting and in received message headers
-# SSL: activate SSL
-# if SSL is true all transactions will be encrypted
-# if SSL is false transactions will be clear by default but they will be upgraded
-# via STARTTLS smtp extension/cmd
+# SSL: "ssl" or "nossl"
+# ssl: the connection is encrypted from the start (implicit TLS, e.g. port 465)
+# nossl: the connection starts in clear text and can be upgraded
+# via STARTTLS smtp extension/cmd (e.g. ports 25 and 587)
 # SSL_CERTIFICATE certificate file name template that will be loaded for this connection
 #
 #
 # Example:
-# 	"127.0.0.1:2525:cocosmail.io:false:cocosmail.io;127.0.0.1:4656:cool-mta.com:true:cool"
+# 	"127.0.0.1:2525:cocosmail.io:nossl:cocosmail.io;127.0.0.1:4656:cool-mta.com:ssl:cool"
 # will launch 2 smtpd deamons
 # 	- one listening on 127.0.0.1:2525 without encryption (but upgradable via STARTTLS)
 #     certificate will be loaded from BASEDIR/ssl/smtp-cocosmail.io.(crt/key)
 # 	- one listening on 127.0.0.1:4656 with encryption
 #     certificate will be loaded from BASEDIR/ssl/smtp-cool.(crt/key)
-export COCOSMAIL_SMTPD_DSNS="0.0.0.0:2525:cocosmail.io:false:cocosmail.io"
+#
+# IPv6 examples:
+# 	"[::]:25:mail.example.com:nossl:example.com"
+# listen on port 25 on all IPv4 and IPv6 addresses
+# 	"192.0.2.10:25:mail.example.com:nossl:example.com;[2001:db8::10]:25:mail.example.com:nossl:example.com"
+# listen on port 25 on one IPv4 and one IPv6 address only
+export COCOSMAIL_SMTPD_DSNS="0.0.0.0:2525:cocosmail.io:nossl:cocosmail.io"
 
 # smtp server timeout in seconds
 # throw a timeout if smtp client does not show signs of life
@@ -173,6 +184,10 @@ export COCOSMAIL_DELIVERD_LAUNCH=true
 # Formating :
 # ip1SEPip2SEPip3SEP...
 #
+# IPv4 and IPv6 addresses can be mixed. An IPv4 address is only used for
+# remote hosts reachable over IPv4, an IPv6 address only for remote hosts
+# reachable over IPv6.
+#
 # Separator could be :
 # | -> or  -> round robin
 # & -> and -> fail over
@@ -192,7 +207,14 @@ export COCOSMAIL_DELIVERD_LAUNCH=true
 # If there's no hostname specified, the default from COCOSMAIL_ME is used.
 # Example :
 # 127.0.0.1:cocosmail.io&127.0.0.2&127.0.0.3:kokosmail.io
-export COCOSMAIL_DELIVERD_LOCAL_IPS="0.0.0.0"
+#
+# IPv6 addresses must be enclosed in brackets when followed by a hostname:
+# 192.0.2.10:mail.example.com&[2001:db8::10]:mail.example.com
+#
+# 0.0.0.0 means any local IPv4 address, :: means any local IPv6 address.
+# "0.0.0.0&::" tries IPv4 first and falls back to IPv6. Use "0.0.0.0" to never
+# send over IPv6.
+export COCOSMAIL_DELIVERD_LOCAL_IPS="0.0.0.0&::"
 
 # If an email was received by a particular host from COCOSMAIL_ME, or one of the
 # hostnames in COCOSMAIL_SMTPD_DSNS, try to use the same host when delivering that email remotely.
@@ -273,7 +295,7 @@ export COCOSMAIL_USERS_MAILBOX_DEFAULT_QUOTA="200M"
 # Launch REST server
 export COCOSMAIL_REST_SERVER_LAUNCH=false
 
-# REST server IP
+# REST server IP (IPv4 or IPv6, without brackets: ::1)
 export COCOSMAIL_REST_SERVER_IP="127.0.0.1"
 
 # REST server port
@@ -351,11 +373,14 @@ export OS_REGION_NAME="GRA1"
 export COCOSMAIL_POP3D_LAUNCH=true
 
 # Defines dnsS for pop3d to launch
-# Same format as for COCOSMAIL_SMTPD_DSNS
-# WARNING: do not disable SSL for pop3d!!!
-# Because user and password are sent in clear text!
-# APOP and STLS are not supported (yet)
-export COCOSMAIL_POP3D_DSNS="0.0.0.0:1100:pop.cocosmail.io:true:pop.cocosmail.io"
+# Same format as for COCOSMAIL_SMTPD_DSNS, including IPv6 in brackets
+# and multiple dsns separated by ";"
+# Certificate will be loaded from BASEDIR/ssl/pop3-SSL_CERTIFICATE.(crt/key)
+# Use "ssl" for pop3d. APOP and STLS are not supported (yet), so with
+# "nossl" user and password would be sent in clear text.
+# That's why "nossl" is refused for pop3d, except on a loopback address
+# (127.0.0.1 or [::1]), e.g. behind a local TLS proxy.
+export COCOSMAIL_POP3D_DSNS="0.0.0.0:1100:pop.cocosmail.io:ssl:pop.cocosmail.io"
 
 # Type of internal LDA to use.
 # Can be "maildir" for internal maildir LDA

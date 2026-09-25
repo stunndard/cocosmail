@@ -1,12 +1,13 @@
 package rest
 
 import (
-	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 
 	"github.com/codegangsta/negroni"
 	"github.com/julienschmidt/httprouter"
@@ -38,7 +39,7 @@ func LaunchServer() {
 	// Server
 	n := negroni.New(negroni.NewRecovery(), NewLogger())
 	n.UseHandler(router)
-	addr := fmt.Sprintf("%s:%d", core.Cfg.GetRestServerIp(), core.Cfg.GetRestServerPort())
+	addr := net.JoinHostPort(core.Cfg.GetRestServerIp(), strconv.Itoa(core.Cfg.GetRestServerPort()))
 
 	// TLS
 	if core.Cfg.GetRestServerIsTls() {

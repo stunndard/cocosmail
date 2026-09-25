@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"errors"
 	"io/ioutil"
 	"net"
 	"path"
@@ -45,12 +46,69 @@ func StripQuotes(s string) string {
 }
 
 // IsIPV4 return true if ip is ipV4
-// todo: refactor
 func IsIPV4(ip string) bool {
-	if len(ip) > 15 {
-		return false
+	parsed := net.ParseIP(ip)
+	return parsed != nil && parsed.To4() != nil
+}
+
+// AddrIP returns the IP of a network address, without IPv6 zone
+// (fe80::1%eth0 -> fe80::1). Returns nil if there is no IP.
+func AddrIP(addr net.Addr) net.IP {
+	if tcpAddr, ok := addr.(*net.TCPAddr); ok {
+		return tcpAddr.IP
 	}
-	return true
+	host, _, err := net.SplitHostPort(addr.String())
+	if err != nil {
+		return nil
+	}
+	if i := strings.Index(host, "%"); i != -1 {
+		host = host[:i]
+	}
+	return net.ParseIP(host)
+}
+
+// isAddressLiteral returns true if s is an IP address, either bare or as
+// an RFC 5321 address literal: [192.0.2.1] or [IPv6:2001:db8::1]
+func isAddressLiteral(s string) bool {
+	if strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]") {
+		s = s[1 : len(s)-1]
+		if len(s) > 5 && strings.EqualFold(s[:5], "IPv6:") {
+			s = s[5:]
+		}
+	}
+	return net.ParseIP(s) != nil
+}
+
+// ParseIPAndName parses a local IP entry "IP" or "IP:hostname".
+// IPv6 addresses must be enclosed in brackets when followed by a hostname:
+// "[2001:db8::1]:mail.example.com". A bare IPv6 address "2001:db8::1" is also accepted.
+// name is empty if there is no hostname.
+func ParseIPAndName(s string) (ip net.IP, name string, err error) {
+	s = strings.TrimSpace(s)
+	ipStr := s
+	if strings.HasPrefix(s, "[") {
+		end := strings.Index(s, "]")
+		if end == -1 {
+			return nil, "", errors.New("missing ] in " + s)
+		}
+		ipStr = s[1:end]
+		rest := s[end+1:]
+		if rest != "" {
+			if !strings.HasPrefix(rest, ":") {
+				return nil, "", errors.New("expected : after ] in " + s)
+			}
+			name = rest[1:]
+		}
+	} else if net.ParseIP(s) == nil {
+		if i := strings.LastIndex(s, ":"); i != -1 {
+			ipStr, name = s[:i], s[i+1:]
+		}
+	}
+	ip = net.ParseIP(ipStr)
+	if ip == nil {
+		return nil, "", errors.New("invalid IP " + ipStr + " in " + s)
+	}
+	return ip, name, nil
 }
 
 // Unix2dos replace all line ending from \n to \r\n

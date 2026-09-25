@@ -293,7 +293,7 @@ func (s *SMTPServerSession) heloBase(msg []string) (cont bool) {
 	if len(msg) > 1 {
 		if Cfg.getRFCHeloNeedsFqnOrAddress() {
 			// if it's not an address check for fqn
-			if net.ParseIP(msg[1]) == nil {
+			if !isAddressLiteral(msg[1]) {
 				ok, err := isFQN(msg[1])
 				if err != nil {
 					s.Log("fail to do lookup on helo host. " + err.Error())
@@ -639,14 +639,7 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 		}
 	}
 
-	remoteHost, _, err := net.SplitHostPort(s.Conn.RemoteAddr().String())
-	if err != nil {
-		s.LogError(fmt.Sprintf("RCPT error SplitHostPort %s", s.Conn.RemoteAddr().String()))
-		s.pause(2)
-		s.Out(455, "4.3.0 Oops, problem with IP")
-		return
-	}
-	remoteIP := net.ParseIP(remoteHost)
+	remoteIP := AddrIP(s.Conn.RemoteAddr())
 	if remoteIP == nil {
 		s.LogError(fmt.Sprintf("RCPT error ParseIP %s", s.Conn.RemoteAddr().String()))
 		s.pause(2)
@@ -1044,9 +1037,9 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 	}
 
 	// Add received header
-	remoteIP, _, err := net.SplitHostPort(s.Conn.RemoteAddr().String())
-	if err != nil {
-		remoteIP = "unknown"
+	remoteIP := "unknown"
+	if ip := AddrIP(s.Conn.RemoteAddr()); ip != nil {
+		remoteIP = ip.String()
 	}
 	remoteHost := "unknown"
 	remoteHosts, err := net.LookupAddr(remoteIP)
@@ -1071,7 +1064,11 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 	if authUser != "" && Cfg.GetSmtpdHideReceivedFromAuth() {
 		received += message.AuthDataStart
 	}
-	received += fmt.Sprintf("%s ([%s] ", remoteHost, remoteIP)
+	remoteIPLiteral := remoteIP
+	if !IsIPV4(remoteIP) && net.ParseIP(remoteIP) != nil {
+		remoteIPLiteral = "IPv6:" + remoteIP
+	}
+	received += fmt.Sprintf("%s ([%s] ", remoteHost, remoteIPLiteral)
 	// helo
 	received += fmt.Sprintf("helo=[%s])", s.helo)
 	if authUser != "" && Cfg.GetSmtpdHideReceivedFromAuth() {

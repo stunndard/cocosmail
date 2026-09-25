@@ -46,7 +46,7 @@ func (s *Smtpd) ListenAndServe() {
 	} else {
 		listener, err = net.Listen(s.dsn.TcpAddr.Network(), s.dsn.TcpAddr.String())
 		if err != nil {
-			log.Fatalln("unable to create listener")
+			log.Fatalln("unable to create listener.", err)
 		}
 	}
 
