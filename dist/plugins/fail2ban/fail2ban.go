@@ -113,7 +113,7 @@ func auth(user, pass string, success bool, s *core.SMTPServerSession) error {
 		return nil
 	}
 	remoteIP, _, _ := net.SplitHostPort(s.Conn.RemoteAddr().String())
-	s.LogDebug(fmt.Sprintf("auth failed: ip: %s user: %s pass: %s", remoteIP, user, pass))
+	s.LogDebug(fmt.Sprintf("auth failed: ip: %s user: %s", remoteIP, user))
 
 	_, err := checkAndBan(s)
 	return err
