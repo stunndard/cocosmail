@@ -238,6 +238,8 @@ func (f *ConfigFile) describe(s Setting) {
 	switch {
 	case s.Required:
 		text += " (required)"
+	case s.RequiredWith != "":
+		text += " (required when " + SettingEnvName(s.RequiredWith) + " is true)"
 	case s.Default != "":
 		text += " (default: " + s.Default + ")"
 	}

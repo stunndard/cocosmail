@@ -170,16 +170,19 @@ func (c *Config) Load(values map[string]string) error {
 	return nil
 }
 
-// CheckRequired returns an error if a required setting has no value
+// CheckRequired returns an error if required settings have no value
 func (c *Config) CheckRequired() error {
-	c.Lock()
-	defer c.Unlock()
-	for _, s := range Settings {
-		if s.Required && c.values[s.Key] == "" {
-			return errors.New("setting " + SettingEnvName(s.Key) + " is missing")
-		}
+	if missing := c.MissingSettings(); len(missing) > 0 {
+		return errors.New("missing settings: " + strings.Join(missing, ", "))
 	}
 	return nil
+}
+
+// MissingSettings returns the required settings without value
+func (c *Config) MissingSettings() []string {
+	c.Lock()
+	defer c.Unlock()
+	return MissingSettings(c.values)
 }
 
 // Values returns a copy of the raw values by setting key

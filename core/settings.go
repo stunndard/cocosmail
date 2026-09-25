@@ -16,9 +16,11 @@ type Setting struct {
 	Key     string
 	Section string
 	// Default value, "" means no value
-	Default     string
-	Required    bool
-	Description string
+	Default  string
+	Required bool
+	// RequiredWith is a bool setting: when it's true, this setting is required
+	RequiredWith string
+	Description  string
 	// Restart means a running server applies the new value after a restart only
 	Restart bool
 	// Secret values are not shown unless asked
@@ -74,7 +76,7 @@ var Settings = []Setting{
 	// smtpd
 	{Key: "smtpd_launch", Section: "smtpd", Default: "false", Restart: true,
 		Description: "Launch the SMTP server"},
-	{Key: "smtpd_dsns", Section: "smtpd", Required: true, Restart: true,
+	{Key: "smtpd_dsns", Section: "smtpd", RequiredWith: "smtpd_launch", Restart: true,
 		Description: "SMTP listeners separated by ;, each IP:PORT:HOSTNAME:ssl|nossl:CERT. " +
 			"IPv6 in brackets: [2001:db8::1]. [::] or 0.0.0.0 listen on all IPv4 and IPv6 addresses. " +
 			"ssl: TLS from the start (465), nossl: STARTTLS available (25, 587). " +
@@ -154,7 +156,7 @@ var Settings = []Setting{
 	// pop3d
 	{Key: "pop3d_launch", Section: "pop3d", Default: "false", Restart: true,
 		Description: "Launch the POP3 server"},
-	{Key: "pop3d_dsns", Section: "pop3d", Required: true, Restart: true,
+	{Key: "pop3d_dsns", Section: "pop3d", RequiredWith: "pop3d_launch", Restart: true,
 		Description: "POP3 listeners, same format as smtpd_dsns. Must be ssl, nossl only on loopback. " +
 			"Certificate: ssl/pop3-CERT.crt and .key",
 		Validate: validateDsns},
@@ -214,6 +216,20 @@ var settingsByKey = func() map[string]*Setting {
 func SettingByKey(key string) (*Setting, bool) {
 	s, ok := settingsByKey[key]
 	return s, ok
+}
+
+// MissingSettings returns the required settings without value in values,
+// as environment variable names
+func MissingSettings(values map[string]string) (missing []string) {
+	for _, s := range Settings {
+		if values[s.Key] != "" {
+			continue
+		}
+		if s.Required || (s.RequiredWith != "" && values[s.RequiredWith] == "true") {
+			missing = append(missing, SettingEnvName(s.Key))
+		}
+	}
+	return
 }
 
 // SettingEnvName returns the environment variable name of a setting

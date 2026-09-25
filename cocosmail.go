@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path"
 	"runtime"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -25,6 +26,7 @@ import (
 	tcli "github.com/stunndard/cocosmail/cli"
 	"github.com/stunndard/cocosmail/core"
 	"github.com/stunndard/cocosmail/rest"
+	"github.com/stunndard/cocosmail/tui"
 )
 
 // bootstrapCli prepares what CLI commands need: config, logger, DB and store.
@@ -49,8 +51,8 @@ func bootstrapServer() {
 	if err = core.BootstrapServer(); err != nil {
 		log.Fatalln(err)
 	}
-	if err = core.Cfg.CheckRequired(); err != nil {
-		log.Fatalln(err)
+	if missing := core.Cfg.MissingSettings(); len(missing) > 0 {
+		configureOrExit(missing)
 	}
 
 	if os.RemoveAll(path.Join(core.Cfg.GetBasePath(), "nsq")) != nil {
@@ -99,6 +101,42 @@ func bootstrapServer() {
 			log.Fatalln("Unable to find Dovecot LDA binary, checks your config poarameter COCOSMAIL_DOVECOT_LDA ", err)
 		}
 	}
+}
+
+// configureOrExit is called when required settings are missing: it tells how
+// to configure cocosmail and, in a terminal, offers to run the configurator.
+// After it, the server starts again with the new settings.
+func configureOrExit(missing []string) {
+	var store tui.Store = &tui.DBStore{}
+	command := "cocosmail config edit"
+	if core.ConfigFilePath != "" {
+		store = &tui.FileStore{Path: core.ConfigFilePath}
+		command += " --file " + core.ConfigFilePath
+	}
+	fmt.Fprintf(os.Stderr, "cocosmail is not configured yet, missing settings: %s\n"+
+		"Configure it with the text UI: %s\n"+
+		"or write them in conf/cocosmail.cfg (see conf/cocosmail.cfg.base) and start again.\n",
+		strings.Join(missing, ", "), command)
+	if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd())) {
+		os.Exit(1)
+	}
+	if !askYesNo("Run the configurator now? (y/n): ") {
+		os.Exit(1)
+	}
+	if err := tui.Run(store); err != nil {
+		log.Fatalln(err)
+	}
+	values, _, err := store.Load()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	if missing = core.MissingSettings(values); len(missing) > 0 {
+		fmt.Fprintf(os.Stderr, "still missing: %s\n", strings.Join(missing, ", "))
+		os.Exit(1)
+	}
+	// start again, with the new settings
+	err = syscall.Exec(executable, os.Args, os.Environ())
+	log.Fatalln("restart failed:", err)
 }
 
 // askYesNo asks question until answer is y or n. EOF means no.

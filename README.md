@@ -104,6 +104,10 @@ cd ~/dist
 
 ### 3. Configure
 
+The easiest way is the text UI: `./cocosmail config edit` (see
+[Text UI](#text-ui)). Starting cocosmail without the required settings also
+offers to open it. Or write a config file:
+
 ```sh
 cp conf/cocosmail.cfg.base conf/cocosmail.cfg
 chmod 600 conf/cocosmail.cfg
@@ -190,6 +194,8 @@ Database 'sqlite3' is ready.
 `cocosmail init` is safe to run again, existing data is kept. If you skip it
 and start the server in a terminal, cocosmail offers to create the tables. From
 a service manager or Docker it stops and tells you to run `cocosmail init`.
+The same goes for missing settings: in a terminal cocosmail offers to open the
+configurator and starts once they're set, otherwise it says what's missing.
 
 ### 6. Add your domain and a mailbox
 

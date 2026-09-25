@@ -57,7 +57,7 @@ func TestApplyConfigSource(t *testing.T) {
 	assert.Equal(t, "0", values["smtpd_max_vrfy"])
 
 	// invalid file: server doesn't start, DB unchanged
-	require.NoError(t, os.WriteFile(path, []byte("COCOSMAIL_ME=x\nCOCOSMAIL_SMTPD_MAX_HOPS=many\n"), 0600))
+	require.NoError(t, os.WriteFile(path, []byte("COCOSMAIL_ME=x\nCOCOSMAIL_SMTPD_MAX_VRFY=many\n"), 0600))
 	assert.Error(t, applyConfigSource(db))
 	values, _ = SettingsFromDB(db)
 	assert.Equal(t, "changed.example.com", values["me"])

@@ -221,6 +221,8 @@ func (ed *Editor) updateDescription() {
 		switch {
 		case s.Required:
 			text += ". Required."
+		case s.RequiredWith != "":
+			text += ". Required when " + s.RequiredWith + " is true."
 		case s.Default != "":
 			text += ". Default: " + s.Default + "."
 		}
@@ -289,11 +291,9 @@ func (ed *Editor) save() {
 		ed.message("Error", errs[0].Error())
 		return
 	}
-	for _, s := range core.Settings {
-		if s.Required && ed.values[s.Key] == "" {
-			ed.message("Error", core.SettingEnvName(s.Key)+" is required.")
-			return
-		}
+	if missing := core.MissingSettings(ed.values); len(missing) > 0 {
+		ed.message("Error", "Required: "+strings.Join(missing, ", "))
+		return
 	}
 	keys := sortedKeys(changed)
 	var text strings.Builder

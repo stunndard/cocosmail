@@ -22,6 +22,9 @@ func TestSettingsMatchConfig(t *testing.T) {
 		if s.Required {
 			assert.Empty(t, s.Default, "required setting %s has a default", s.Key)
 		}
+		if s.RequiredWith != "" {
+			assert.Equal(t, reflect.Bool, SettingKind(s.RequiredWith), s.Key)
+		}
 		assert.NoError(t, ValidateSetting(s.Key, s.Default), "default of %s", s.Key)
 	}
 	typ := reflect.TypeOf(configValues{})
@@ -75,9 +78,13 @@ func TestConfigLoad(t *testing.T) {
 	assert.Equal(t, 300, cfg.GetSmtpdServerTimeout())
 	assert.Equal(t, "0.0.0.0&::", cfg.GetLocalIps())
 	assert.Equal(t, "42", cfg.Values()["smtpd_max_hops"])
-	// required
+	// required: me always, listeners when launched
+	require.NoError(t, cfg.Load(map[string]string{}))
+	assert.Equal(t, []string{"COCOSMAIL_ME"}, cfg.MissingSettings())
+	require.NoError(t, cfg.Load(map[string]string{"me": "m", "smtpd_launch": "true", "pop3d_launch": "true"}))
+	assert.Equal(t, []string{"COCOSMAIL_SMTPD_DSNS", "COCOSMAIL_POP3D_DSNS"}, cfg.MissingSettings())
 	assert.Error(t, cfg.CheckRequired())
-	require.NoError(t, cfg.Load(map[string]string{"me": "m", "smtpd_dsns": "[::1]:25:m:nossl:m", "pop3d_dsns": "[::1]:995:m:ssl:m"}))
+	require.NoError(t, cfg.Load(map[string]string{"me": "m", "smtpd_launch": "true", "smtpd_dsns": "[::1]:25:m:nossl:m", "pop3d_launch": "true", "pop3d_dsns": "[::1]:995:m:ssl:m"}))
 	assert.NoError(t, cfg.CheckRequired())
 	// invalid value keeps previous config
 	assert.Error(t, cfg.Load(map[string]string{"me": "other", "smtpd_max_hops": "x"}))

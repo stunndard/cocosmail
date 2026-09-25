@@ -234,12 +234,12 @@ func ImportSettings(db *gorm.DB, values map[string]string, merge bool) (changed 
 			continue
 		}
 		toStore[s.Key] = final[s.Key]
-		if s.Required && final[s.Key] == "" {
-			return nil, errors.New("setting " + SettingEnvName(s.Key) + " is missing")
-		}
 		if old, ok := stored[s.Key]; !ok || old != final[s.Key] {
 			changed = append(changed, s.Key)
 		}
+	}
+	if missing := MissingSettings(final); len(missing) > 0 {
+		return nil, errors.New("missing settings: " + strings.Join(missing, ", "))
 	}
 	if errs := ValidateSettings(toStore); len(errs) > 0 {
 		return nil, joinErrors(errs)
