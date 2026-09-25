@@ -102,6 +102,13 @@ func InitDB(DB *gorm.DB) error {
 		}
 	}
 
+	// plugins' data, e.g. fail2ban's IPs
+	if !DB.HasTable(&Plugin{}) {
+		if err = DB.CreateTable(&Plugin{}).Error; err != nil {
+			return errors.New("Unable to create table plugins - " + err.Error())
+		}
+	}
+
 	if !DB.HasTable(&DbSetting{}) {
 		if err = DB.CreateTable(&DbSetting{}).Error; err != nil {
 			return errors.New("Unable to create table settings - " + err.Error())

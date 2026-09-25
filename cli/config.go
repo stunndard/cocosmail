@@ -287,16 +287,19 @@ func configDB() {
 // tables, like cocosmail init: data needs the tables
 func configTables() {
 	configDB()
-	if core.IsOkDB(core.DB) {
-		return
+	fresh := !core.IsOkDB(core.DB)
+	if fresh {
+		written, err := core.WriteDefaultFiles(core.BaseDir())
+		cliHandleErr(err)
+		for _, f := range written {
+			fmt.Println("created " + f)
+		}
 	}
-	written, err := core.WriteDefaultFiles(core.BaseDir())
-	cliHandleErr(err)
-	for _, f := range written {
-		fmt.Println("created " + f)
-	}
+	// also tables added since the database was created, e.g. plugins
 	cliHandleErr(core.InitDB(core.DB))
-	fmt.Println("database created")
+	if fresh {
+		fmt.Println("database created")
+	}
 }
 
 // configDBReady is configTables, then conf/cocosmail.yaml is imported if

@@ -247,3 +247,21 @@ func TestExistingErrorsDontBlock(t *testing.T) {
 	_, err = ImportData(db, &Data{Users: []UserData{{Login: "new@example.com", Password: "secret9", Mailbox: true}}}, false, false)
 	assert.ErrorContains(t, err, "user new@example.com: example.com must be a local domain")
 }
+
+func TestInitDBPlugins(t *testing.T) {
+	db, err := gorm.Open("sqlite3", ":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+	require.NoError(t, InitDB(db))
+	assert.True(t, db.HasTable(&Plugin{}))
+	DB = db
+	// nothing saved yet: empty, not an error
+	j, err := PluginLoadObject("ban", "ips")
+	require.NoError(t, err)
+	assert.Empty(t, j)
+	require.NoError(t, PluginSaveObject("ban", "ips", []byte(`{"a":1}`)))
+	require.NoError(t, PluginSaveObject("ban", "ips", []byte(`{"b":2}`)))
+	j, err = PluginLoadObject("ban", "ips")
+	require.NoError(t, err)
+	assert.Equal(t, `{"b":2}`, string(j))
+}
