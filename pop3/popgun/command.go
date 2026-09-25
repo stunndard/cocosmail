@@ -67,6 +67,7 @@ func (cmd PassCommand) Run(c *Client, args []string) (int, error) {
 	}
 	c.pass = args[0]
 	if !c.authorizator.Authorize(c.user, c.pass) {
+		c.logf(LOG_INFO, "login failed for %s", c.user)
 		c.printer.Err("Invalid username or password")
 		return STATE_AUTHORIZATION, nil
 	}
@@ -81,6 +82,7 @@ func (cmd PassCommand) Run(c *Client, args []string) (int, error) {
 		return 0, fmt.Errorf("Maildrop in use for user: %s", c.user)
 	}
 
+	c.logf(LOG_INFO, "login %s", c.user)
 	c.printer.Ok("Logged in, maildrop locked")
 
 	return STATE_TRANSACTION, nil
@@ -170,8 +172,9 @@ func (cmd RetrCommand) Run(c *Client, args []string) (int, error) {
 		return 0, fmt.Errorf("Error calling 'RETR %d' for user %s: %v", msgId, c.user, err)
 	}
 	lines := strings.Split(message, "\n")
+	c.logf(LOG_INFO, "RETR %d - %d bytes", msgId, len(message))
 	c.printer.Ok("")
-	c.printer.MultiLine(lines)
+	c.printer.Message(lines)
 	return STATE_TRANSACTION, nil
 }
 
@@ -198,6 +201,7 @@ func (cmd DeleCommand) Run(c *Client, args []string) (int, error) {
 		return 0, fmt.Errorf("Error calling 'DELE %d' for user %s: %v", msgId, c.user, err)
 	}
 
+	c.logf(LOG_INFO, "DELE %d", msgId)
 	c.printer.Ok("Message %d deleted", msgId)
 
 	return STATE_TRANSACTION, nil
@@ -327,7 +331,7 @@ func (cmd TopCommand) Run(c *Client, args []string) (int, error) {
 	}
 	lines := strings.Split(message, "\n")
 	c.printer.Ok("")
-	c.printer.MultiLine(lines)
+	c.printer.Message(lines)
 
 	return STATE_TRANSACTION, nil
 }

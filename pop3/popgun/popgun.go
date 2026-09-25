@@ -6,7 +6,9 @@ package popgun
 
 import (
 	"bufio"
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -72,6 +74,21 @@ type Client struct {
 	pass         string
 	lastCommand  string
 	serverName   string
+	// id and remote address of the session, in every log line
+	id     string
+	remote string
+}
+
+// logf logs a message of the session, like smtpd: ID-REMOTE-message
+func (c *Client) logf(level int, format string, a ...interface{}) {
+	c.backend.Log(fmt.Sprintf("%s-%s-%s", c.id, c.remote, fmt.Sprintf(format, a...)), level)
+}
+
+// newSessionID returns a random session id, like smtpd ones
+func newSessionID() string {
+	b := make([]byte, 20)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 func newClient(authorizator Authorizator, backend Backend, serverName string) *Client {
@@ -102,7 +119,12 @@ func newClient(authorizator Authorizator, backend Backend, serverName string) *C
 func (c Client) handle(conn net.Conn) {
 	defer conn.Close()
 	_ = conn.SetReadDeadline(time.Now().Add(1 * time.Minute))
+	c.id = newSessionID()
+	c.remote = conn.RemoteAddr().String()
 	c.printer = NewPrinter(conn)
+	c.printer.log = func(line string) { c.logf(LOG_DEBUG, "> %s", line) }
+	c.logf(LOG_INFO, "starting new session")
+	defer c.logf(LOG_INFO, "EOT")
 
 	c.isAlive = true
 	reader := bufio.NewReader(conn)
@@ -117,28 +139,31 @@ func (c Client) handle(conn net.Conn) {
 		input, err := reader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
-				c.backend.Log("Connection closed by client", LOG_DEBUG)
+				c.logf(LOG_DEBUG, "connection closed by client")
 			} else {
-				c.backend.Log(fmt.Sprintf("Error reading input: %s", err), LOG_DEBUG)
+				c.logf(LOG_INFO, "error reading input: %s", err)
 			}
 			if c.currentState == STATE_TRANSACTION {
-				c.backend.Log(fmt.Sprintf("Unlocking user %s due to connection error", c.user), LOG_DEBUG)
+				c.logf(LOG_DEBUG, "unlocking user %s due to connection error", c.user)
 				c.backend.Unlock(c.user)
 			}
 			break
 		}
 
 		cmd, args := c.parseInput(input)
+		if cmd == "PASS" {
+			c.logf(LOG_DEBUG, "< PASS ********")
+		} else {
+			c.logf(LOG_DEBUG, "< %s", strings.TrimRight(input, "\r\n"))
+		}
 		exec, ok := c.commands[cmd]
 		if !ok {
 			c.printer.Err("Invalid command %s", cmd)
-			c.backend.Log(fmt.Sprintf("Invalid command: %s", cmd), LOG_DEBUG)
 			continue
 		}
 		state, err := exec.Run(&c, args)
 		if err != nil {
-			//c.printer.Err("Error executing command %s", cmd)
-			c.backend.Log(fmt.Sprintf("Error executing command %s: %s %v", cmd, args, err), LOG_DEBUG)
+			c.logf(LOG_INFO, "%s failed: %v", cmd, err)
 			continue
 		}
 		c.lastCommand = cmd
@@ -238,25 +263,54 @@ func (s *Server) Wait(timeout time.Duration) bool {
 
 type Printer struct {
 	conn net.Conn
+	// log is called with every line sent, if set
+	log func(line string)
+}
+
+func (p Printer) logLine(line string) {
+	if p.log != nil {
+		p.log(line)
+	}
 }
 
 func NewPrinter(conn net.Conn) *Printer {
-	return &Printer{conn}
+	return &Printer{conn: conn}
 }
 
 func (p Printer) Welcome(s string) {
-	fmt.Fprintf(p.conn, s)
+	fmt.Fprint(p.conn, s)
+	p.logLine(strings.TrimRight(s, "\r\n"))
 }
 
 func (p Printer) Ok(msg string, a ...interface{}) {
-	fmt.Fprintf(p.conn, "+OK %s\r\n", fmt.Sprintf(msg, a...))
+	line := fmt.Sprintf("+OK %s", fmt.Sprintf(msg, a...))
+	fmt.Fprintf(p.conn, "%s\r\n", line)
+	p.logLine(line)
 }
 
 func (p Printer) Err(msg string, a ...interface{}) {
-	fmt.Fprintf(p.conn, "-ERR %s\r\n", fmt.Sprintf(msg, a...))
+	line := fmt.Sprintf("-ERR %s", fmt.Sprintf(msg, a...))
+	fmt.Fprintf(p.conn, "%s\r\n", line)
+	p.logLine(line)
 }
 
+// MultiLine sends lines, and logs them
 func (p Printer) MultiLine(msgs []string) {
+	for _, line := range msgs {
+		p.logLine(strings.Trim(line, "\r"))
+	}
+	p.logLine(".")
+	p.sendLines(msgs)
+}
+
+// Message sends a message, only its size is logged
+func (p Printer) Message(msgs []string) {
+	p.logLine(fmt.Sprintf("(message, %d lines)", len(msgs)))
+	p.logLine(".")
+	p.sendLines(msgs)
+}
+
+func (p Printer) sendLines(msgs []string) {
 	for _, line := range msgs {
 		line := strings.Trim(line, "\r")
 		if strings.HasPrefix(line, ".") {

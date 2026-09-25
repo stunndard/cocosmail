@@ -448,8 +448,16 @@ func (b *Backend) ClearLocks() error {
 }
 
 // Log should implement any backend specific logging
+// Session lines are ID-REMOTE-message, like smtpd.
 func (b *Backend) Log(s string, loglevel int) {
-	core.Logger.Debug("pop3d ", s)
+	switch loglevel {
+	case popgun.LOG_INFO:
+		core.Logger.Info("pop3d ", s)
+	case popgun.LOG_ERROR:
+		core.Logger.Error("pop3d ", s)
+	default:
+		core.Logger.Debug("pop3d ", s)
+	}
 }
 
 // ClearLocks deletes stuck lock files left by a previous run.
