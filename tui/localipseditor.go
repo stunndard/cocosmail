@@ -121,7 +121,7 @@ func newLocalIpsEditor(ed *Editor) *LocalIpsEditor {
 }
 
 // rowDialog returns the dialog editing one address, done is called with it on Ok
-func (le *LocalIpsEditor) rowDialog(ip localIP, isNew bool, done func(localIP)) *vtui.Window {
+func (le *LocalIpsEditor) rowDialog(ip localIP, isNew bool, done func(localIP)) *formWindow {
 	title := " Local IP "
 	if isNew {
 		title = " New local IP "

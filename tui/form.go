@@ -1,8 +1,52 @@
 package tui
 
 import (
+	"github.com/unxed/vtinput"
 	"github.com/unxed/vtui"
 )
+
+// formWindow is a dialog of fields. F3 shows or hides its secret fields,
+// like F3 in the editor, whose key labels don't apply in the dialog.
+type formWindow struct {
+	*vtui.Window
+	ed      *Editor
+	secrets []*vtui.Edit
+}
+
+// ProcessKey handles F3, other keys go to the dialog
+func (f *formWindow) ProcessKey(e *vtinput.InputEvent) bool {
+	if e.KeyDown && e.VirtualKeyCode == vtinput.VK_F3 {
+		if len(f.secrets) > 0 {
+			f.ed.secrets = !f.ed.secrets
+			f.showSecrets()
+		}
+		return true
+	}
+	return f.Window.ProcessKey(e)
+}
+
+// showSecrets masks secret fields, unless secrets are shown
+func (f *formWindow) showSecrets() {
+	for _, e := range f.secrets {
+		e.PasswordMode = !f.ed.secrets
+	}
+}
+
+// GetKeyLabels are the key bar labels: F3 if there are secret fields
+func (f *formWindow) GetKeyLabels() *vtui.KeySet {
+	labels := map[int][2]string{}
+	if len(f.secrets) > 0 {
+		labels[3] = secretsLabel(f.ed.secrets)
+	}
+	return keyLabels(f.ed.width, labels)
+}
+
+// newFormWindow wraps dialog dlg, secrets are its secret fields
+func newFormWindow(ed *Editor, dlg *vtui.Window, secrets ...*vtui.Edit) *formWindow {
+	f := &formWindow{Window: dlg, ed: ed, secrets: secrets}
+	f.showSecrets()
+	return f
+}
 
 // itemField is a text field of formDialog
 type itemField struct {
@@ -10,8 +54,8 @@ type itemField struct {
 	value string
 	hint  string
 	width int // 0: as wide as possible
-	// password: typed text is hidden
-	password bool
+	// secret: hidden, unless secrets are shown (F3)
+	secret bool
 }
 
 // itemCheck is a checkbox of formDialog
@@ -24,7 +68,7 @@ type itemCheck struct {
 // Cancel. ok is called with the field values and the checkbox states: the
 // dialog closes if it returns nil, else the error is shown. Fields are
 // separated by an empty line, unless the screen is too small for it.
-func formDialog(ed *Editor, title string, fields []itemField, checks []itemCheck, ok func(values []string, checked []bool) error) *vtui.Window {
+func formDialog(ed *Editor, title string, fields []itemField, checks []itemCheck, ok func(values []string, checked []bool) error) *formWindow {
 	const labelW = 13
 	w := 64
 	if w > ed.width-4 {
@@ -58,13 +102,16 @@ func formDialog(ed *Editor, title string, fields []itemField, checks []itemCheck
 	dlg := vtui.NewDialog(x1, y1, x1+w-1, y1+h-1, title)
 	x, ex, y := x1+2, x1+2+labelW+1, y1+2
 	edits := make([]*vtui.Edit, len(fields))
+	var secrets []*vtui.Edit
 	for i, f := range fields {
 		width := f.width
 		if width == 0 {
 			width = fieldW
 		}
 		edits[i] = newEdit(ex, y, width, f.value)
-		edits[i].PasswordMode = f.password
+		if f.secret {
+			secrets = append(secrets, edits[i])
+		}
 		dlg.AddItem(vtui.NewLabel(x, y, f.label, edits[i]))
 		dlg.AddItem(edits[i])
 		y++
@@ -107,5 +154,5 @@ func formDialog(ed *Editor, title string, fields []itemField, checks []itemCheck
 	cancel.OnClick = func() { dlg.SetExitCode(-1) }
 	dlg.AddItem(okBtn)
 	dlg.AddItem(cancel)
-	return dlg
+	return newFormWindow(ed, dlg, secrets...)
 }

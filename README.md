@@ -489,7 +489,7 @@ setting below. It works on the database, or on a config file with
 | Enter, F4      | edit the setting, `true`/`false` ones are switched       |
 | typing         | search a setting by name in the section, Esc clears it   |
 | F8             | reset the setting to its default                         |
-| F3             | show or hide passwords and other secret values (ShowPw)  |
+| F3             | show or hide secrets, also in dialogs: secret settings, route passwords (user passwords are stored as hashes, they can't be shown) |
 | F2             | save, after showing what changed                         |
 | F10, Esc       | quit, asks to save unsaved changes                       |
 

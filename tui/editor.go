@@ -204,15 +204,28 @@ func (ed *Editor) ResizeConsole(w, h int) {
 	}
 }
 
+// secretsLabel is the F3 label: what F3 does
+func secretsLabel(shown bool) [2]string {
+	if shown {
+		return [2]string{"HidePw", "Pwd"}
+	}
+	return [2]string{"ShowPw", "Pwd"}
+}
+
+// hasSecrets returns true if the section shown has secret values: settings,
+// route passwords. User passwords are stored as hashes, never shown.
+func (ed *Editor) hasSecrets() bool {
+	return ed.kind == nil || ed.kind.secrets
+}
+
 // GetKeyLabels are the key bar labels
 func (ed *Editor) GetKeyLabels() *vtui.KeySet {
-	secrets := "ShowPw"
-	if ed.secrets {
-		secrets = "HidePw"
-	}
 	labels := map[int][2]string{
-		1: {"Help", "Help"}, 2: {"Save", "Save"}, 3: {secrets, "Pwd"}, 4: {"Edit", "Edit"},
+		1: {"Help", "Help"}, 2: {"Save", "Save"}, 4: {"Edit", "Edit"},
 		8: {"Reset", "Dflt"}, 10: {"Quit", "End"},
+	}
+	if ed.hasSecrets() {
+		labels[3] = secretsLabel(ed.secrets)
 	}
 	if ed.kind != nil {
 		labels[7], labels[8] = [2]string{"New", "New"}, [2]string{"Delete", "Del"}
@@ -250,7 +263,9 @@ func (ed *Editor) ProcessKey(e *vtinput.InputEvent) bool {
 			ed.save()
 			return true
 		case vtinput.VK_F3:
-			ed.secrets = !ed.secrets
+			if ed.hasSecrets() {
+				ed.secrets = !ed.secrets
+			}
 			return true
 		case vtinput.VK_F4:
 			ed.edit()
@@ -549,7 +564,7 @@ func (ed *Editor) quit() {
 var helpKeys = [][2]string{
 	{"F1", "This help"},
 	{"F2", "Save changes, after showing what changed"},
-	{"F3", "Show or hide passwords and other secret values"},
+	{"F3", "Show or hide passwords and other secrets, also in dialogs"},
 	{"F4, Enter", "Edit the selected setting (true/false ones are switched)"},
 	{"F8", "Reset the selected setting to its default"},
 	{"", "In data sections (Domains, Users...):"},
@@ -603,7 +618,7 @@ func (ed *Editor) message(title, text string) {
 }
 
 // editDialog returns a dialog to edit a text value, or to choose one of s.Choices
-func (ed *Editor) editDialog(s core.Setting) *vtui.Window {
+func (ed *Editor) editDialog(s core.Setting) *formWindow {
 	w := ed.width - 8
 	if w > 76 {
 		w = 76
@@ -617,6 +632,7 @@ func (ed *Editor) editDialog(s core.Setting) *vtui.Window {
 	}
 	y := y1 + 2 + len(textLines) + 1
 	var getValue func() string
+	var secret []*vtui.Edit
 	if len(s.Choices) > 0 {
 		cb := vtui.NewComboBox(x1+2, y, w-4, s.Choices)
 		cb.DropdownOnly = true
@@ -625,7 +641,9 @@ func (ed *Editor) editDialog(s core.Setting) *vtui.Window {
 		getValue = cb.Edit.GetText
 	} else {
 		edit := newEdit(x1+2, y, w-4, ed.values[s.Key])
-		edit.PasswordMode = s.Secret && !ed.secrets
+		if s.Secret {
+			secret = append(secret, edit)
+		}
 		dlg.AddItem(edit)
 		getValue = edit.GetText
 	}
@@ -646,7 +664,7 @@ func (ed *Editor) editDialog(s core.Setting) *vtui.Window {
 	cancel.OnClick = func() { dlg.SetExitCode(-1) }
 	dlg.AddItem(ok)
 	dlg.AddItem(cancel)
-	return dlg
+	return newFormWindow(ed, dlg, secret...)
 }
 
 // Run opens the configurator on store in the terminal, until the user quits

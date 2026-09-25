@@ -83,7 +83,7 @@ func (de *DsnEditor) newDsn() core.DsnFields {
 }
 
 // rowDialog returns the dialog editing one listener, done is called with it on Ok
-func (de *DsnEditor) rowDialog(d core.DsnFields, isNew bool, done func(core.DsnFields)) *vtui.Window {
+func (de *DsnEditor) rowDialog(d core.DsnFields, isNew bool, done func(core.DsnFields)) *formWindow {
 	title := " Listener "
 	if isNew {
 		title = " New listener "

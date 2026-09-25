@@ -172,3 +172,64 @@ func TestDataAddAliasNewDomain(t *testing.T) {
 		t.Fatalf("domain not added: %+v", ed.data.Domains)
 	}
 }
+
+func TestDataSecrets(t *testing.T) {
+	store := dataStore(t)
+	store.data.Routes = []core.RouteData{{Destination: "*", RemoteHost: "smtp.example.net", Port: 587, Login: "me", Password: "route-secret"}}
+	ed, scr, _ := setup(t, store)
+
+	// users: only hashes, nothing to show
+	screen := run(scr, toKind(usersKind)...)
+	if strings.Contains(screen, "ShowPw") {
+		t.Error("F3 offered for users")
+	}
+	run(scr, key(vtinput.VK_F3))
+	if ed.secrets {
+		t.Error("F3 switched in users")
+	}
+
+	// routes: masked, F3 shows the password
+	screen = run(scr, toKind(routesKind)...)
+	if !strings.Contains(screen, "Password") || !strings.Contains(screen, secretMask) || strings.Contains(screen, "route-secret") || !strings.Contains(screen, "3ShowPw") {
+		t.Fatal("password not masked in routes")
+	}
+	// shown, cut to the column width
+	screen = run(scr, key(vtinput.VK_F3))
+	if !strings.Contains(screen, "route-secre") {
+		t.Fatal("F3 doesn't show the password")
+	}
+	run(scr, key(vtinput.VK_F3))
+
+	// in the route dialog: masked, F3 shows it there, with its own key bar
+	screen = run(scr, key(vtinput.VK_F4))
+	if strings.Contains(screen, "route-secret") || !strings.Contains(screen, "3ShowPw") || strings.Contains(screen, "10Quit") {
+		t.Fatal("route dialog: password shown, or wrong key bar")
+	}
+	screen = run(scr, key(vtinput.VK_F3))
+	if !strings.Contains(screen, "route-secret") || !strings.Contains(screen, "3HidePw") {
+		t.Fatal("F3 in the route dialog doesn't show the password")
+	}
+	screen = run(scr, key(vtinput.VK_F3))
+	if strings.Contains(screen, "route-secret") {
+		t.Fatal("F3 in the route dialog doesn't hide the password")
+	}
+}
+
+func TestSettingSecretDialog(t *testing.T) {
+	store := newMemStore()
+	store.values["rest_server_passwd"] = "rest-secret"
+	ed, _, _ := setup(t, store)
+	s, _ := core.SettingByKey("rest_server_passwd")
+	dlg := ed.editDialog(*s)
+	if len(dlg.secrets) != 1 || !dlg.secrets[0].PasswordMode {
+		t.Fatal("secret setting not masked")
+	}
+	dlg.ProcessKey(key(vtinput.VK_F3))
+	if dlg.secrets[0].PasswordMode || !ed.secrets {
+		t.Fatal("F3 in the dialog doesn't show it")
+	}
+	me, _ := core.SettingByKey("me")
+	if d := ed.editDialog(*me); len(d.secrets) != 0 || d.GetKeyLabels().Normal[2] != "" {
+		t.Fatal("F3 offered without secrets")
+	}
+}

@@ -24,7 +24,9 @@ type dataKind struct {
 	key  func(d *core.Data, i int) string
 	cell func(ed *Editor, i, col int) string
 	// dialog edits item i, a new one if i is -1
-	dialog func(ed *Editor, i int) *vtui.Window
+	dialog func(ed *Editor, i int) *formWindow
+	// secrets: some values are hidden, unless shown with F3
+	secrets bool
 	remove func(d *core.Data, i int)
 }
 
@@ -123,7 +125,7 @@ var domainsKind = &dataKind{
 		}
 		return strconv.Itoa(n)
 	},
-	dialog: func(ed *Editor, i int) *vtui.Window {
+	dialog: func(ed *Editor, i int) *formWindow {
 		dom, title := core.DomainData{Local: true}, " New domain "
 		if i >= 0 {
 			dom, title = ed.data.Domains[i], " Domain "
@@ -170,14 +172,15 @@ var usersKind = &dataKind{
 		}
 		return yesNo(u.Catchall)
 	},
-	dialog: func(ed *Editor, i int) *vtui.Window {
-		u, title, hint := core.UserData{Mailbox: true, Relay: true}, " New user ", "at least 6 characters"
+	dialog: func(ed *Editor, i int) *formWindow {
+		// only hashes are stored, a password can't be shown
+		u, title, hint := core.UserData{Mailbox: true, Relay: true}, " New user ", "at least 6 characters, stored as a hash"
 		if i >= 0 {
-			u, title, hint = ed.data.Users[i], " User ", "empty: unchanged"
+			u, title, hint = ed.data.Users[i], " User ", "empty: unchanged. Stored as a hash, can't be shown"
 		}
 		return formDialog(ed, title, []itemField{
 			{label: "&Login", value: u.Login, hint: "with a mailbox, its address: john@example.com"},
-			{label: "&Password", password: true, hint: hint},
+			{label: "&Password", secret: true, hint: hint},
 		}, []itemCheck{
 			{label: "&Mailbox: gets mail", checked: u.Mailbox},
 			{label: "&Relay: can send mail after logging in", checked: u.Relay},
@@ -233,7 +236,7 @@ var aliasesKind = &dataKind{
 		}
 		return yesNo(a.MiniList)
 	},
-	dialog: func(ed *Editor, i int) *vtui.Window {
+	dialog: func(ed *Editor, i int) *formWindow {
 		var a core.AliasData
 		title := " New alias "
 		if i >= 0 {
@@ -273,7 +276,7 @@ var relayIPsKind = &dataKind{
 	count: func(d *core.Data) int { return len(d.RelayIPs) },
 	key:   func(d *core.Data, i int) string { return d.RelayIPs[i] },
 	cell:  func(ed *Editor, i, col int) string { return ed.data.RelayIPs[i] },
-	dialog: func(ed *Editor, i int) *vtui.Window {
+	dialog: func(ed *Editor, i int) *formWindow {
 		ip, title := "", " New relay IP "
 		if i >= 0 {
 			ip, title = ed.data.RelayIPs[i], " Relay IP "
@@ -306,7 +309,9 @@ var routesKind = &dataKind{
 		{Title: "Prio", Width: 5},
 		{Title: "Only for", Width: 0, MinWidth: 8},
 		{Title: "Login", Width: 0, MinWidth: 6},
+		{Title: "Password", Width: 0, MinWidth: 8},
 	},
+	secrets: true,
 	count: func(d *core.Data) int { return len(d.Routes) },
 	key:   func(d *core.Data, i int) string { return d.Routes[i].String() },
 	cell: func(ed *Editor, i, col int) string {
@@ -322,10 +327,15 @@ var routesKind = &dataKind{
 			return strconv.Itoa(r.Priority)
 		case 4:
 			return strings.TrimSpace(r.User + " " + r.MailFrom)
+		case 5:
+			return r.Login
 		}
-		return r.Login
+		if r.Password != "" && !ed.secrets {
+			return secretMask
+		}
+		return r.Password
 	},
-	dialog: func(ed *Editor, i int) *vtui.Window {
+	dialog: func(ed *Editor, i int) *formWindow {
 		r, title := core.RouteData{Port: 25}, " New route "
 		if i >= 0 {
 			r, title = ed.data.Routes[i], " Route "
@@ -339,7 +349,7 @@ var routesKind = &dataKind{
 			{label: "&User", value: r.User, hint: "only for this authenticated user or domain"},
 			{label: "&Mail from", value: r.MailFrom, hint: "only for this sender or domain"},
 			{label: "Lo&gin", value: r.Login, hint: "on the remote host"},
-			{label: "Pass&word", value: r.Password, password: !ed.secrets},
+			{label: "Pass&word", value: r.Password, secret: true},
 		}, nil, func(v []string, _ []bool) error {
 			nr := core.RouteData{
 				Destination: strings.ToLower(strings.TrimSpace(v[0])),
@@ -390,7 +400,7 @@ var dkimKind = &dataKind{
 		}
 		return k.Selector + "._domainkey." + k.Domain
 	},
-	dialog: func(ed *Editor, i int) *vtui.Window {
+	dialog: func(ed *Editor, i int) *formWindow {
 		k, title := core.DkimData{Selector: time.Now().Format("20060102")}, " New DKIM key "
 		var checks []itemCheck
 		if i >= 0 {

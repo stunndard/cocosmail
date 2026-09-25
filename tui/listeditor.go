@@ -28,7 +28,7 @@ type listEditor[T any] struct {
 	cell    func(item T, col int) string
 	newItem func() T
 	// dialog edits item, calling done with it on Ok
-	dialog func(item T, isNew bool, done func(T)) *vtui.Window
+	dialog func(item T, isNew bool, done func(T)) *formWindow
 	// helpText is shown under the table
 	helpText func() string
 	// optional: check before apply, title suffix, more keys
@@ -245,6 +245,6 @@ func (le *listEditor[T]) cancel() {
 }
 
 // itemDialog returns a form dialog over the list editor, see formDialog
-func (le *listEditor[T]) itemDialog(title string, fields []itemField, checks []itemCheck, ok func(values []string, checked []bool) error) *vtui.Window {
+func (le *listEditor[T]) itemDialog(title string, fields []itemField, checks []itemCheck, ok func(values []string, checked []bool) error) *formWindow {
 	return formDialog(le.ed, title, fields, checks, ok)
 }
