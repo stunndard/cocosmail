@@ -1,3 +1,79 @@
+v 0.3.0 (2026-09-26)
+  - IPv6 for SMTP, POP3 and deliverd; listeners use ssl/nossl instead of
+    true/false, POP3 refuses nossl except on loopback
+  - settings kept in the database, one registry of all settings with
+    descriptions, defaults and checks
+  - one YAML config file for settings and data (domains, users, aliases, relay
+    IPs, routes, DKIM keys): config export/import move a whole server, merge,
+    --replace, --dry-run, --no-secrets. old KEY=value files still read
+  - config command: edit, list, get, set, unset, import, export, convert, on the
+    database or on a file (--file)
+  - config edit: text UI configurator (vtui) for settings and data, editors for
+    listeners and local IPs, changes checked and saved with F2
+  - database mode (conf/cocosmail.yaml imported at first start) and file mode
+    (--config, for docker: settings loaded at every start, data only into an
+    empty database)
+  - changed settings applied without manual restart: live when possible,
+    otherwise checked and restarted in the same process, rolled back if they
+    would not start
+  - init command; default files (config example, plugins, templates) embedded
+    in the binary; everything relative to the binary directory, the directory
+    can be moved as is
+  - first start offers to create the database and run the configurator
+  - aliases can forward to any addresses, users not needed
+  - log always in log/ next to the binary; POP3 sessions logged like smtpd;
+    AUTH passwords masked in logs
+  - fail2ban plugin: plugins table created with the others, first connection
+    no longer fails
+  - removed: unused mailboxes table, microservices and openstack settings,
+    base path setting
+  - popgun (POP3 server library) moved into the project
+  - static build, needs -tags goffi_static
+
+v 0.2.0 - cocosmail (2021-06-02 .. 2024-04-26)
+  fork of tmail 0.2.0, same version number until 0.3.0
+  - renamed tmail to cocosmail, go modules
+  - POP3 server
+  - internal maildir delivery (lda_type maildir), no dovecot needed
+  - several certificates and hostnames, one per listener
+  - plugins in Go source interpreted at runtime (yaegi), in plugins/, with
+    hooks for each SMTP command and notify; fail2ban and customgreeting examples
+  - delays on SMTP failures
+  - deliver from the IP the mail was received on (deliverd_remote_use_same_host)
+  - configurable HELO hostname for deliverd
+  - IP of authenticated clients hidden in Received headers of relayed mail
+  - AUTH refused on unencrypted connections
+  - clearer bounce messages, Received headers cleaned up in bounces
+  - SPF check with configurable actions
+  - TLS 1.2 minimum for SMTP and POP3
+  - openstack store disabled
+  - fixes: AUTH PLAIN with challenge, STARTTLS certificates, TLS info in
+    Received, goroutine leak, smtpd session counter, double 250 on RCPT TO
+
+v 0.2.0 - tmail (2016-11-04, fixes until 2020-06)
+  - plugin system for smtpd and deliverd: connect, HELO/EHLO, MAIL FROM,
+    RCPT TO, postinit hooks
+  - logging with logrus, log to file without colors, one line for multiline
+    responses, debug log of the SMTP client
+  - option to launch deliverd or not
+  - retry for DB clusters not in sync
+  - catch-all: bugfix, status shown
+  - fixes: message-id, spamassassin score (Received IP)
+
+v 0.1.7 (2016-06-16)
+  - microservices: HELO/EHLO and MAIL FROM hooks, MAIL FROM sent with RCPT TO
+
+v 0.1.6 (2016-05-18)
+  - bugfix: smtpd telemetry
+
+v 0.1.5 (2016-05-09)
+  - remote TLS failure is a temporary failure, not permanent
+  - GORM and nsq updated
+
+v 0.14 (2016-04-28)
+  - bugfix: bounces to a minilist alias keep their empty sender
+  - MAIL FROM local part size check as an option
+
 
 v 0.13
   - disable bolt init in CLI mode
