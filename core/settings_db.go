@@ -124,6 +124,9 @@ func SettingsFillMissing(db *gorm.DB, current map[string]string) error {
 			missing[s.Key] = s.Default
 		}
 	}
+	if len(missing) == 0 {
+		return nil
+	}
 	return SettingsToDB(db, missing)
 }
 

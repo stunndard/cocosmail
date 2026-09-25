@@ -31,21 +31,23 @@ var (
 func WatchSettings() {
 	hup := make(chan os.Signal, 1)
 	signal.Notify(hup, syscall.SIGHUP)
-	version := SettingsVersion(DB)
+	// polling every few seconds would fill the debug log with SQL
+	quiet := DB.LogMode(false)
+	version := SettingsVersion(quiet)
 	for {
 		select {
 		case <-time.After(settingsCheckInterval):
 		case <-hup:
 			Logger.Info("SIGHUP: checking settings")
 		}
-		v := SettingsVersion(DB)
+		v := SettingsVersion(quiet)
 		if v == version {
 			continue
 		}
 		// wait until settings stop changing, at most 5 times
 		for i := 0; i < 5; i++ {
 			time.Sleep(settingsSettleDelay)
-			next := SettingsVersion(DB)
+			next := SettingsVersion(quiet)
 			if next == v {
 				break
 			}
