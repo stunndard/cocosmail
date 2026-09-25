@@ -47,9 +47,19 @@ var (
 )
 
 // Bootstrap loads config and opens logger, DB and store.
-// It's all the CLI needs; the server needs more, see InitMailQueueProducer.
+// It's all the CLI needs; the server needs more, see BootstrapServer.
+func Bootstrap() error {
+	return bootstrap(false)
+}
+
+// BootstrapServer is Bootstrap for the server: it also applies the config
+// source (file mode or database mode) before settings are loaded from DB
+func BootstrapServer() error {
+	return bootstrap(true)
+}
+
 // TODO check validity of each element
-func Bootstrap() (err error) {
+func bootstrap(server bool) (err error) {
 	// until config is loaded
 	Logger = logrus.New()
 
@@ -63,13 +73,22 @@ func Bootstrap() (err error) {
 		return
 	}
 
-	// settings stored in DB override environment
+	if server {
+		if err = applyConfigSource(DB); err != nil {
+			return err
+		}
+	}
+
+	// settings stored in DB override config file and environment
 	stored, err := SettingsFromDB(DB)
 	if err != nil {
 		return err
 	}
 	if len(stored) > 0 {
-		values := SettingsFromEnv("cocosmail")
+		values, _, _, err := ExternalSettings()
+		if err != nil {
+			return err
+		}
 		for k, v := range stored {
 			values[k] = v
 		}
@@ -119,19 +138,24 @@ func Bootstrap() (err error) {
 	return
 }
 
-// OpenDB opens the database from COCOSMAIL_DB_DRIVER and COCOSMAIL_DB_SOURCE only.
+// OpenDB opens the database from COCOSMAIL_DB_DRIVER and COCOSMAIL_DB_SOURCE only,
+// in environment or config file.
 // Other settings are not loaded: config commands must work even when they're
 // missing or invalid, to fix them.
 func OpenDB() error {
 	Logger = logrus.New()
-	driver := os.Getenv(SettingEnvName("db_driver"))
+	values, _, _, err := ExternalSettings()
+	if err != nil {
+		return err
+	}
+	driver := values["db_driver"]
 	if driver == "" {
 		driver = "sqlite3"
 	}
 	if err := ValidateSetting("db_driver", driver); err != nil {
 		return err
 	}
-	return openDB(driver, dbSource(driver, os.Getenv(SettingEnvName("db_source"))))
+	return openDB(driver, dbSource(driver, values["db_source"]))
 }
 
 // openDB opens and pings DB

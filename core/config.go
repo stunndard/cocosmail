@@ -123,9 +123,13 @@ var configFields = func() map[string]int {
 	return m
 }()
 
-// InitConfig initialise config from defaults and environment
+// InitConfig initialise config from defaults, config file (file mode) and environment
 func InitConfig(prefix string) (*Config, error) {
-	if err := c.Load(SettingsFromEnv(prefix)); err != nil {
+	values, _, _, err := ExternalSettings()
+	if err != nil {
+		return nil, err
+	}
+	if err := c.Load(values); err != nil {
 		return nil, err
 	}
 	c.stayUpToDate()

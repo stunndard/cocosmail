@@ -32,6 +32,10 @@ func SettingsFromDB(db *gorm.DB) (map[string]string, error) {
 		return nil, err
 	}
 	for _, r := range rows {
+		// not a setting, see managedByKey
+		if strings.HasPrefix(r.Key, "_") {
+			continue
+		}
 		// setting removed from cocosmail, keep it in DB but ignore it
 		if _, ok := SettingByKey(r.Key); !ok {
 			Logger.Warn("unknown setting " + SettingEnvName(r.Key) + " in database, ignored")
@@ -95,15 +99,19 @@ const (
 )
 
 // EffectiveSettings returns the value and the source of every setting:
-// default, overridden by environment, overridden by DB.
+// default, overridden by config file (file mode), environment and DB.
 func EffectiveSettings(db *gorm.DB) (values, sources map[string]string, err error) {
 	values = SettingsDefaults()
 	sources = make(map[string]string, len(values))
 	for k := range values {
 		sources[k] = SourceDefault
 	}
-	for k, v := range SettingsFromEnv("cocosmail") {
-		values[k], sources[k] = v, SourceEnv
+	external, externalSources, _, err := ExternalSettings()
+	if err != nil {
+		return nil, nil, err
+	}
+	for k, v := range external {
+		values[k], sources[k] = v, externalSources[k]
 	}
 	stored, err := SettingsFromDB(db)
 	if err != nil {

@@ -120,6 +120,9 @@ func NewConfigFile(values map[string]string) *ConfigFile {
 	f.comment("One setting per line: COCOSMAIL_KEY=value, without quotes. An empty value")
 	f.comment("means the default. Relative paths are relative to the cocosmail binary")
 	f.comment("directory. This file can be used as is as a docker env file.")
+	f.comment("")
+	f.comment("conf/cocosmail.cfg is imported into the database at the first start, then")
+	f.comment("use cocosmail config. With --config FILE, FILE is loaded at every start.")
 	section := ""
 	for _, s := range Settings {
 		if s.Section != section {

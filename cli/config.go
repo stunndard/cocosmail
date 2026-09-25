@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sort"
-	"strings"
 
 	"github.com/stunndard/cocosmail/core"
 	cgCli "github.com/urfave/cli"
@@ -120,6 +118,7 @@ var Config = cgCli.Command{
 					}
 				}
 				configDB()
+				dieIfManaged()
 				changed, err := core.ImportSettings(core.DB, values, c.Bool("merge"))
 				cliHandleErr(err)
 				fmt.Printf("%d settings imported, %d changed.\n", len(values), len(changed))
@@ -249,6 +248,7 @@ func configSet(c *cgCli.Context, key, value string) {
 		cliHandleErr(errors.New(core.SettingEnvName(key) + " tells where the database is, set it in environment"))
 	}
 	configDB()
+	dieIfManaged()
 	stored, err := core.SettingsFromDB(core.DB)
 	cliHandleErr(err)
 	if len(stored) == 0 {
@@ -262,16 +262,19 @@ func configSet(c *cgCli.Context, key, value string) {
 
 // readConfigFile reads settings from path, prints warnings, dies on error
 func readConfigFile(path string) map[string]string {
-	f, warnings, err := core.ReadConfigFile(path)
+	values, warnings, err := core.ReadSettingsFile(path)
 	cliHandleErr(err)
 	for _, w := range warnings {
 		fmt.Fprintln(os.Stderr, "warning: "+path+": "+w)
 	}
-	values := f.Values()
-	notes := core.UpgradeLegacyValues(values)
-	sort.Strings(notes)
-	for _, n := range notes {
-		fmt.Fprintln(os.Stderr, "note: "+strings.TrimSpace(n))
-	}
 	return values
+}
+
+// dieIfManaged dies if settings in DB are managed by a config file (file mode):
+// they'd be replaced by the file at next start
+func dieIfManaged() {
+	if path := core.SettingsManagedBy(core.DB); path != "" {
+		cliHandleErr(errors.New("settings are managed by " + path + ", the server loads it at every start.\n" +
+			"Change it instead: cocosmail config set --file " + path + " KEY VALUE, then restart cocosmail"))
+	}
 }

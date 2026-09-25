@@ -45,7 +45,7 @@ func bootstrapCli(c *cli.Context) error {
 // bootstrapServer prepares everything the server needs
 func bootstrapServer() {
 	var err error
-	if err = core.Bootstrap(); err != nil {
+	if err = core.BootstrapServer(); err != nil {
 		log.Fatalln(err)
 	}
 	if err = core.Cfg.CheckRequired(); err != nil {
@@ -127,6 +127,17 @@ func main() {
 	app.Name = "cocosmail"
 	app.Usage = "Email system"
 	app.Version = core.CocosmailVersion
+	app.Flags = []cli.Flag{
+		cli.StringFlag{
+			Name:   "config, c",
+			Usage:  "config file, loaded into the database at every start: the file is the source of truth (for docker)",
+			EnvVar: "COCOSMAIL_CONFIG",
+		},
+	}
+	app.Before = func(c *cli.Context) error {
+		core.ConfigFilePath = c.String("config")
+		return nil
+	}
 	app.Commands = tcli.CliCommands
 	// CLI commands need config & DB, but only when they run, not for help
 	for i := range app.Commands {

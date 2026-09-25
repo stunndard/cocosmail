@@ -1,397 +1,246 @@
-#!/bin/sh
-
-
-###
-# Common
-
-# Who am i (used in SMTP transaction for HELO)
-export COCOSMAIL_ME="cocosmail.io"
-
-# All cocosmail files live in the directory of the cocosmail binary.
-# Relative paths below (db, store, mailboxes, plugins, log...) are relative
-# to that directory, so the whole directory can be copied to another server.
-
-# Server signature
-export COCOSMAIL_HIDE_SERVER_SIGNATURE=false
-
-# debug
-export COCOSMAIL_DEBUG_ENABLED=false
-
-# run cocosmail as cluster
-# default false
-export COCOSMAIL_CLUSTER_MODE_ENABLED=false
-
-# Temporary directory (for scanning/filtering)
-# RAMDISK recommended
-export COCOSMAIL_TEMPDIR="/dev/shm"
-
-# Where to log
-# "stdout" for logging too stdout otherwise set a path to an *existing* directory
-export COCOSMAIL_LOGPATH="stdout"
-
-###
-# nsqd
-
-# lookupd-tcp-address
-# Format "IP1:PORT1;IP2:PORT2"
-export COCOSMAIL_NSQ_LOOKUPD_TCP_ADDRESSES="127.0.0.1:4160"
-export COCOSMAIL_NSQ_LOOKUPD_HTTP_ADDRESSES="127.0.0.1:4161"
-
-###
-# Database
+# cocosmail configuration
 #
-# cocosmail currenlty support:
-# 	sqlite3
-#  	MySQL (and compatibles DB like percona, mariaDB)
-#  	PostgreSQL
-
-# Database driver & source
+# One setting per line: COCOSMAIL_KEY=value, without quotes. An empty value
+# means the default. Relative paths are relative to the cocosmail binary
+# directory. This file can be used as is as a docker env file.
 #
-# Exemple
-# "postgres" "user=gorm dbname=gorm sslmode=disable"
-## Mysql tcp
-# export COCOSMAIL_DB_SOURCE="user:passwd@tcp(ip:port)/cocosmail?parseTime=true"
-# export COCOSMAIL_DB_DRIVER="mysql"
-## Mysql socket
-# export COCOSMAIL_DB_SOURCE="user:passwd@unix(/path/to/socket)/cocosmail?parseTime=true"
-# export COCOSMAIL_DB_DRIVER="mysql"
-## sqlite (default)
-# the file is relative to the binary directory, the directory is created if needed
-export COCOSMAIL_DB_DRIVER="sqlite3"
-export COCOSMAIL_DB_SOURCE="db/cocosmail.db?_busy_timeout=60000"
-
-
-##
-# Store
-#
-# Drivers supported
-# disk: source is a directory, created if needed
-#
-export COCOSMAIL_STORE_DRIVER="disk"
-export COCOSMAIL_STORE_SOURCE="store"
-
-
-###
-# smtpd
-
-# launch smtpd ? (default false)
-export COCOSMAIL_SMTPD_LAUNCH=true;
-
-
-# Defines dnsS for smtpd to launch
-# A dns is in the form
-# IP:PORT:HOSTNAME:SSL:SSL_CERTIFICATE
-# Multiple dsns are separated by ";"
-# IP: ip address to listen to
-#     IPv4: 192.0.2.10
-#     IPv6: must be enclosed in brackets: [2001:db8::10]
-#     0.0.0.0, [::] or empty means all addresses, both IPv4 and IPv6
-#     (the system must allow dual-stack sockets, it's the default on Linux)
-# PORT: associated port
-# HOSTNAME: used in SMTP greeting and in received message headers
-# SSL: "ssl" or "nossl"
-# ssl: the connection is encrypted from the start (implicit TLS, e.g. port 465)
-# nossl: the connection starts in clear text and can be upgraded
-# via STARTTLS smtp extension/cmd (e.g. ports 25 and 587)
-# SSL_CERTIFICATE certificate file name template that will be loaded for this connection
-#
-#
-# Example:
-# 	"127.0.0.1:2525:cocosmail.io:nossl:cocosmail.io;127.0.0.1:4656:cool-mta.com:ssl:cool"
-# will launch 2 smtpd deamons
-# 	- one listening on 127.0.0.1:2525 without encryption (but upgradable via STARTTLS)
-#     certificate will be loaded from BASEDIR/ssl/smtp-cocosmail.io.(crt/key)
-# 	- one listening on 127.0.0.1:4656 with encryption
-#     certificate will be loaded from BASEDIR/ssl/smtp-cool.(crt/key)
-#
-# IPv6 examples:
-# 	"[::]:25:mail.example.com:nossl:example.com"
-# listen on port 25 on all IPv4 and IPv6 addresses
-# 	"192.0.2.10:25:mail.example.com:nossl:example.com;[2001:db8::10]:25:mail.example.com:nossl:example.com"
-# listen on port 25 on one IPv4 and one IPv6 address only
-export COCOSMAIL_SMTPD_DSNS="0.0.0.0:2525:cocosmail.io:nossl:cocosmail.io"
-
-# smtp server timeout in seconds
-# throw a timeout if smtp client does not show signs of life
-# after this delay
-# Default 300 (RFC 5321 4.5.3.2.7)
-export COCOSMAIL_SMTPD_SERVER_TIMEOUT=60
-
-# Max bytes for the data cmd (max size of incoming mail)
-# Default 0 unlimited
-export COCOSMAIL_SMTPD_MAX_DATABYTES=50000000
-
-# Number of relays who previously take mail in charge
-# ->  preventing loops
-# default 30
-export COCOSMAIL_SMTPD_MAX_HOPS=50
-
-# Maximum of RCPT TO per transaction
-# when is reached serveur will reply with a 451 error (4.1.0)
-# to be full RFC compliant it should be 0
-export COCOSMAIL_SMTPD_MAX_RCPT=0
-
-# Drop smtp session after COCOSMAIL_SMTPD_MAX_BAD_RCPT unavailable RCPT TO
-# to be full RFC compliant it should be 0
-export COCOSMAIL_SMTPD_MAX_BAD_RCPT=0
-
-# Number of simultaneous incoming SMTP sessions
-# Default 20
-export COCOSMAIL_SMTPD_CONCURRENCY_INCOMING=20
-
-# Hide IP and hostname in Received header if the client who sending
-# that email is authorized.
-export COCOSMAIL_SMTPD_HIDE_RECEIVED_FROM_AUTH="true"
-
-# Enable SPF checks.
-# SPF will be checked and written to email headers.
-# No other action will be performed.
-# default true
-export COCOSMAIL_SMTPD_SPF_CHECK="true"
-
-# Accept or reject email message according to SPF status returned.
-# Format is: verb:verb:verb:verb:verb:verb
-# according to SPF RFC 7208 status (none, neutral, pass, fail, softfail, permerror).
-# permerror means SPF DNS check failed.
-# Each verb should be either "accept" or "reject".
-# For example:
-# "reject:reject:accept:reject:accept:accept" means:
-# none=reject, neutral=reject, pass=accept, fail=reject, softfail=accept, permerror=accept
-# default "accept:accept:accept:accept:accept:accept"
-export COCOSMAIL_SMTPD_SPF_ACTION="accept:accept:accept:accept:accept:accept"
-
-### Filters
-# Clamav
-export COCOSMAIL_SMTPD_SCAN_CLAMAV_ENABLED=false
-
-# Clamd DSNS
-# name:ip:port
-# name:socket
-export COCOSMAIL_SMTPD_SCAN_CLAMAV_DSNS="/var/run/clamav/clamd.ctl"
-
-
-###
-# deliverd
-
-# Launch deliverd ?
-export COCOSMAIL_DELIVERD_LAUNCH=true
-
-# Locals addresses
-#
-# Formating :
-# ip1SEPip2SEPip3SEP...
-#
-# IPv4 and IPv6 addresses can be mixed. An IPv4 address is only used for
-# remote hosts reachable over IPv4, an IPv6 address only for remote hosts
-# reachable over IPv6.
-#
-# Separator could be :
-# | -> or  -> round robin
-# & -> and -> fail over
-# Warning: you can't mix | and &
-
-# Examples :
-# 127.0.0.1&127.0.0.2&127.0.0.3
-# deliverd will start tring with 127.0.0.1, if it doesn't works it will try with 127.0.0.2 ...
-#
-# 127.0.0.1|127.0.0.2|127.0.0.3|127.0.0.3
-# deliverd will use local IP in a random order
-# If an IP is present X time this will increase its priority
-#
-# You must define at least one local address.
-# You can specify a hostname after IP that will be used in HELO when delivering email
-# and for other purposes associated with this deliveryd IP connection.
-# If there's no hostname specified, the default from COCOSMAIL_ME is used.
-# Example :
-# 127.0.0.1:cocosmail.io&127.0.0.2&127.0.0.3:kokosmail.io
-#
-# IPv6 addresses must be enclosed in brackets when followed by a hostname:
-# 192.0.2.10:mail.example.com&[2001:db8::10]:mail.example.com
-#
-# 0.0.0.0 means any local IPv4 address, :: means any local IPv6 address.
-# "0.0.0.0&::" tries IPv4 first and falls back to IPv6. Use "0.0.0.0" to never
-# send over IPv6.
-export COCOSMAIL_DELIVERD_LOCAL_IPS="0.0.0.0&::"
-
-# If an email was received by a particular host from COCOSMAIL_ME, or one of the
-# hostnames in COCOSMAIL_SMTPD_DSNS, try to use the same host when delivering that email remotely.
-# Note that the same host should be configured in COCOSMAIL_DELIVERD_LOCAL_IPS or in COCOSMAIL_ME.
-# If this is true, but the same host cannot be found in COCOSMAIL_DELIVERD_LOCAL_IPS or in COCOSMAIL_ME,
-# then such email cannot be delivered.
-# Set this to false to deliver the email from any host configured in COCOSMAIL_DELIVERD_LOCAL_IPS or in COCOSMAIL_ME,
-# regardless of the receiving host.
-export COCOSMAIL_DELIVERD_REMOTE_USE_SAME_HOST="true"
-
-# Local Concurrency
-export COCOSMAIL_DELIVERD_CONCURRENCY_LOCAL=50
-
-# Remote Concurrency
-export COCOSMAIL_DELIVERD_CONCURRENCY_REMOTE=50
-
-# SMTP client timeout per command
-export COCOSMAIL_DELIVERD_REMOTE_TIMEOUT=300
-
-# Default queue lifetime in minutes
-# After this delay
-# Bounce on temp failure
-# discard if bounce failed
-export COCOSMAIL_DELIVERD_QUEUE_LIFETIME=60400
-
-# Specific queue lidetime for bounces
-export COCOSMAIL_DELIVERD_QUEUE_BOUNCES_LIFETIME=10080
-
-# COCOSMAIL_DELIVERD_REMOTE_TLS_SKIPVERIFY controls whether a client verifies the
-# server's certificate chain and host name.
-# If COCOSMAIL_DELIVERD_REMOTE_TLS_SKIPVERIFY is true, TLS accepts any certificate
-# presented by the server and any host name in that certificate.
-# In this mode, TLS is susceptible to man-in-the-middle attacks.
-# Unfortunatly a lot of SMTP server have selfs signed certs so if you use cocosmail
-# for sending mail you should set this value to true
-export COCOSMAIL_DELIVERD_REMOTE_TLS_SKIPVERIFY=true
-
-# Fallback (downgrade) to clear transaction if STARTTLS negociation failed
-# default: false
-export COCOSMAIL_DELIVERD_REMOTE_TLS_FALLBACK=true
-
-
-# DKIM sign outgoing (remote) emails
-export COCOSMAIL_DELIVERD_DKIM_SIGN=false
-
-##
-# RFC compliance
-
-# RFC 5321 4.1.1.1 a client SHOULD start an SMTP session with the EHLO
-# command
-# default false
-export COCOSMAIL_RFC_HELO_MANDATORY=false
-
-# RFC 5321 2.3.5: the domain name given MUST be either a primary hostname
-# (resovable) or an address
-# default: true (warning a lot of SMTP clients do not send a fqn|address )
-export COCOSMAIL_RFC_HELO_NEED_FQN=false
-
-
-# RFC 5321 4.5.3.1.1: The maximum total length of a user name or
-# other local-part is 64  octets.
-export COCOSMAIL_RFC_MAILFROM_LOCALPART_SIZE=true
-
-
-##
-# users
-
-# Base path for users "home". Currently used to store mailboxes
-export COCOSMAIL_USERS_HOME_BASE="mailboxes"
-
-# Default quota for user mailboxes in bytes (not bit)
-# eg: 1G, 100M, 100K, 10000000
-export COCOSMAIL_USERS_MAILBOX_DEFAULT_QUOTA="200M"
-
-##
-# HTTP REST server
-
-# Launch REST server
-export COCOSMAIL_REST_SERVER_LAUNCH=false
-
-# REST server IP (IPv4 or IPv6, without brackets: ::1)
-export COCOSMAIL_REST_SERVER_IP="127.0.0.1"
-
-# REST server port
-export COCOSMAIL_REST_SERVER_PORT=8080
-
-# REST server is TLS (https) ?
-export COCOSMAIL_REST_SERVER_IS_TLS=false
-
-# Login for HTTP auth
-export COCOSMAIL_REST_SERVER_LOGIN="login"
-
-# Passwd for HTTP auth
-export COCOSMAIL_REST_SERVER_PASSWD="passwd"
-
-##
-# Microservices
-
-# Called on new SMTP connection from client
-export COCOSMAIL_MS_SMTPD_NEWCLIENT=""
-
-# Called after HELO/EHLO command
-export COCOSMAIL_MS_SMTPD_HELO=""
-
-# Called after MAIL FROM command
-export COCOSMAIL_MS_SMTPD_MAIL_FROM=""
-
-# Called after RCPT TO to check if relay is granted for this RCPT TO
-export COCOSMAIL_MS_SMTPD_RCPTTO=""
-
-# Call after DATA command
-export COCOSMAIL_MS_SMTPD_DATA=""
-
-# smtpd before queueing: used to change envelope
-export COCOSMAIL_MS_SMTPD_BEFORE_QUEUEING=""
-
-#smtpd telemetry
-export COCOSMAIL_MS_SMTPD_SEND_TELEMETRY=""
-
-# Remote routes for deliverd
-export COCOSMAIL_MS_DELIVERD_GET_ROUTES=""
-
-# deliverd telemetry
-export COCOSMAIL_MS_DELIVERD_SEND_TELEMETRY=""
-
-##
-# Openstack
-# paste your rcfile here
-export COCOSMAIL_OPENSTACK_ENABLE=false
-
-# Auth url
-export OS_AUTH_URL=https://auth.cloud.ovh.net/v2.0
-
-# With the addition of Keystone we have standardized on the term **tenant**
-# as the entity that owns the resources.
-export OS_TENANT_ID=tenant
-export OS_TENANT_NAME="name"
-
-# In addition to the owning entity (tenant), openstack stores the entity
-# performing the action as the **user**.
-export OS_USERNAME="username"
-
-# With Keystone you pass the keystone password.
-#echo "Please enter your OpenStack Password: "
-#read -sr OS_PASSWORD_INPUT
-export OS_PASSWORD="passwd"
-
-# If your configuration has multiple regions, we set that information here.
-# OS_REGION_NAME is optional and only valid in certain environments.
-export OS_REGION_NAME="GRA1"
-
-##
-# POP3 settings
-
-# launch pop3d ? (default false)
-export COCOSMAIL_POP3D_LAUNCH=true
-
-# Defines dnsS for pop3d to launch
-# Same format as for COCOSMAIL_SMTPD_DSNS, including IPv6 in brackets
-# and multiple dsns separated by ";"
-# Certificate will be loaded from BASEDIR/ssl/pop3-SSL_CERTIFICATE.(crt/key)
-# Use "ssl" for pop3d. APOP and STLS are not supported (yet), so with
-# "nossl" user and password would be sent in clear text.
-# That's why "nossl" is refused for pop3d, except on a loopback address
-# (127.0.0.1 or [::1]), e.g. behind a local TLS proxy.
-export COCOSMAIL_POP3D_DSNS="0.0.0.0:1100:pop.cocosmail.io:ssl:pop.cocosmail.io"
-
-# Type of internal LDA to use.
-# Can be "maildir" for internal maildir LDA
-# or "dovecot" for external dovecot LDA
-export COCOSMAIL_LDA_TYPE="maildir"
-
-##
-# Dovecot
-
-# Dovecot LDA path if COCOSMAIL_LDA_TYPE="dovecot"
-export COCOSMAIL_DOVECOT_LDA="/usr/lib/dovecot/dovecot-lda"
-
-
-
-##
-# Path where plugin files reside
-export COCOSMAIL_PLUGIN_PATH="plugins"
+# conf/cocosmail.cfg is imported into the database at the first start, then
+# use cocosmail config. With --config FILE, FILE is loaded at every start.
+
+# --- general ---
+
+# Hostname of this server, used in HELO/EHLO and as default for outgoing mail
+# (required)
+COCOSMAIL_ME=cocosmail.io
+
+# Hide cocosmail version in SMTP greeting (default: false)
+COCOSMAIL_HIDE_SERVER_SIGNATURE=false
+
+# Log debug messages (default: false)
+COCOSMAIL_DEBUG_ENABLED=false
+
+# Where to log: "stdout", "discard" or an existing directory (default: stdout)
+COCOSMAIL_LOGPATH=stdout
+
+# Temporary directory for scanning and filtering, a RAM disk like /dev/shm is
+# recommended (default: /tmp)
+COCOSMAIL_TEMPDIR=/dev/shm
+
+# Directory of plugins (default: plugins)
+COCOSMAIL_PLUGIN_PATH=plugins
+
+# --- database ---
+
+# Database driver: sqlite3, mysql or postgres (default: sqlite3)
+COCOSMAIL_DB_DRIVER=sqlite3
+
+# Database source. For sqlite3 the file, relative to the cocosmail binary
+# directory. MySQL: user:passwd@tcp(ip:port)/cocosmail?parseTime=true,
+# PostgreSQL: user=cocosmail dbname=cocosmail sslmode=disable (default:
+# db/cocosmail.db?_busy_timeout=60000)
+COCOSMAIL_DB_SOURCE=db/cocosmail.db?_busy_timeout=60000
+
+# --- store ---
+
+# Where messages waiting in queue are stored: disk (default: disk)
+COCOSMAIL_STORE_DRIVER=disk
+
+# Directory of the disk store (default: store)
+COCOSMAIL_STORE_SOURCE=store
+
+# --- cluster ---
+
+# Run cocosmail as a cluster (default: false)
+COCOSMAIL_CLUSTER_MODE_ENABLED=false
+
+# nsqlookupd TCP addresses in cluster mode, IP:PORT separated by ;
+COCOSMAIL_NSQ_LOOKUPD_TCP_ADDRESSES=127.0.0.1:4160
+
+# nsqlookupd HTTP addresses in cluster mode, IP:PORT separated by ;
+COCOSMAIL_NSQ_LOOKUPD_HTTP_ADDRESSES=127.0.0.1:4161
+
+# --- smtpd ---
+
+# Launch the SMTP server (default: false)
+COCOSMAIL_SMTPD_LAUNCH=true
+
+# SMTP listeners separated by ;, each IP:PORT:HOSTNAME:ssl|nossl:CERT. IPv6 in
+# brackets: [2001:db8::1]. [::] or 0.0.0.0 listen on all IPv4 and IPv6
+# addresses. ssl: TLS from the start (465), nossl: STARTTLS available (25,
+# 587). Certificate: ssl/smtp-CERT.crt and .key (required)
+COCOSMAIL_SMTPD_DSNS=0.0.0.0:2525:cocosmail.io:nossl:cocosmail.io
+
+# Seconds before an idle SMTP client is disconnected (RFC 5321 4.5.3.2.7: 300)
+# (default: 300)
+COCOSMAIL_SMTPD_SERVER_TIMEOUT=60
+
+# Maximum size of an incoming message in bytes, 0 is unlimited (default: 0)
+COCOSMAIL_SMTPD_MAX_DATABYTES=50000000
+
+# Maximum Received headers, to prevent loops (default: 10)
+COCOSMAIL_SMTPD_MAX_HOPS=50
+
+# Maximum RCPT TO per message, 0 is unlimited (RFC compliant) (default: 0)
+COCOSMAIL_SMTPD_MAX_RCPT=0
+
+# Drop the session after this many unknown recipients, 0 never drops (RFC
+# compliant) (default: 0)
+COCOSMAIL_SMTPD_MAX_BAD_RCPT=0
+
+# Maximum VRFY commands per session, 0 is unlimited (default: 0)
+COCOSMAIL_SMTPD_MAX_VRFY=0
+
+# Maximum simultaneous incoming SMTP sessions (default: 20)
+COCOSMAIL_SMTPD_CONCURRENCY_INCOMING=20
+
+# Hide IP and hostname in Received header for authenticated senders (default:
+# true)
+COCOSMAIL_SMTPD_HIDE_RECEIVED_FROM_AUTH=true
+
+# Check SPF of incoming mail and add a Received-SPF header (default: true)
+COCOSMAIL_SMTPD_SPF_CHECK=true
+
+# accept or reject for each SPF result, in order:
+# none:neutral:pass:fail:softfail:permerror (default:
+# accept:accept:accept:accept:accept:accept)
+COCOSMAIL_SMTPD_SPF_ACTION=accept:accept:accept:accept:accept:accept
+
+# Scan incoming mail with ClamAV (default: false)
+COCOSMAIL_SMTPD_SCAN_CLAMAV_ENABLED=false
+
+# clamd socket, or name:ip:port (default: /var/run/clamav/clamd.ctl)
+COCOSMAIL_SMTPD_SCAN_CLAMAV_DSNS=/var/run/clamav/clamd.ctl
+
+# --- deliverd ---
+
+# Launch delivery of queued mail (default: false)
+COCOSMAIL_DELIVERD_LAUNCH=true
+
+# Local IPs for outgoing mail, & for failover or | for round robin (don't
+# mix). 0.0.0.0 is any IPv4, :: any IPv6. Add :hostname for HELO, IPv6 in
+# brackets: [2001:db8::1]:mail.example.com (default: 0.0.0.0&::)
+COCOSMAIL_DELIVERD_LOCAL_IPS=0.0.0.0&::
+
+# Maximum simultaneous local deliveries (default: 50)
+COCOSMAIL_DELIVERD_CONCURRENCY_LOCAL=50
+
+# Maximum simultaneous remote deliveries (default: 50)
+COCOSMAIL_DELIVERD_CONCURRENCY_REMOTE=50
+
+# Minutes a message stays in queue before it bounces (default: 10080)
+COCOSMAIL_DELIVERD_QUEUE_LIFETIME=60400
+
+# Minutes a bounce stays in queue before it's discarded (default: 10080)
+COCOSMAIL_DELIVERD_QUEUE_BOUNCES_LIFETIME=10080
+
+# Seconds to wait for a remote server reply (default: 300)
+COCOSMAIL_DELIVERD_REMOTE_TIMEOUT=300
+
+# Accept any certificate from remote servers, many have self-signed ones
+# (default: false)
+COCOSMAIL_DELIVERD_REMOTE_TLS_SKIPVERIFY=true
+
+# Send in clear text if STARTTLS fails (default: false)
+COCOSMAIL_DELIVERD_REMOTE_TLS_FALLBACK=true
+
+# Send from the host that received the message, as configured in
+# deliverd_local_ips or me (default: true)
+COCOSMAIL_DELIVERD_REMOTE_USE_SAME_HOST=true
+
+# DKIM sign outgoing mail (default: false)
+COCOSMAIL_DELIVERD_DKIM_SIGN=false
+
+# --- rfc ---
+
+# Require HELO/EHLO before other commands (RFC 5321 4.1.1.1) (default: false)
+COCOSMAIL_RFC_HELO_MANDATORY=false
+
+# Require a resolvable hostname or an address in HELO (RFC 5321 2.3.5), many
+# clients don't send one (default: false)
+COCOSMAIL_RFC_HELO_NEED_FQN=false
+
+# Reject MAIL FROM local part longer than 64 characters (RFC 5321 4.5.3.1.1)
+# (default: false)
+COCOSMAIL_RFC_MAILFROM_LOCALPART_SIZE=true
+
+# --- users ---
+
+# Directory of mailboxes (default: mailboxes)
+COCOSMAIL_USERS_HOME_BASE=mailboxes
+
+# Default mailbox quota, e.g. 1G, 100M, 100K
+COCOSMAIL_USERS_MAILBOX_DEFAULT_QUOTA=200M
+
+# Local delivery: maildir (built in) or dovecot (Dovecot LDA) (default:
+# maildir)
+COCOSMAIL_LDA_TYPE=maildir
+
+# Path of dovecot-lda when lda_type is dovecot (default:
+# /usr/lib/dovecot/dovecot-lda)
+COCOSMAIL_DOVECOT_LDA=/usr/lib/dovecot/dovecot-lda
+
+# --- pop3d ---
+
+# Launch the POP3 server (default: false)
+COCOSMAIL_POP3D_LAUNCH=true
+
+# POP3 listeners, same format as smtpd_dsns. Must be ssl, nossl only on
+# loopback. Certificate: ssl/pop3-CERT.crt and .key (required)
+COCOSMAIL_POP3D_DSNS=0.0.0.0:1100:pop.cocosmail.io:ssl:pop.cocosmail.io
+
+# Seconds before an idle POP3 client is disconnected (default: 300)
+COCOSMAIL_POP3D_SERVER_TIMEOUT=300
+
+# --- rest ---
+
+# Launch the REST API server (default: false)
+COCOSMAIL_REST_SERVER_LAUNCH=false
+
+# REST server IP, IPv6 without brackets (default: 127.0.0.1)
+COCOSMAIL_REST_SERVER_IP=127.0.0.1
+
+# REST server port (default: 8080)
+COCOSMAIL_REST_SERVER_PORT=8080
+
+# Use HTTPS, certificate ssl/web_server.crt and .key (default: false)
+COCOSMAIL_REST_SERVER_IS_TLS=false
+
+# REST HTTP auth login
+COCOSMAIL_REST_SERVER_LOGIN=login
+
+# REST HTTP auth password
+COCOSMAIL_REST_SERVER_PASSWD=passwd
+
+# --- microservices ---
+
+# URLs called on new SMTP connection, separated by ;
+COCOSMAIL_MS_SMTPD_NEWCLIENT=
+
+# URLs called after HELO/EHLO, separated by ;
+COCOSMAIL_MS_SMTPD_HELO=
+
+# URLs called after MAIL FROM, separated by ;
+COCOSMAIL_MS_SMTPD_MAIL_FROM=
+
+# URLs called after RCPT TO to check if relay is granted, separated by ;
+COCOSMAIL_MS_SMTPD_RCPTTO=
+
+# URLs called after DATA, separated by ;
+COCOSMAIL_MS_SMTPD_DATA=
+
+# URLs called before queueing, can change envelope, separated by ;
+COCOSMAIL_MS_SMTPD_BEFORE_QUEUEING=
+
+# URLs receiving smtpd telemetry, separated by ;
+COCOSMAIL_MS_SMTPD_SEND_TELEMETRY=
+
+# URLs returning remote routes for deliverd, separated by ;
+COCOSMAIL_MS_DELIVERD_GET_ROUTES=
+
+# URLs receiving deliverd telemetry, separated by ;
+COCOSMAIL_MS_DELIVERD_SEND_TELEMETRY=
+
+# --- openstack ---
+
+# OpenStack object storage support (not available) (default: false)
+COCOSMAIL_OPENSTACK_ENABLE=false

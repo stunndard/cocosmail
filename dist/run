@@ -1,4 +1,4 @@
 #!/bin/sh
 
 # everything is in the directory of this script
-cd "$(dirname "$0")" && . conf/cocosmail.cfg && exec ./cocosmail "$@"
+cd "$(dirname "$0")" && exec ./cocosmail "$@"
