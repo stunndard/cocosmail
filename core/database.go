@@ -19,9 +19,6 @@ func IsOkDB(DB *gorm.DB) bool {
 	if !DB.HasTable(&RcptHost{}) {
 		return false
 	}
-	if !DB.HasTable(&Mailbox{}) {
-		return false
-	}
 	if !DB.HasTable(&RelayIpOk{}) {
 		return false
 	}
@@ -65,14 +62,6 @@ func InitDB(DB *gorm.DB) error {
 		if err = DB.Model(&RcptHost{}).AddIndex("idx_rcpthots_hostname", "hostname").Error; err != nil {
 			return errors.New("Unable to add index idx_rcpthots_domain on table RcptHost - " + err.Error())
 		}
-	}
-
-	// mailbox
-	if !DB.HasTable(&Mailbox{}) {
-		if err = DB.CreateTable(&Mailbox{}).Error; err != nil {
-			return errors.New("Unable to create Mailbox - " + err.Error())
-		}
-		// Index
 	}
 
 	//relay_ip_oks table

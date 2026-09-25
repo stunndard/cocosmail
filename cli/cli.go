@@ -14,7 +14,6 @@ var CliCommands = []cgCli.Command{
 	user,
 	Rcpthost,
 	RelayIP,
-	//Mailbox,
 	Dkim,
 }
 
