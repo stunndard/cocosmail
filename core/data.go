@@ -449,6 +449,21 @@ func ValidateData(d *Data) (errs []error) {
 	return errs
 }
 
+// NewDataErrors returns the errors of next that cur doesn't have: problems
+// already in the database (e.g. from older versions) don't block other changes
+func NewDataErrors(cur, next *Data) (errs []error) {
+	before := make(map[string]bool)
+	for _, e := range ValidateData(cur) {
+		before[e.Error()] = true
+	}
+	for _, e := range ValidateData(next) {
+		if !before[e.Error()] {
+			errs = append(errs, e)
+		}
+	}
+	return errs
+}
+
 func validDomain(name string) bool {
 	return name != "" && !strings.ContainsAny(name, " @;:/\\,") && !strings.HasPrefix(name, ".") && !strings.HasSuffix(name, ".")
 }
@@ -634,7 +649,7 @@ func EditData(db *gorm.DB, old, new *Data) (changes []string, err error) {
 
 // applyData checks next and makes it the data in DB, cur is the data in DB
 func applyData(db *gorm.DB, cur, next *Data, dryRun bool) (changes []string, err error) {
-	if errs := ValidateData(next); len(errs) > 0 {
+	if errs := NewDataErrors(cur, next); len(errs) > 0 {
 		return nil, joinErrors(errs)
 	}
 	changes = DiffData(cur, next)

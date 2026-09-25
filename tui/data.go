@@ -492,15 +492,9 @@ func (ed *Editor) putItem(next *core.Data, name string) error {
 // The item named select is selected.
 func (ed *Editor) setData(next *core.Data, sel string) error {
 	next.Sort()
-	before := make(map[string]bool)
-	for _, e := range core.ValidateData(ed.data) {
-		before[e.Error()] = true
-	}
 	var msgs []string
-	for _, e := range core.ValidateData(next) {
-		if !before[e.Error()] {
-			msgs = append(msgs, e.Error())
-		}
+	for _, e := range core.NewDataErrors(ed.data, next) {
+		msgs = append(msgs, e.Error())
 	}
 	if len(msgs) > 5 {
 		msgs = append(msgs[:5], fmt.Sprintf("and %d more", len(msgs)-5))

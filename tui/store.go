@@ -100,7 +100,7 @@ func (s *FileStore) SaveData(old, new *core.Data) error {
 		return err
 	}
 	next := core.MergeEdit(base, old, new)
-	if errs := core.ValidateData(next); len(errs) > 0 {
+	if errs := core.NewDataErrors(base, next); len(errs) > 0 {
 		return errs[0]
 	}
 	f.SetData(next)

@@ -209,3 +209,41 @@ func TestValidateAliases(t *testing.T) {
 		assert.EqualError(t, errs[0], want)
 	}
 }
+
+func TestAliasAdd(t *testing.T) {
+	db := newDataTestDB(t)
+	DB = db
+	// no domain, no users: the domain comes with it, forwarding anywhere
+	require.NoError(t, AliasAdd("Info@Example.com", "someone@elsewhere.example, sales@example.com", "", true))
+	require.NoError(t, AliasAdd("sales@example.com", "", "cat -", false))
+	d, err := ExportData(db)
+	require.NoError(t, err)
+	assert.Equal(t, []DomainData{{Name: "example.com", Local: true}}, d.Domains)
+	assert.Equal(t, AliasData{Alias: "info@example.com", DeliverTo: []string{"someone@elsewhere.example", "sales@example.com"}, MiniList: true}, d.Aliases[0])
+
+	assert.EqualError(t, AliasAdd("info@example.com", "a@b.example", "", false), "info@example.com already exists")
+	assert.Error(t, AliasAdd("x@example.com", "", "/no/such/command", false))
+	assert.EqualError(t, AliasAdd("example.org", "example.net", "", false), "domain alias example.org: example.net must be a local domain")
+	require.NoError(t, AliasAdd("example.org", "example.com", "", false))
+	host, err := RcpthostGet("example.org")
+	require.NoError(t, err)
+	assert.True(t, host.IsAlias)
+
+	// a relay domain stays one, its aliases are refused
+	_, err = ImportData(db, &Data{Domains: []DomainData{{Name: "relay.example"}}}, false, false)
+	require.NoError(t, err)
+	assert.EqualError(t, AliasAdd("a@relay.example", "b@elsewhere.example", "", false), "alias a@relay.example: relay.example must be a local domain")
+}
+
+func TestExistingErrorsDontBlock(t *testing.T) {
+	db := newDataTestDB(t)
+	_, err := ImportData(db, testData(t), false, false)
+	require.NoError(t, err)
+	// domain deleted behind cocosmail's back, e.g. rcpthost del
+	require.NoError(t, db.Where("hostname = ?", "example.com").Delete(&RcptHost{}).Error)
+	_, err = ImportData(db, &Data{RelayIPs: []string{"198.51.100.7"}}, false, false)
+	require.NoError(t, err)
+	// but a new problem is refused
+	_, err = ImportData(db, &Data{Users: []UserData{{Login: "new@example.com", Password: "secret9", Mailbox: true}}}, false, false)
+	assert.ErrorContains(t, err, "user new@example.com: example.com must be a local domain")
+}
