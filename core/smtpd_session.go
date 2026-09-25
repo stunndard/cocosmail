@@ -1318,13 +1318,52 @@ func (s *SMTPServerSession) readLine2() (line string, err error) {
 	return line[:len(line)-2], err
 }
 
-// maskAuth hides credentials of an AUTH command: AUTH PLAIN dGVzdA== -> AUTH PLAIN ********
+// maskAuth masks the password in an AUTH command, the rest is kept:
+// AUTH PLAIN AGFsaWNlAHNlY3JldA== -> AUTH PLAIN alice ********
 func maskAuth(line string) string {
 	f := strings.Fields(line)
 	if len(f) < 3 || !strings.EqualFold(f[0], "AUTH") {
 		return line
 	}
-	return f[0] + " " + f[1] + " ********"
+	switch strings.ToUpper(f[1]) {
+	case "PLAIN":
+		f[2] = maskAuthPlain(f[2])
+	case "LOGIN":
+		// initial response is the username
+	default:
+		f[2] = "********"
+	}
+	return strings.Join(f, " ")
+}
+
+// maskAuthPlain decodes an AUTH PLAIN response (authzid\0authcid\0passwd)
+// and masks the password: [authzid ]authcid ********
+func maskAuthPlain(encoded string) string {
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return "********"
+	}
+	t := bytes.Split(decoded, []byte{0})
+	if len(t) != 3 {
+		return "********"
+	}
+	if len(t[0]) > 0 {
+		return string(t[0]) + " " + string(t[1]) + " ********"
+	}
+	return string(t[1]) + " ********"
+}
+
+// maskCramMD5 decodes a CRAM-MD5 response (user digest) and masks the digest
+func maskCramMD5(encoded string) string {
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return "********"
+	}
+	t := strings.SplitN(string(decoded), " ", 2)
+	if len(t) != 2 {
+		return "********"
+	}
+	return t[0] + " ********"
 }
 
 // SMTP AUTH
@@ -1372,7 +1411,7 @@ func (s *SMTPServerSession) smtpAuth(rawMsg string) {
 			if err != nil {
 				return
 			}
-			s.LogDebug("< ********")
+			s.LogDebug("< " + maskAuthPlain(encoded))
 		default:
 			s.pause(2)
 			s.Out(501, "5.5.4 malformed auth input")
@@ -1409,7 +1448,7 @@ func (s *SMTPServerSession) smtpAuth(rawMsg string) {
 		if err != nil {
 			return
 		}
-		s.LogDebug("< ********")
+		s.LogDebug("< " + encoded)
 
 		var decoded []byte
 		// decode Username
@@ -1417,7 +1456,7 @@ func (s *SMTPServerSession) smtpAuth(rawMsg string) {
 		if err != nil {
 			s.pause(2)
 			s.Out(501, "5.5.4 malformed auth input")
-			s.Log(fmt.Sprintf("malformed auth input: %s err: %s", maskAuth(rawMsg), err.Error()))
+			s.Log(fmt.Sprintf("malformed auth input: %s err: %s", encoded, err.Error()))
 			return
 		}
 		authLogin = string(decoded)
@@ -1435,7 +1474,7 @@ func (s *SMTPServerSession) smtpAuth(rawMsg string) {
 		if err != nil {
 			s.pause(2)
 			s.Out(501, "5.5.4 malformed auth input")
-			s.Log(fmt.Sprintf("malformed auth input: %s err: %s", maskAuth(rawMsg), err.Error()))
+			s.Log(fmt.Sprintf("malformed auth input: %s err: %s", "********", err.Error()))
 			return
 		}
 		authPasswd = string(decoded)
@@ -1459,7 +1498,7 @@ func (s *SMTPServerSession) smtpAuth(rawMsg string) {
 			if err != nil {
 				return
 			}
-			s.LogDebug("< ********")
+			s.LogDebug("< " + maskCramMD5(encoded))
 
 			var decoded []byte
 			// base64decode CRAM-MD5 response
@@ -1467,14 +1506,14 @@ func (s *SMTPServerSession) smtpAuth(rawMsg string) {
 			if err != nil {
 				s.pause(2)
 				s.Out(501, "5.5.4 malformed auth input")
-				s.Log(fmt.Sprintf("malformed auth input: %s err: %s", maskAuth(rawMsg), err.Error()))
+				s.Log(fmt.Sprintf("malformed auth input: %s err: %s", "********", err.Error()))
 				return
 			}
 			response := strings.Split(string(decoded), " ")
 			if len(response) != 2 {
 				s.pause(2)
 				s.Out(501, "5.5.4 malformed auth input")
-				s.Log(fmt.Sprintf("malformed auth input: %s", maskAuth(rawMsg)))
+				s.Log(fmt.Sprintf("malformed auth input: %s", "********"))
 				return
 			}
 
@@ -1494,7 +1533,7 @@ func (s *SMTPServerSession) smtpAuth(rawMsg string) {
 				s.pause(2)
 				s.Out(535, "5.7.1 authentication failed")
 				AuthSMTPdPlugins(authLogin, authPasswd, false, s)
-				s.Log(fmt.Sprintf("CRAM-MD5 auth failed for user %s", authLogin))
+				s.Log(fmt.Sprintf("CRAM-MD5 auth failed, response: %s, required: ********", maskCramMD5(encoded)))
 				s.ExitAsap()
 				return
 			}
@@ -1516,7 +1555,7 @@ func (s *SMTPServerSession) smtpAuth(rawMsg string) {
 			s.pause(2)
 			s.Out(535, "5.7.1 authentication failed")
 			AuthSMTPdPlugins(authLogin, authPasswd, false, s)
-			s.Log("auth failed, no such user: " + authLogin + " err:" + err.Error())
+			s.Log("auth failed, no such user: " + maskAuth(rawMsg) + " err:" + err.Error())
 			s.ExitAsap()
 			return
 		}
@@ -1524,14 +1563,14 @@ func (s *SMTPServerSession) smtpAuth(rawMsg string) {
 			s.pause(2)
 			s.Out(535, "5.7.1 authentication failed")
 			AuthSMTPdPlugins(authLogin, authPasswd, false, s)
-			s.Log("auth failed for user " + authLogin + " err:" + err.Error())
+			s.Log("auth failed: " + maskAuth(rawMsg) + " err:" + err.Error())
 			s.ExitAsap()
 			return
 		}
 		s.pause(2)
 		s.Out(454, "4.3.0 oops, problem with auth")
 		AuthSMTPdPlugins(authLogin, authPasswd, false, s)
-		s.Log("ERROR auth for user " + authLogin + " err:" + err.Error())
+		s.Log("ERROR auth " + maskAuth(rawMsg) + " err:" + err.Error())
 		s.ExitAsap()
 		return
 	}
