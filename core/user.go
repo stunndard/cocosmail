@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/jinzhu/gorm"
-	"github.com/tredoe/osutil/user/crypt/sha512_crypt"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -157,23 +156,8 @@ func UserAdd(login, passwd, mbQuota string, haveMailbox, authRelay, isCatchall b
 		}
 	}
 
-	// hash passwd
-	hashed, err := bcrypt.GenerateFromPassword([]byte(passwd), 10)
-	if err != nil {
-		return err
-	}
-	user.Passwd = string(hashed)
-
-	// sha512 for dovecot compatibility
-	// {SHA512-CRYPT}$6$iW6KmxlZL56A1raN$4DjgXTUzFZlGQgq61YnBMF2AYWKdY5ZanOUWTDBhuvBYVzkdNjqrmpYnLlQ3M0kU1joUH0Bb2aJcPhUF0xlSq/
-	salt, err := NewUUID()
-	if err != nil {
-		return err
-	}
-	salt = "$6$" + salt[:16]
-	c := sha512_crypt.New()
-	user.DovePasswd, err = c.Generate([]byte(passwd), []byte(salt))
-	if err != nil {
+	var err error
+	if user.Passwd, user.DovePasswd, err = HashPassword(passwd); err != nil {
 		return err
 	}
 	return DB.Save(user).Error
@@ -258,24 +242,9 @@ func UserChangePassword(login, password string) error {
 
 // ChangePasswd is used to change user password
 func (u *User) ChangePasswd(passwd string) error {
-	if len(passwd) < 6 {
-		return errors.New("password must be at least 6 chars length")
-	}
-	hashed, err := bcrypt.GenerateFromPassword([]byte(passwd), 10)
-	if err != nil {
+	var err error
+	if u.Passwd, u.DovePasswd, err = HashPassword(passwd); err != nil {
 		return err
-	}
-	u.Passwd = string(hashed)
-	if u.HaveMailbox {
-		salt, err := NewUUID()
-		if err != nil {
-			return err
-		}
-		salt = "$6$" + salt[:16]
-		c := sha512_crypt.New()
-		if u.DovePasswd, err = c.Generate([]byte(passwd), []byte(salt)); err != nil {
-			return err
-		}
 	}
 	return DB.Save(u).Error
 }

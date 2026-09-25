@@ -77,16 +77,8 @@ func bootstrap(server bool) (err error) {
 			return err
 		}
 	}
-
-	// settings stored in DB override config file and environment
-	values, inDB, err := CurrentSettings(DB)
-	if err != nil {
+	if err = loadDBSettings(DB); err != nil {
 		return err
-	}
-	if inDB {
-		if err = Cfg.Load(values); err != nil {
-			return errors.New("settings in database: " + err.Error())
-		}
 	}
 	if err = initLogger(); err != nil {
 		return err
@@ -128,6 +120,24 @@ func bootstrap(server bool) (err error) {
 	//execCocosMailPlugins("postinit")
 
 	return
+}
+
+// loadDBSettings loads settings stored in DB, they override config file and
+// environment
+func loadDBSettings(db *gorm.DB) error {
+	values, inDB, err := CurrentSettings(db)
+	if err != nil {
+		return err
+	}
+	if Cfg == nil {
+		Cfg = &Config{}
+	}
+	if inDB {
+		if err = Cfg.Load(values); err != nil {
+			return errors.New("settings in database: " + err.Error())
+		}
+	}
+	return nil
 }
 
 // OpenDB opens the database from COCOSMAIL_DB_DRIVER and COCOSMAIL_DB_SOURCE only,
