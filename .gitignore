@@ -5,6 +5,7 @@
 dist/tools/easyCert/
 dist/nsq/*
 dist/conf/cocosmail.cfg
+dist/conf/cocosmail.yaml
 run
 test
 watch
@@ -19,3 +20,4 @@ cocosmail.zip
 ### golang
 vendor/**/**/
 
+doc.txt

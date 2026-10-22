@@ -9,8 +9,8 @@ func core() []string {
 // in the same sequence by the host.
 func smtpd() []string {
 	return []string{
-	"fail2ban",
-	"customgreeting",
+		"fail2ban",
+		// "customgreeting", // example: replaces the SMTP greeting
 	}
 }
 

@@ -54,25 +54,6 @@ func AliasList() (aliases []core.Alias, err error) {
 	return core.AliasList()
 }
 
-/*
-// MAILBOXES
-
-// MailboxAdd create a new mailbox
-func MailboxAdd(mailbox string) error {
-	return core.MailboxAdd(mailbox)
-}
-
-// MailboxDel delete a mailbox
-func MailboxDel(mailbox string) error {
-	return core.MailboxDel(mailbox)
-}
-
-// MailboxList return all mailboxes
-func MailboxList() (mailboxes []core.Mailbox, err error) {
-	return core.MailboxList()
-}
-*/
-
 // RELAY IP
 // RelayIpAdd add an IP authozed to relay through cocosmail
 func RelayIpAdd(ip string) error {

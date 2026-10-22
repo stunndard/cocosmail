@@ -4,9 +4,7 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"path"
-	"path/filepath"
 	"strconv"
 
 	"github.com/codegangsta/negroni"
@@ -23,6 +21,11 @@ const (
 
 // LaunchServer launches HTTP server
 func LaunchServer() {
+	// empty credentials would let anybody in
+	if core.Cfg.GetRestServerLogin() == "" || core.Cfg.GetRestServerPasswd() == "" {
+		log.Fatalln("REST server needs COCOSMAIL_REST_SERVER_LOGIN and COCOSMAIL_REST_SERVER_PASSWD")
+	}
+
 	router := httprouter.New()
 	router.HandlerFunc("GET", "/ping", func(w http.ResponseWriter, req *http.Request) {
 		httpWriteJson(w, []byte(`{"msg": "pong"}`))
@@ -32,9 +35,6 @@ func LaunchServer() {
 	addUsersHandlers(router)
 	// Queue
 	addQueueHandlers(router)
-
-	// Microservice data handler
-	router.Handler("GET", "/msdata/:id", http.StripPrefix("/msdata/", http.FileServer(http.Dir(core.Cfg.GetTempDir()))))
 
 	// Server
 	n := negroni.New(negroni.NewRecovery(), NewLogger())
@@ -62,6 +62,5 @@ func wrapHandler(h func(http.ResponseWriter, *http.Request)) httprouter.Handle {
 
 // getBasePath is a helper for retrieving app path
 func getBasePath() string {
-	p, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return p
+	return core.BaseDir()
 }

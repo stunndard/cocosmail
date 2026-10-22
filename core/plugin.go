@@ -1,5 +1,7 @@
 package core
 
+import "github.com/jinzhu/gorm"
+
 // Cocosmail core plugin
 
 // Smtpd plugins
@@ -31,9 +33,14 @@ func PluginSaveObject(plugin, name string, j []byte) error {
 	return DB.Save(p).Error
 }
 
+// PluginLoadObject returns the object saved by a plugin, empty if it's not
+// saved yet (e.g. fail2ban's IPs before the first ban)
 func PluginLoadObject(plugin, name string) ([]byte, error) {
 	var p Plugin
 	err := DB.Where("plugin_name = ? AND object_name = ?", plugin, name).Find(&p).Error
+	if err == gorm.ErrRecordNotFound {
+		return []byte{}, nil
+	}
 	if err != nil {
 		return []byte{}, err
 	}

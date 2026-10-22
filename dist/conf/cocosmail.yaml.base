@@ -1,0 +1,245 @@
+# cocosmail configuration: settings, and data: domains, users, aliases, relay
+# IPs, routes and DKIM keys.
+#
+# Settings are key: value. An empty value means the default. Relative paths
+# are relative to the cocosmail binary directory. Environment variables
+# override settings: COCOSMAIL_ME for me.
+#
+# conf/cocosmail.yaml is imported into the database at the first start, then
+# use cocosmail config edit. With --config FILE, the settings of FILE are
+# loaded at every start, its data only into an empty database. cocosmail
+# config export writes settings and data in one file, that cocosmail config
+# import loads on any server.
+
+settings:
+  # --- general ---
+  #
+  # Hostname of this server, used in HELO/EHLO and as default for outgoing mail
+  # (required)
+  me: cocosmail.io
+
+  # Hide cocosmail version in SMTP greeting (default: false)
+  hide_server_signature: false
+
+  # Log debug messages (default: false)
+  debug_enabled: false
+
+  # Where to log: "stdout", "discard" or a file name, the file is log/NAME next
+  # to the binary (default: stdout)
+  logpath: stdout
+
+  # Temporary directory for scanning and filtering, a RAM disk like /dev/shm is
+  # recommended (default: /tmp)
+  tempdir: /dev/shm
+
+  # Directory of plugins (default: plugins)
+  plugin_path: plugins
+
+  # --- database ---
+  #
+  # Database driver: sqlite3, mysql or postgres (default: sqlite3)
+  db_driver: sqlite3
+
+  # Database source. For sqlite3 the file, relative to the cocosmail binary
+  # directory. MySQL: user:passwd@tcp(ip:port)/cocosmail?parseTime=true,
+  # PostgreSQL: user=cocosmail dbname=cocosmail sslmode=disable (default:
+  # db/cocosmail.db?_busy_timeout=60000)
+  db_source: db/cocosmail.db?_busy_timeout=60000
+
+  # --- store ---
+  #
+  # Where messages waiting in queue are stored: disk (default: disk)
+  store_driver: disk
+
+  # Directory of the disk store (default: store)
+  store_source: store
+
+  # --- cluster ---
+  #
+  # Run cocosmail as a cluster (default: false)
+  cluster_mode_enabled: false
+
+  # nsqlookupd TCP addresses in cluster mode, IP:PORT separated by ;
+  nsq_lookupd_tcp_addresses: 127.0.0.1:4160
+
+  # nsqlookupd HTTP addresses in cluster mode, IP:PORT separated by ;
+  nsq_lookupd_http_addresses: 127.0.0.1:4161
+
+  # --- smtpd ---
+  #
+  # Launch the SMTP server (default: false)
+  smtpd_launch: true
+
+  # SMTP listeners separated by ;, each IP:PORT:HOSTNAME:ssl|nossl:CERT. IPv6 in
+  # brackets: [2001:db8::1]. [::] or 0.0.0.0 listen on all IPv4 and IPv6
+  # addresses. ssl: TLS from the start (465), nossl: STARTTLS available (25,
+  # 587). Certificate: ssl/smtp-CERT.crt and .key (required when smtpd_launch is
+  # true)
+  smtpd_dsns: 0.0.0.0:2525:cocosmail.io:nossl:cocosmail.io
+
+  # Seconds before an idle SMTP client is disconnected (RFC 5321 4.5.3.2.7: 300)
+  # (default: 300)
+  smtpd_server_timeout: 60
+
+  # Maximum size of an incoming message in bytes, 0 is unlimited (default: 0)
+  smtpd_max_databytes: 50000000
+
+  # Maximum Received headers, to prevent loops (default: 10)
+  smtpd_max_hops: 50
+
+  # Maximum RCPT TO per message, 0 is unlimited (RFC compliant) (default: 0)
+  smtpd_max_rcpt: 0
+
+  # Drop the session after this many unknown recipients, 0 never drops (RFC
+  # compliant) (default: 0)
+  smtpd_max_bad_rcpt: 0
+
+  # Maximum VRFY commands per session, 0 is unlimited (default: 0)
+  smtpd_max_vrfy: 0
+
+  # Maximum simultaneous incoming SMTP sessions (default: 20)
+  smtpd_concurrency_incoming: 20
+
+  # Hide IP and hostname in Received header for authenticated senders (default:
+  # true)
+  smtpd_hide_received_from_auth: true
+
+  # Check SPF of incoming mail and add a Received-SPF header (default: true)
+  smtpd_spf_check: true
+
+  # accept or reject for each SPF result, in order:
+  # none:neutral:pass:fail:softfail:permerror (default:
+  # accept:accept:accept:accept:accept:accept)
+  smtpd_spf_action: accept:accept:accept:accept:accept:accept
+
+  # Scan incoming mail with ClamAV (default: false)
+  smtpd_scan_clamav_enabled: false
+
+  # clamd socket, or name:ip:port (default: /var/run/clamav/clamd.ctl)
+  smtpd_scan_clamav_dsns: /var/run/clamav/clamd.ctl
+
+  # --- deliverd ---
+  #
+  # Launch delivery of queued mail (default: false)
+  deliverd_launch: true
+
+  # Local IPs for outgoing mail, & for failover or | for round robin (don't
+  # mix). 0.0.0.0 is any IPv4, :: any IPv6. Add :hostname for HELO, IPv6 in
+  # brackets: [2001:db8::1]:mail.example.com (default: 0.0.0.0&::)
+  deliverd_local_ips: '0.0.0.0&::'
+
+  # Maximum simultaneous local deliveries (default: 50)
+  deliverd_concurrency_local: 50
+
+  # Maximum simultaneous remote deliveries (default: 50)
+  deliverd_concurrency_remote: 50
+
+  # Minutes a message stays in queue before it bounces (default: 10080)
+  deliverd_queue_lifetime: 60400
+
+  # Minutes a bounce stays in queue before it's discarded (default: 10080)
+  deliverd_queue_bounces_lifetime: 10080
+
+  # Seconds to wait for a remote server reply (default: 300)
+  deliverd_remote_timeout: 300
+
+  # Accept any certificate from remote servers, many have self-signed ones
+  # (default: false)
+  deliverd_remote_tls_skipverify: true
+
+  # Send in clear text if STARTTLS fails (default: false)
+  deliverd_remote_tls_fallback: true
+
+  # Send from the host that received the message, as configured in
+  # deliverd_local_ips or me (default: true)
+  deliverd_remote_use_same_host: true
+
+  # DKIM sign outgoing mail (default: false)
+  deliverd_dkim_sign: false
+
+  # --- rfc ---
+  #
+  # Require HELO/EHLO before other commands (RFC 5321 4.1.1.1) (default: false)
+  rfc_helo_mandatory: false
+
+  # Require a resolvable hostname or an address in HELO (RFC 5321 2.3.5), many
+  # clients don't send one (default: false)
+  rfc_helo_need_fqn: false
+
+  # Reject MAIL FROM local part longer than 64 characters (RFC 5321 4.5.3.1.1)
+  # (default: false)
+  rfc_mailfrom_localpart_size: true
+
+  # --- users ---
+  #
+  # Directory of mailboxes (default: mailboxes)
+  users_home_base: mailboxes
+
+  # Default mailbox quota, e.g. 1G, 100M, 100K
+  users_mailbox_default_quota: 200M
+
+  # Local delivery: maildir (built in) or dovecot (Dovecot LDA) (default:
+  # maildir)
+  lda_type: maildir
+
+  # Path of dovecot-lda when lda_type is dovecot (default:
+  # /usr/lib/dovecot/dovecot-lda)
+  dovecot_lda: /usr/lib/dovecot/dovecot-lda
+
+  # --- pop3d ---
+  #
+  # Launch the POP3 server (default: false)
+  pop3d_launch: true
+
+  # POP3 listeners, same format as smtpd_dsns. Must be ssl, nossl only on
+  # loopback. Certificate: ssl/pop3-CERT.crt and .key (required when
+  # pop3d_launch is true)
+  pop3d_dsns: 0.0.0.0:1100:pop.cocosmail.io:ssl:pop.cocosmail.io
+
+  # Seconds before an idle POP3 client is disconnected (default: 300)
+  pop3d_server_timeout: 300
+
+  # --- rest ---
+  #
+  # Launch the REST API server (default: false)
+  rest_server_launch: false
+
+  # REST server IP, IPv6 without brackets (default: 127.0.0.1)
+  rest_server_ip: 127.0.0.1
+
+  # REST server port (default: 8080)
+  rest_server_port: 8080
+
+  # Use HTTPS, certificate ssl/web_server.crt and .key (default: false)
+  rest_server_is_tls: false
+
+  # REST HTTP auth login
+  rest_server_login: login
+
+  # REST HTTP auth password
+  rest_server_passwd: passwd
+
+# Data sections, e.g.:
+#
+# domains:
+#   - name: example.com
+#     local: true
+# users:
+#   - login: john@example.com
+#     password: change-me
+#     mailbox: true
+#     relay: true
+# aliases:
+#   - alias: sales@example.com
+#     deliver_to: [john@example.com]
+# relay_ips: [192.0.2.10]
+# routes:
+#   - destination: example.net
+#     remote_host: smtp.example.net
+#     port: 587
+# dkim:
+#   - domain: example.com
+#     selector: s1
+#     private_key: |
+#       -----BEGIN RSA PRIVATE KEY-----
+#       ...

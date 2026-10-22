@@ -91,3 +91,17 @@ func TestAddrIP(t *testing.T) {
 	assert.Equal(t, "192.0.2.1", AddrIP(strAddr("192.0.2.1:25")).String())
 	assert.Nil(t, AddrIP(strAddr("garbage")))
 }
+
+func TestSplitDsn(t *testing.T) {
+	for _, dsn := range []string{
+		"[2001:db8::1]:25:mail.example.com:nossl:cert",
+		"0.0.0.0:465:mail.example.com:ssl:cert",
+		":25:mail.example.com:nossl:cert",
+		"[fe80::1%eth0]:25:mx:nossl:mx",
+	} {
+		assert.Equal(t, dsn, SplitDsn(dsn).String(), dsn)
+	}
+	d := SplitDsn("::1:587:localhost:nossl:local")
+	assert.Equal(t, DsnFields{IP: "::1", Port: "587", Hostname: "localhost", SSL: "nossl", Cert: "local"}, d)
+	assert.Equal(t, "[::1]:587:localhost:nossl:local", d.String())
+}

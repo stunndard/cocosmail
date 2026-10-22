@@ -14,14 +14,17 @@ type diskStore struct {
 	basePath string
 }
 
+// diskStorePath returns the directory of the disk store, relative to BaseDir
+func diskStorePath(storeSource string) string {
+	if storeSource == "" {
+		storeSource = "store"
+	}
+	return path.Clean(AbsPath(storeSource))
+}
+
 // NewDiskStore returns a store with local disk as backend
 func NewDiskStore(storeSource string) (*diskStore, error) {
-	basePath := ""
-	if storeSource == "_" {
-		basePath = path.Clean(path.Join(Cfg.GetBasePath(), "store"))
-	} else {
-		basePath = path.Clean(storeSource)
-	}
+	basePath := diskStorePath(storeSource)
 	// check if path exists & is writable
 	fi, err := os.Stat(basePath)
 	if err != nil {

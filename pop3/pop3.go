@@ -10,12 +10,14 @@ import (
 	"os/signal"
 	"path"
 	"strings"
+	"sync"
 	"syscall"
+	"time"
 
 	"github.com/jinzhu/gorm"
 	"github.com/stunndard/cocosmail/core"
+	"github.com/stunndard/cocosmail/pop3/popgun"
 	"github.com/stunndard/go-maildir"
-	"github.com/stunndard/popgun"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -86,9 +88,8 @@ func (a Authorizator) Authorize(user, pass string) bool {
 	return true
 }
 
-
 // Backend is a backend interface implementation
-type Backend struct {}
+type Backend struct{}
 
 func NewBackend() *Backend {
 	return &Backend{}
@@ -332,7 +333,7 @@ func (b *Backend) Lock(user string) (inUse bool, err error) {
 		return false, fmt.Errorf("cannot get user: %s: %w", user, err)
 	}
 	// get user home path
-	mdUserHome := usr.Home
+	mdUserHome := usr.HomePath()
 	_, err = os.Stat(mdUserHome)
 	if err != nil {
 		err = os.MkdirAll(mdUserHome, 0700)
@@ -410,7 +411,7 @@ func (b *Backend) Unlock(user string) error {
 		return fmt.Errorf("cannot get user: %s: %w", user, err)
 	}
 
-	lockfile := usr.Home + "/lock"
+	lockfile := usr.HomePath() + "/lock"
 	if err := os.Remove(lockfile); err != nil {
 		return fmt.Errorf("error unlocking user: %w", err)
 	}
@@ -433,7 +434,7 @@ func (b *Backend) ClearLocks() error {
 		if !usr.HaveMailbox {
 			continue
 		}
-		lockfile := usr.Home + "/lock"
+		lockfile := usr.HomePath() + "/lock"
 		if _, err = os.Stat(lockfile); err != nil {
 			continue
 		}
@@ -447,8 +448,16 @@ func (b *Backend) ClearLocks() error {
 }
 
 // Log should implement any backend specific logging
+// Session lines are ID-REMOTE-message, like smtpd.
 func (b *Backend) Log(s string, loglevel int) {
-	core.Logger.Debug("pop3d ", s)
+	switch loglevel {
+	case popgun.LOG_INFO:
+		core.Logger.Info("pop3d ", s)
+	case popgun.LOG_ERROR:
+		core.Logger.Error("pop3d ", s)
+	default:
+		core.Logger.Debug("pop3d ", s)
+	}
 }
 
 // ClearLocks deletes stuck lock files left by a previous run.
@@ -460,6 +469,34 @@ func ClearLocks() error {
 // pop3 Server
 type Pop3d struct {
 	dsn core.Dsn
+}
+
+var (
+	servers   []*popgun.Server
+	serversMu sync.Mutex
+)
+
+// Close stops accepting POP3 connections, clients being served go on
+func Close() {
+	serversMu.Lock()
+	defer serversMu.Unlock()
+	for _, s := range servers {
+		s.Close()
+	}
+}
+
+// Wait waits up to timeout for POP3 clients being served
+func Wait(timeout time.Duration) {
+	serversMu.Lock()
+	list := servers
+	serversMu.Unlock()
+	deadline := time.Now().Add(timeout)
+	for _, s := range list {
+		if !s.Wait(time.Until(deadline)) {
+			core.Logger.Info("pop3d: clients still connected, they'll reconnect")
+			return
+		}
+	}
 }
 
 // NewPop3d returns a new SmtpServer
@@ -482,8 +519,7 @@ func (p *Pop3d) ListenAndServe() {
 	if p.dsn.Ssl {
 		cert, err := tls.LoadX509KeyPair(
 			path.Join(core.Cfg.GetBasePath(), fmt.Sprintf("ssl/pop3-%s.crt", p.dsn.CertName)),
-			path.Join(core.Cfg.GetBasePath(), fmt.Sprintf("ssl/pop3-%s.key", p.dsn.CertName,
-			)))
+			path.Join(core.Cfg.GetBasePath(), fmt.Sprintf("ssl/pop3-%s.key", p.dsn.CertName)))
 		if err != nil {
 			log.Fatalln("unable to load SSL keys for pop3.", "err:", err)
 		}
@@ -491,7 +527,7 @@ func (p *Pop3d) ListenAndServe() {
 		tlsConfig := &tls.Config{
 			Certificates:       []tls.Certificate{cert},
 			InsecureSkipVerify: true,
-			MinVersion: tls.VersionTLS12,
+			MinVersion:         tls.VersionTLS12,
 		}
 		pop3Cfg.UseTls = true
 		pop3Cfg.TlsConfig = tlsConfig
@@ -505,6 +541,9 @@ func (p *Pop3d) ListenAndServe() {
 	if err != nil {
 		log.Fatalln("unable to launch pop3 server", p.dsn.String(), "-", err)
 	}
+	serversMu.Lock()
+	servers = append(servers, server)
+	serversMu.Unlock()
 
 	core.Logger.Info("pop3d " + p.dsn.String() + " launched")
 

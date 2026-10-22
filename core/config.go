@@ -14,104 +14,109 @@ import (
 
 var c Config
 
-// Config represents cocosmail confiig
-// when default is set to _ that means that the defauly value is (type)null (eg "" for string)
+// Config holds cocosmail settings.
+// Which settings exist, their defaults and descriptions are in Settings,
+// values come from defaults, environment and the settings table (see Bootstrap).
 type Config struct {
 	sync.Mutex
-	cfg struct {
-		ClusterModeEnabled  bool   `name:"cluster_mode_enabled" default:"false"`
-		Me                  string `name:"me" default:""`
-		BasePath            string `name:"base_path" default:"_"`
-		PluginPath          string `name:"plugin_path" default:"_"`
-		TempDir             string `name:"tempdir" default:"/tmp"`
-		LogPath             string `name:"logpath" default:"stdout"`
-		DebugEnabled        bool   `name:"debug_enabled" default:"false"`
-		HideServerSignature bool   `name:"hide_server_signature" default:"false"`
-
-		DbDriver string `name:"db_driver"`
-		DbSource string `name:"db_source"`
-
-		// mail spool driver and location
-		StoreDriver string `name:"store_driver"`
-		StoreSource string `name:"store_source" default:"_"`
-
-		//NsqdEnbleLogging        bool   `name:"nsqd_eanble_logging" default:"false"`
-		NSQLookupdTcpAddresses  string `name:"nsq_lookupd_tcp_addresses" default:"_"`
-		NSQLookupdHttpAddresses string `name:"nsq_lookupd_http_addresses" default:"_"`
-
-		LaunchSmtpd               bool   `name:"smtpd_launch" default:"false"`
-		SmtpdDsns                 string `name:"smtpd_dsns" default:""`
-		SmtpdServerTimeout        int    `name:"smtpd_server_timeout" default:"300"`
-		SmtpdMaxDataBytes         uint64 `name:"smtpd_max_databytes" default:"0"`
-		SmtpdMaxHops              int    `name:"smtpd_max_hops" default:"10"`
-		SmtpdMaxRcptTo            int    `name:"smtpd_max_rcpt" default:"0"`
-		SmtpdMaxBadRcptTo         int    `name:"smtpd_max_bad_rcpt" default:"0"`
-		SmtpdMaxVrfy              int    `name:"smtpd_max_vrfy" default:"0"`
-		SmtpdClamavEnabled        bool   `name:"smtpd_scan_clamav_enabled" default:"false"`
-		SmtpdClamavDsns           string `name:"smtpd_scan_clamav_dsns" default:""`
-		SmtpdConcurrencyIncoming  int    `name:"smtpd_concurrency_incoming" default:"20"`
-		SmtpdHideReceivedFromAuth bool   `name:"smtpd_hide_received_from_auth" default:"true"`
-		SmtpdSPFCheck							bool	 `name:"smtpd_spf_check" default:"true"`
-		SmtpdSPFAction						string `name:"smtpd_spf_action" default:"accept:accept:accept:accept:accept:accept"`
-
-		LaunchDeliverd               bool   `name:"deliverd_launch" default:"false"`
-		LocalIps                     string `name:"deliverd_local_ips" default:"_"`
-		DeliverdConcurrencyLocal     int    `name:"deliverd_concurrency_local" default:"50"`
-		DeliverdConcurrencyRemote    int    `name:"deliverd_concurrency_remote" default:"50"`
-		DeliverdQueueLifetime        int    `name:"deliverd_queue_lifetime" default:"10080"`
-		DeliverdQueueBouncesLifetime int    `name:"deliverd_queue_bounces_lifetime" default:"10080"`
-		DeliverdRemoteTimeout        int    `name:"deliverd_remote_timeout" default:"300"`
-		DeliverdRemoteTLSSkipVerify  bool   `name:"deliverd_remote_tls_skipverify" default:"false"`
-		DeliverdRemoteTLSFallback    bool   `name:"deliverd_remote_tls_fallback" default:"false"`
-		DeliverdRemoteUseSameHost    bool   `name:"deliverd_remote_use_same_host" default:"true"`
-		DeliverdDkimSign             bool   `name:"deliverd_dkim_sign" default:"false"`
-
-		// RFC compliance
-		// RFC 5321 2.3.5: the domain name givent MUST be either a primary hostname
-		// (resovable) or an address
-		RFCHeloNeedsFqnOrAddress bool `name:"rfc_helo_need_fqn" default:"false"`
-		// RFC 5321 4.1.1.1 a client SHOULD start an SMTP session with the EHLO
-		// command
-		RFCHeloMandatory bool `name:"rfc_helo_mandatory" default:"false"`
-
-		RFCMailFromLocalpartSize bool `name:"rfc_mailfrom_localpart_size" default:"false"`
-
-		// microservices
-		MsUriSmtpdNewClient        string `name:"ms_smtpd_newclient" default:"_"`
-		MSUriSmtpdHelo             string `name:"ms_smtpd_helo" default:"_"`
-		MSUriSmtpdMailFrom         string `name:"ms_smtpd_mail_from" default:"_"`
-		MsUriSmtpdRcptTo           string `name:"ms_smtpd_rcptto" default:"_"`
-		MsUriSmtpdData             string `name:"ms_smtpd_data" default:"_"`
-		MsUriSmtpdBeforeQueueing   string `name:"ms_smtpd_before_queueing" default:"_"`
-		MsUriSmtpdSendTelemetry    string `name:"ms_smtpd_send_telemetry" default:"_"`
-		MsUriDeliverdGetRoutes     string `name:"ms_deliverd_get_routes" default:"_"`
-		MsUriDeliverdSendTelemetry string `name:"ms_deliverd_send_telemetry" default:"_"`
-
-		// Openstack
-		OpenstackEnable bool `name:"openstack_enable" default:"false"`
-
-		LaunchRestServer bool   `name:"rest_server_launch" default:"false"`
-		RestServerIp     string `name:"rest_server_ip" default:"127.0.0.1"`
-		RestServerPort   int    `name:"rest_server_port" default:"8080"`
-		RestServerIsTls  bool   `name:"rest_server_is_tls" default:"false"`
-		RestServerLogin  string `name:"rest_server_login" default:""`
-		RestServerPasswd string `name:"rest_server_passwd" default:""`
-
-		UsersHomeBase           string `name:"users_home_base" default:"/home"`
-		UserMailboxDefaultQuota string `name:"users_mailbox_default_quota" default:""`
-
-		DovecotLda string `name:"dovecot_lda" default:""`
-		LdaType    string `name:"lda_type" default:"internal"`
-
-		LaunchPop3         bool   `name:"pop3d_launch" default:"false"`
-		Pop3dDsns          string `name:"pop3d_dsns" default:""`
-		Pop3dServerTimeout int    `name:"pop3d_server_timeout" default:"300"`
-	}
+	cfg configValues
+	// raw values by setting key, as loaded
+	values map[string]string
 }
 
-// InitConfig initialise config
+// configValues are the parsed settings, field tag "name" is the setting key
+type configValues struct {
+	ClusterModeEnabled  bool   `name:"cluster_mode_enabled"`
+	Me                  string `name:"me"`
+	PluginPath          string `name:"plugin_path"`
+	TempDir             string `name:"tempdir"`
+	LogPath             string `name:"logpath"`
+	DebugEnabled        bool   `name:"debug_enabled"`
+	HideServerSignature bool   `name:"hide_server_signature"`
+
+	DbDriver string `name:"db_driver"`
+	DbSource string `name:"db_source"`
+
+	// mail spool driver and location
+	StoreDriver string `name:"store_driver"`
+	StoreSource string `name:"store_source"`
+
+	//NsqdEnbleLogging        bool   `name:"nsqd_eanble_logging"`
+	NSQLookupdTcpAddresses  string `name:"nsq_lookupd_tcp_addresses"`
+	NSQLookupdHttpAddresses string `name:"nsq_lookupd_http_addresses"`
+
+	LaunchSmtpd               bool   `name:"smtpd_launch"`
+	SmtpdDsns                 string `name:"smtpd_dsns"`
+	SmtpdServerTimeout        int    `name:"smtpd_server_timeout"`
+	SmtpdMaxDataBytes         uint64 `name:"smtpd_max_databytes"`
+	SmtpdMaxHops              int    `name:"smtpd_max_hops"`
+	SmtpdMaxRcptTo            int    `name:"smtpd_max_rcpt"`
+	SmtpdMaxBadRcptTo         int    `name:"smtpd_max_bad_rcpt"`
+	SmtpdMaxVrfy              int    `name:"smtpd_max_vrfy"`
+	SmtpdClamavEnabled        bool   `name:"smtpd_scan_clamav_enabled"`
+	SmtpdClamavDsns           string `name:"smtpd_scan_clamav_dsns"`
+	SmtpdConcurrencyIncoming  int    `name:"smtpd_concurrency_incoming"`
+	SmtpdHideReceivedFromAuth bool   `name:"smtpd_hide_received_from_auth"`
+	SmtpdSPFCheck             bool   `name:"smtpd_spf_check"`
+	SmtpdSPFAction            string `name:"smtpd_spf_action"`
+
+	LaunchDeliverd               bool   `name:"deliverd_launch"`
+	LocalIps                     string `name:"deliverd_local_ips"`
+	DeliverdConcurrencyLocal     int    `name:"deliverd_concurrency_local"`
+	DeliverdConcurrencyRemote    int    `name:"deliverd_concurrency_remote"`
+	DeliverdQueueLifetime        int    `name:"deliverd_queue_lifetime"`
+	DeliverdQueueBouncesLifetime int    `name:"deliverd_queue_bounces_lifetime"`
+	DeliverdRemoteTimeout        int    `name:"deliverd_remote_timeout"`
+	DeliverdRemoteTLSSkipVerify  bool   `name:"deliverd_remote_tls_skipverify"`
+	DeliverdRemoteTLSFallback    bool   `name:"deliverd_remote_tls_fallback"`
+	DeliverdRemoteUseSameHost    bool   `name:"deliverd_remote_use_same_host"`
+	DeliverdDkimSign             bool   `name:"deliverd_dkim_sign"`
+
+	// RFC compliance
+	// RFC 5321 2.3.5: the domain name givent MUST be either a primary hostname
+	// (resovable) or an address
+	RFCHeloNeedsFqnOrAddress bool `name:"rfc_helo_need_fqn"`
+	// RFC 5321 4.1.1.1 a client SHOULD start an SMTP session with the EHLO
+	// command
+	RFCHeloMandatory bool `name:"rfc_helo_mandatory"`
+
+	RFCMailFromLocalpartSize bool `name:"rfc_mailfrom_localpart_size"`
+
+	LaunchRestServer bool   `name:"rest_server_launch"`
+	RestServerIp     string `name:"rest_server_ip"`
+	RestServerPort   int    `name:"rest_server_port"`
+	RestServerIsTls  bool   `name:"rest_server_is_tls"`
+	RestServerLogin  string `name:"rest_server_login"`
+	RestServerPasswd string `name:"rest_server_passwd"`
+
+	UsersHomeBase           string `name:"users_home_base"`
+	UserMailboxDefaultQuota string `name:"users_mailbox_default_quota"`
+
+	DovecotLda string `name:"dovecot_lda"`
+	LdaType    string `name:"lda_type"`
+
+	LaunchPop3         bool   `name:"pop3d_launch"`
+	Pop3dDsns          string `name:"pop3d_dsns"`
+	Pop3dServerTimeout int    `name:"pop3d_server_timeout"`
+}
+
+// configFields maps setting key to configValues field index
+var configFields = func() map[string]int {
+	m := make(map[string]int)
+	t := reflect.TypeOf(configValues{})
+	for i := 0; i < t.NumField(); i++ {
+		m[t.Field(i).Tag.Get("name")] = i
+	}
+	return m
+}()
+
+// InitConfig initialise config from defaults, config file (file mode) and environment
 func InitConfig(prefix string) (*Config, error) {
-	if err := c.loadFromEnv(prefix); err != nil {
+	values, _, _, err := ExternalSettings()
+	if err != nil {
+		return nil, err
+	}
+	if err := c.Load(values); err != nil {
 		return nil, err
 	}
 	c.stayUpToDate()
@@ -129,76 +134,94 @@ func (c *Config) stayUpToDate() {
 	}()
 }
 
-// func LoadFromEnv(prefix string, container interface{}) error {
-func (c *Config) loadFromEnv(prefix string) error {
-	// container should be a struct
-	elem := reflect.ValueOf(&c.cfg).Elem()
+// Load sets config from setting defaults, overridden by values (setting key -> raw value)
+func (c *Config) Load(values map[string]string) error {
+	merged := SettingsDefaults()
+	for k, v := range values {
+		merged[k] = v
+	}
+	var cfg configValues
+	elem := reflect.ValueOf(&cfg).Elem()
+	for key, raw := range merged {
+		if err := ValidateSetting(key, raw); err != nil {
+			return err
+		}
+		if err := setConfigField(elem.Field(configFields[key]), raw); err != nil {
+			return errors.New(SettingEnvName(key) + ": " + err.Error())
+		}
+	}
+	c.Lock()
+	defer c.Unlock()
+	c.cfg = cfg
+	c.values = merged
+	return nil
+}
 
-	typ := elem.Type()
-	for i := 0; i < typ.NumField(); i++ {
-		field := typ.Field(i)
-		val := elem.Field(i)
-		if !val.CanSet() {
-			fmt.Println("not settable")
-			continue
-		}
-
-		// envName
-		envName := field.Tag.Get("name")
-		if envName == "" {
-			envName = field.Name
-		}
-		if prefix != "" {
-			envName = prefix + "_" + envName
-		}
-		envName = strings.ToUpper(envName)
-
-		// default value (if not default tag -> requiered)
-		defautVal := field.Tag.Get("default")
-		requiered := defautVal == ""
-
-		rawValue := os.Getenv(envName)
-		// missing
-		if requiered && rawValue == "" {
-			return errors.New("unable to load config from env, " + envName + " variable is missing.")
-		}
-		if rawValue == "" {
-			if defautVal == "" {
-				continue
-			}
-			rawValue = defautVal
-		}
-		switch val.Kind() {
-		case reflect.String:
-			val.SetString(rawValue)
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			intValue, err := strconv.ParseInt(rawValue, 0, field.Type.Bits())
-			if err != nil {
-				return errors.New("Unable to convert string " + rawValue + " to " + field.Type.String() + " - " + err.Error())
-			}
-			val.SetInt(intValue)
-		case reflect.Uint32, reflect.Uint64:
-			intValue, err := strconv.ParseUint(rawValue, 0, field.Type.Bits())
-			if err != nil {
-				return errors.New("Unable to convert string " + rawValue + " to " + field.Type.String() + " - " + err.Error())
-			}
-			val.SetUint(intValue)
-		case reflect.Bool:
-			boolValue, err := strconv.ParseBool(rawValue)
-			if err != nil {
-				return errors.New("Unable to convert string " + rawValue + " to " + field.Type.String() + " - " + err.Error())
-			}
-			val.SetBool(boolValue)
-		case reflect.Float32:
-			floatValue, err := strconv.ParseFloat(rawValue, field.Type.Bits())
-			if err != nil {
-				return errors.New("Unable to convert string " + rawValue + " to " + field.Type.String() + " - " + err.Error())
-			}
-			val.SetFloat(floatValue)
-		}
-
+// CheckRequired returns an error if required settings have no value
+func (c *Config) CheckRequired() error {
+	if missing := c.MissingSettings(); len(missing) > 0 {
+		return errors.New("missing settings: " + strings.Join(missing, ", "))
 	}
 	return nil
+}
+
+// MissingSettings returns the required settings without value
+func (c *Config) MissingSettings() []string {
+	c.Lock()
+	defer c.Unlock()
+	return MissingSettings(c.values)
+}
+
+// Values returns a copy of the raw values by setting key
+func (c *Config) Values() map[string]string {
+	c.Lock()
+	defer c.Unlock()
+	values := make(map[string]string, len(c.values))
+	for k, v := range c.values {
+		values[k] = v
+	}
+	return values
+}
+
+// setConfigField parses raw into field according to its type
+func setConfigField(field reflect.Value, raw string) error {
+	switch field.Kind() {
+	case reflect.String:
+		field.SetString(raw)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		v, err := strconv.ParseInt(raw, 0, field.Type().Bits())
+		if err != nil {
+			return fmt.Errorf("%q is not a valid number", raw)
+		}
+		field.SetInt(v)
+	case reflect.Uint, reflect.Uint32, reflect.Uint64:
+		v, err := strconv.ParseUint(raw, 0, field.Type().Bits())
+		if err != nil {
+			return fmt.Errorf("%q is not a valid positive number", raw)
+		}
+		field.SetUint(v)
+	case reflect.Bool:
+		v, err := strconv.ParseBool(raw)
+		if err != nil {
+			return fmt.Errorf("%q is not true or false", raw)
+		}
+		field.SetBool(v)
+	default:
+		return errors.New("unsupported type " + field.Type().String())
+	}
+	return nil
+}
+
+// SettingsFromEnv returns settings set in environment, as PREFIX_KEY.
+// Empty variables are ignored.
+func SettingsFromEnv(prefix string) map[string]string {
+	values := make(map[string]string)
+	for _, s := range Settings {
+		if v := os.Getenv(strings.ToUpper(prefix + "_" + s.Key)); v != "" {
+			values[s.Key] = v
+		}
+	}
+	return values
 }
 
 // Getters
@@ -219,33 +242,16 @@ func (c *Config) GetMe() string {
 	return c.cfg.Me
 }
 
-// GetBasePath return base directory
+// GetBasePath return base directory: where the binary is, see BaseDir
 func (c *Config) GetBasePath() string {
-	c.Lock()
-	defer c.Unlock()
-	p := ""
-	if c.cfg.BasePath == "_" {
-		// same dir as executable
-		p, _ = filepath.Abs(filepath.Dir(os.Args[0]))
-	} else {
-		p = c.cfg.BasePath
-	}
-	return p
+	return BaseDir()
 }
 
 // GetPluginPath return plugin directory
 func (c *Config) GetPluginPath() string {
 	c.Lock()
 	defer c.Unlock()
-	p := ""
-	if c.cfg.PluginPath == "_" {
-		// same dir as executable
-		p, _ = filepath.Abs(filepath.Dir(os.Args[0]))
-		p = filepath.Join(p, "plugins")
-	} else {
-		p = c.cfg.PluginPath
-	}
-	return p
+	return AbsPath(c.cfg.PluginPath)
 }
 
 // GetDebugEnabled returns debugEnabled
@@ -266,14 +272,25 @@ func (c *Config) GetHideServerSignature() bool {
 func (c *Config) GetTempDir() string {
 	c.Lock()
 	defer c.Unlock()
-	return c.cfg.TempDir
+	return AbsPath(c.cfg.TempDir)
 }
 
-// GetLogPath return log path
+// LogDir is the directory of the log file, next to the binary
+const LogDir = "log"
+
+// GetLogPath returns where to log: "stdout", "discard" or the log file,
+// log/NAME next to the binary. Only the last part of a path is used: before,
+// the setting was a directory.
 func (c *Config) GetLogPath() string {
 	c.Lock()
 	defer c.Unlock()
-	return c.cfg.LogPath
+	switch c.cfg.LogPath {
+	case "", "stdout":
+		return "stdout"
+	case "discard":
+		return "discard"
+	}
+	return filepath.Join(BaseDir(), LogDir, filepath.Base(c.cfg.LogPath))
 }
 
 // GetDbDriver returns database driver
@@ -284,10 +301,25 @@ func (c *Config) GetDbDriver() string {
 }
 
 // GetDbSource return database source
+// sqlite file is relative to BaseDir, default is db/cocosmail.db
 func (c *Config) GetDbSource() string {
 	c.Lock()
 	defer c.Unlock()
-	return c.cfg.DbSource
+	return dbSource(c.cfg.DbDriver, c.cfg.DbSource)
+}
+
+// defaultSqliteSource is the database in db/ next to the binary
+const defaultSqliteSource = "db/cocosmail.db?_busy_timeout=60000"
+
+// dbSource returns the database source to open
+func dbSource(driver, source string) string {
+	if driver != "sqlite3" {
+		return source
+	}
+	if source == "" {
+		source = defaultSqliteSource
+	}
+	return sqliteAbsSource(source)
 }
 
 // GetStoreDriver return source driver
@@ -445,7 +477,7 @@ func (c *Config) getRFCMailFromLocalpartSize() bool {
 
 // GetNSQLookupdTcpAddresses returns lookupd tcp adresses
 func (c *Config) GetNSQLookupdTcpAddresses() (addr []string) {
-	if c.cfg.NSQLookupdTcpAddresses == "_" {
+	if c.cfg.NSQLookupdTcpAddresses == "" {
 		return
 	}
 	c.Lock()
@@ -459,7 +491,7 @@ func (c *Config) GetNSQLookupdTcpAddresses() (addr []string) {
 
 // GetNSQLookupdHttpAddresses returns lookupd HTTP adresses
 func (c *Config) GetNSQLookupdHttpAddresses() (addr []string) {
-	if c.cfg.NSQLookupdHttpAddresses == "_" {
+	if c.cfg.NSQLookupdHttpAddresses == "" {
 		return
 	}
 	c.Lock()
@@ -469,63 +501,6 @@ func (c *Config) GetNSQLookupdHttpAddresses() (addr []string) {
 		addr = append(addr, a)
 	}
 	return
-}
-
-// openstack
-
-// GetOpenstackEnable returns if openstack support is enabled
-func (c *Config) GetOpenstackEnable() bool {
-	c.Lock()
-	defer c.Unlock()
-	return c.cfg.OpenstackEnable
-}
-
-// microservices
-
-// GetMicroservicesUri returns defined URI for a hookId
-func (c *Config) GetMicroservicesUri(hookId string) []string {
-	c.Lock()
-	defer c.Unlock()
-	switch hookId {
-	case "smtpdnewclient":
-		if c.cfg.MsUriSmtpdNewClient != "_" {
-			return strings.Split(c.cfg.MsUriSmtpdNewClient, ";")
-		}
-	case "smtpdhelo":
-		if c.cfg.MSUriSmtpdHelo != "_" {
-			return strings.Split(c.cfg.MSUriSmtpdHelo, ";")
-		}
-	case "smtpdmailfrom":
-		if c.cfg.MSUriSmtpdMailFrom != "_" {
-			return strings.Split(c.cfg.MSUriSmtpdMailFrom, ";")
-		}
-	case "smtpdrcptto":
-		if c.cfg.MsUriSmtpdRcptTo != "_" {
-			return strings.Split(c.cfg.MsUriSmtpdRcptTo, ";")
-		}
-	case "smtpddata":
-		if c.cfg.MsUriSmtpdData != "_" {
-			return strings.Split(c.cfg.MsUriSmtpdData, ";")
-		}
-	case "smtpdbeforequeueing":
-		if c.cfg.MsUriSmtpdBeforeQueueing != "_" {
-			return strings.Split(c.cfg.MsUriSmtpdBeforeQueueing, ";")
-		}
-	case "smtpdsendtelemetry":
-		if c.cfg.MsUriSmtpdSendTelemetry != "_" {
-			return strings.Split(c.cfg.MsUriSmtpdSendTelemetry, ";")
-		}
-
-	case "deliverdgetroutes":
-		if c.cfg.MsUriDeliverdGetRoutes != "_" {
-			return strings.Split(c.cfg.MsUriDeliverdGetRoutes, ";")
-		}
-	case "deliverdsendtelemetry":
-		if c.cfg.MsUriDeliverdSendTelemetry != "_" {
-			return strings.Split(c.cfg.MsUriDeliverdSendTelemetry, ";")
-		}
-	}
-	return []string{}
 }
 
 // REST server
@@ -695,7 +670,7 @@ func (c *Config) GetDeliverdDkimSign() bool {
 func (c *Config) GetUsersHomeBase() string {
 	c.Lock()
 	defer c.Unlock()
-	return c.cfg.UsersHomeBase
+	return AbsPath(c.cfg.UsersHomeBase)
 }
 
 // GetUserMailboxDefaultQuota return the default mailbox quota

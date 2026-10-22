@@ -13,21 +13,23 @@ var alias = cgCli.Command{
 	Subcommands: []cgCli.Command{
 		// users
 		{
-			Name:        "add",
-			Usage:       "Add an alias",
-			Description: "cocosmail alias add [--pipe COMMAND] [--deliver-to REAL_LOCAL_USER] ALIAS ",
+			Name:  "add",
+			Usage: "Add an alias",
+			Description: "cocosmail alias add [--pipe COMMAND] [--deliver-to ADDRESSES] [--minilist] ALIAS\n" +
+				"   ALIAS is an address (sales@example.com), its domain is added as local if needed,\n" +
+				"   or a domain (example.org) delivering to the same addresses of --deliver-to DOMAIN.",
 			Flags: []cgCli.Flag{
 				cgCli.StringFlag{
 					Name:  "pipe, p",
-					Usage: "mail is piped to command. (eg cat mail | /path/to/cmd)",
+					Usage: "mail is piped to this command, it must exist on this server",
 				},
 				cgCli.StringFlag{
 					Name:  "deliver-to, d",
-					Usage: "in --deliver-to user@local_domain1, mail will be deliverer to local1@domain",
+					Usage: "addresses separated by spaces, here or elsewhere; for a domain alias, a local domain",
 				},
 				cgCli.BoolFlag{
 					Name:  "minilist, m",
-					Usage: "if set, enveloppe mail from is rewritted to alias@domain",
+					Usage: "the alias becomes the sender (envelope MAIL FROM), bounces come back to it",
 				},
 			},
 			Action: func(c *cgCli.Context) {
@@ -66,7 +68,9 @@ var alias = cgCli.Command{
 							println("\tPipe: " + alias.Pipe)
 						}
 						for _, d := range strings.Split(alias.DeliverTo, ";") {
-							println("\t-> " + d)
+							if d != "" {
+								println("\t-> " + d)
+							}
 						}
 						println(" ")
 					}

@@ -7,7 +7,8 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -21,7 +22,7 @@ import (
 
 const (
 	// CocosmailVersion version of cocosmail
-	CocosmailVersion = "0.2.0"
+	CocosmailVersion = "0.3.0"
 )
 
 const (
@@ -44,94 +45,57 @@ var (
 	Store                            Storer
 )
 
-// Bootstrap DB, config,...
+// Bootstrap loads config and opens logger, DB and store.
+// It's all the CLI needs; the server needs more, see BootstrapServer.
+func Bootstrap() error {
+	return bootstrap(false)
+}
+
+// BootstrapServer is Bootstrap for the server: it also applies the config
+// source (file mode or database mode) before settings are loaded from DB
+func BootstrapServer() error {
+	return bootstrap(true)
+}
+
 // TODO check validity of each element
-func Bootstrap() (err error) {
-	// Load config
+func bootstrap(server bool) (err error) {
+	// until config is loaded
+	Logger = logrus.New()
+
+	// Load config from environment, it tells where the DB is
 	Cfg, err = InitConfig("cocosmail")
 	if err != nil {
 		return
 	}
 
-	// linit logger
-	var out io.Writer
-
-	logPath := Cfg.GetLogPath()
-	Logger = logrus.New()
-	//customFormatter := new(logrus.TextFormatter)
-	//customFormatter := new(FileFormatter)
-	if logPath == "stdout" {
-		out = os.Stdout
-		f := new(logrus.TextFormatter)
-		f.TimestampFormat = time.RFC3339Nano
-		f.FullTimestamp = true
-		Logger.Formatter = f
-
-	} else if logPath == "discard" {
-		out = ioutil.Discard
-		f := new(logrus.TextFormatter)
-		f.TimestampFormat = time.RFC3339Nano
-		f.FullTimestamp = true
-		Logger.Formatter = f
-	} else {
-		file := path.Join(logPath, "current.log")
-		out, err = os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-		if err != nil {
-			return
-		}
-		f := new(FileFormatter)
-		f.TimestampFormat = time.RFC3339Nano
-		f.FullTimestamp = true
-		Logger.Formatter = f
-	}
-
-	if Cfg.GetDebugEnabled() {
-		Logger.Level = logrus.DebugLevel
-	} else {
-		Logger.Level = logrus.InfoLevel
-	}
-	Logger.Out = out
-	Logger.Debug("Logger initialized")
-
-	// Init DB
-	DB, err = gorm.Open(Cfg.GetDbDriver(), Cfg.GetDbSource())
-	if err != nil {
+	if err = openDB(Cfg.GetDbDriver(), Cfg.GetDbSource()); err != nil {
 		return
+	}
+
+	if server {
+		if err = applyConfigSource(DB); err != nil {
+			return err
+		}
+	}
+	if err = loadDBSettings(DB); err != nil {
+		return err
+	}
+	if err = initLogger(); err != nil {
+		return err
 	}
 	DB.SetLogger(Logger)
 	DB.LogMode(Cfg.GetDebugEnabled())
 
-	// ping DB
-	if DB.DB().Ping() != nil {
-		return errors.New("I could not access to database " + Cfg.GetDbDriver() + " " + Cfg.GetDbSource())
+	if os.Getenv("COCOSMAIL_BASE_PATH") != "" {
+		Logger.Warn("COCOSMAIL_BASE_PATH is not used anymore, relative paths are relative to " + BaseDir())
 	}
-
-	// TODO remove from bootstrap
-	// init NSQ MailQueueProducer (Nmqp)
-	if Cfg.GetLaunchSmtpd() {
-		err = initMailQueueProducer()
-		if err != nil {
-			return err
-		}
-	}
-
-	/*
-		// openstack
-		if Cfg.GetOpenstackEnable() {
-			if !context.Keyring.IsPopulate() {
-				return errors.New("No credentials found from ENV. See http://docs.openstack.org/cli-reference/content/cli_openrc.html")
-			}
-			// Do auth
-			err = identity.DoAuth()
-			if err != nil {
-				return err
-			}
-			// auto update Token
-			identity.AutoUpdate(30, new(log.Logger))
-		}
-	*/
 
 	// init store
+	if Cfg.GetStoreDriver() == "disk" {
+		if err = os.MkdirAll(diskStorePath(Cfg.GetStoreSource()), 0700); err != nil {
+			return
+		}
+	}
 	Store, err = NewStore(Cfg.GetStoreDriver(), Cfg.GetStoreSource())
 	if err != nil {
 		return err
@@ -140,6 +104,126 @@ func Bootstrap() (err error) {
 	//execCocosMailPlugins("postinit")
 
 	return
+}
+
+// loadDBSettings loads settings stored in DB, they override config file and
+// environment
+func loadDBSettings(db *gorm.DB) error {
+	values, inDB, err := CurrentSettings(db)
+	if err != nil {
+		return err
+	}
+	if Cfg == nil {
+		Cfg = &Config{}
+	}
+	if inDB {
+		if err = Cfg.Load(values); err != nil {
+			return errors.New("settings in database: " + err.Error())
+		}
+	}
+	return nil
+}
+
+// ApplyConfigSource imports the config file, like at server start, and
+// loads settings again. For the first start, once the database is created.
+func ApplyConfigSource() error {
+	if err := applyConfigSource(DB); err != nil {
+		return err
+	}
+	return loadDBSettings(DB)
+}
+
+// OpenDB opens the database from COCOSMAIL_DB_DRIVER and COCOSMAIL_DB_SOURCE only,
+// in environment or config file.
+// Other settings are not loaded: config commands must work even when they're
+// missing or invalid, to fix them.
+func OpenDB() error {
+	Logger = logrus.New()
+	values, _, _, err := ExternalSettings()
+	if err != nil {
+		return err
+	}
+	driver := values["db_driver"]
+	if driver == "" {
+		driver = "sqlite3"
+	}
+	if err := ValidateSetting("db_driver", driver); err != nil {
+		return err
+	}
+	return openDB(driver, dbSource(driver, values["db_source"]))
+}
+
+// openDB opens and pings DB
+func openDB(driver, source string) (err error) {
+	if driver != "sqlite3" && (source == "" || source == defaultSqliteSource) {
+		return errors.New("COCOSMAIL_DB_SOURCE is needed for database driver " + driver)
+	}
+	// sqlite doesn't create missing directories
+	if driver == "sqlite3" {
+		dbFile := strings.SplitN(source, "?", 2)[0]
+		if !strings.HasPrefix(dbFile, "file:") && !strings.HasPrefix(dbFile, ":memory:") {
+			if err = os.MkdirAll(filepath.Dir(dbFile), 0700); err != nil {
+				return
+			}
+		}
+	}
+	DB, err = gorm.Open(driver, source)
+	if err != nil {
+		return
+	}
+	if DB.DB().Ping() != nil {
+		return errors.New("I could not access to database " + driver + " " + source)
+	}
+	return nil
+}
+
+// initLogger sets Logger from config
+func initLogger() (err error) {
+	var out io.Writer
+
+	logPath := Cfg.GetLogPath()
+	logger := logrus.New()
+	//customFormatter := new(logrus.TextFormatter)
+	//customFormatter := new(FileFormatter)
+	if logPath == "stdout" {
+		out = os.Stdout
+		f := new(logrus.TextFormatter)
+		f.TimestampFormat = time.RFC3339Nano
+		f.FullTimestamp = true
+		logger.Formatter = f
+
+	} else if logPath == "discard" {
+		out = ioutil.Discard
+		f := new(logrus.TextFormatter)
+		f.TimestampFormat = time.RFC3339Nano
+		f.FullTimestamp = true
+		logger.Formatter = f
+	} else {
+		if err = os.MkdirAll(filepath.Dir(logPath), 0700); err != nil {
+			return err
+		}
+		out, err = os.OpenFile(logPath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
+		if err != nil {
+			return err
+		}
+		f := new(FileFormatter)
+		f.TimestampFormat = time.RFC3339Nano
+		f.FullTimestamp = true
+		logger.Formatter = f
+	}
+
+	if Cfg.GetDebugEnabled() {
+		logger.Level = logrus.DebugLevel
+	} else {
+		logger.Level = logrus.InfoLevel
+	}
+	logger.Out = out
+	Logger = logger
+	Logger.Debug("Logger initialized")
+	if v := Cfg.Values()["logpath"]; strings.ContainsAny(v, `/\`) {
+		Logger.Warn(SettingEnvName("logpath") + " is a file name now, not a directory: logging to " + logPath)
+	}
+	return nil
 }
 
 // InitBolt init bolt
@@ -159,8 +243,8 @@ func InitBolt() error {
 	})
 }
 
-// initMailQueueProducer init producer for queue
-func initMailQueueProducer() (err error) {
+// InitMailQueueProducer init producer for queue, used by smtpd
+func InitMailQueueProducer() (err error) {
 	nsqCfg := nsq.NewConfig()
 	nsqCfg.UserAgent = "cocosmail.queue"
 	NsqQueueProducer, err = nsq.NewProducer("127.0.0.1:4150", nsqCfg)

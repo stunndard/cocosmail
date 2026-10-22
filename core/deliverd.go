@@ -7,7 +7,9 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/nsqio/go-nsq"
 )
@@ -36,6 +38,26 @@ func RequeueAll() {
 }
 
 // LaunchDeliverd launch deliverd
+// deliverdConsumer takes messages to deliver from the queue
+var deliverdConsumer *nsq.Consumer
+
+// StopDeliverd stops taking messages from the queue, and waits up to timeout
+// for the deliveries in progress
+func StopDeliverd(timeout time.Duration) {
+	if deliverdConsumer == nil {
+		return
+	}
+	deliverdConsumer.Stop()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if atomic.LoadInt32(&DeliverdConcurrencyLocalCount) == 0 && atomic.LoadInt32(&DeliverdConcurrencyRemoteCount) == 0 {
+			return
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	Logger.Info("deliverd: deliveries still in progress, they'll be retried")
+}
+
 func LaunchDeliverd() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -58,6 +80,7 @@ func LaunchDeliverd() {
 	} else {
 		consumer.SetLogger(NewNSQLogger(), nsq.LogLevelError)
 	}
+	deliverdConsumer = consumer
 	// Bind handler
 	consumer.AddHandler(&deliveryHandler{})
 

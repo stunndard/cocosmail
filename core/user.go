@@ -4,10 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"net/mail"
+	"path/filepath"
 	"strings"
 
 	"github.com/jinzhu/gorm"
-	"github.com/tredoe/osutil/user/crypt/sha512_crypt"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -22,7 +22,47 @@ type User struct {
 	HaveMailbox  bool   `sql:"default:false"`
 	IsCatchall   bool   `sql:"default:false"`
 	MailboxQuota string `sql:"null"`
-	Home         string `sql:"null"` // used by dovecot to store mailbox
+	// Home is the mailbox directory, relative to COCOSMAIL_USERS_HOME_BASE
+	// so the install can be moved. It's absolute with dovecot LDA, because
+	// dovecot reads it from the DB. Use HomePath() to get the full path.
+	Home string `sql:"null"`
+}
+
+// HomePath returns the absolute path of the user's mailbox directory
+func (u *User) HomePath() string {
+	if filepath.IsAbs(u.Home) {
+		return u.Home
+	}
+	return filepath.Join(Cfg.GetUsersHomeBase(), u.Home)
+}
+
+// userHome returns the home to store in DB for login user@domain
+func userHome(user, domain string) string {
+	// home = d/domain/u/user
+	home := filepath.Join(string(domain[0]), domain, string(user[0]), user)
+	if Cfg.GetDovecotSupportEnabled() {
+		return filepath.Join(Cfg.GetUsersHomeBase(), home)
+	}
+	return home
+}
+
+// RelativizeUserHomes makes homes under COCOSMAIL_USERS_HOME_BASE relative to it,
+// for users created before homes were relative. Not with dovecot LDA.
+func RelativizeUserHomes() error {
+	if Cfg.GetDovecotSupportEnabled() {
+		return nil
+	}
+	base := Cfg.GetUsersHomeBase() + string(filepath.Separator)
+	var users []User
+	if err := DB.Where("home LIKE ?", base+"%").Find(&users).Error; err != nil {
+		return err
+	}
+	for _, u := range users {
+		if err := DB.Model(&u).Update("home", strings.TrimPrefix(u.Home, base)).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // UserAdd add an user
@@ -97,8 +137,7 @@ func UserAdd(login, passwd, mbQuota string, haveMailbox, authRelay, isCatchall b
 		} else if rcpthost.IsAlias {
 			return errors.New("rcpthost " + t[1] + " is an domain alias. You can't add user for this kind of domain")
 		}
-		// home = base/d/domain/u/user
-		user.Home = Cfg.GetUsersHomeBase() + "/" + string(t[1][0]) + "/" + t[1] + "/" + string(t[0][0]) + "/" + t[0]
+		user.Home = userHome(t[0], t[1])
 
 		// catchall
 		if isCatchall {
@@ -117,23 +156,8 @@ func UserAdd(login, passwd, mbQuota string, haveMailbox, authRelay, isCatchall b
 		}
 	}
 
-	// hash passwd
-	hashed, err := bcrypt.GenerateFromPassword([]byte(passwd), 10)
-	if err != nil {
-		return err
-	}
-	user.Passwd = string(hashed)
-
-	// sha512 for dovecot compatibility
-	// {SHA512-CRYPT}$6$iW6KmxlZL56A1raN$4DjgXTUzFZlGQgq61YnBMF2AYWKdY5ZanOUWTDBhuvBYVzkdNjqrmpYnLlQ3M0kU1joUH0Bb2aJcPhUF0xlSq/
-	salt, err := NewUUID()
-	if err != nil {
-		return err
-	}
-	salt = "$6$" + salt[:16]
-	c := sha512_crypt.New()
-	user.DovePasswd, err = c.Generate([]byte(passwd), []byte(salt))
-	if err != nil {
+	var err error
+	if user.Passwd, user.DovePasswd, err = HashPassword(passwd); err != nil {
 		return err
 	}
 	return DB.Save(user).Error
@@ -218,24 +242,9 @@ func UserChangePassword(login, password string) error {
 
 // ChangePasswd is used to change user password
 func (u *User) ChangePasswd(passwd string) error {
-	if len(passwd) < 6 {
-		return errors.New("password must be at least 6 chars length")
-	}
-	hashed, err := bcrypt.GenerateFromPassword([]byte(passwd), 10)
-	if err != nil {
+	var err error
+	if u.Passwd, u.DovePasswd, err = HashPassword(passwd); err != nil {
 		return err
-	}
-	u.Passwd = string(hashed)
-	if u.HaveMailbox {
-		salt, err := NewUUID()
-		if err != nil {
-			return err
-		}
-		salt = "$6$" + salt[:16]
-		c := sha512_crypt.New()
-		if u.DovePasswd, err = c.Generate([]byte(passwd), []byte(salt)); err != nil {
-			return err
-		}
 	}
 	return DB.Save(u).Error
 }

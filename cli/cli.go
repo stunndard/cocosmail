@@ -6,13 +6,14 @@ import (
 
 // CliCommands is a slice of subcomands
 var CliCommands = []cgCli.Command{
+	Init,
+	Config,
 	alias,
 	Queue,
 	Routes,
 	user,
 	Rcpthost,
 	RelayIP,
-	//Mailbox,
 	Dkim,
 }
 

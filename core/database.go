@@ -19,9 +19,6 @@ func IsOkDB(DB *gorm.DB) bool {
 	if !DB.HasTable(&RcptHost{}) {
 		return false
 	}
-	if !DB.HasTable(&Mailbox{}) {
-		return false
-	}
 	if !DB.HasTable(&RelayIpOk{}) {
 		return false
 	}
@@ -67,14 +64,6 @@ func InitDB(DB *gorm.DB) error {
 		}
 	}
 
-	// mailbox
-	if !DB.HasTable(&Mailbox{}) {
-		if err = DB.CreateTable(&Mailbox{}).Error; err != nil {
-			return errors.New("Unable to create Mailbox - " + err.Error())
-		}
-		// Index
-	}
-
 	//relay_ip_oks table
 	if !DB.HasTable(&RelayIpOk{}) {
 		if err = DB.CreateTable(&RelayIpOk{}).Error; err != nil {
@@ -113,14 +102,33 @@ func InitDB(DB *gorm.DB) error {
 		}
 	}
 
+	// plugins' data, e.g. fail2ban's IPs
+	if !DB.HasTable(&Plugin{}) {
+		if err = DB.CreateTable(&Plugin{}).Error; err != nil {
+			return errors.New("Unable to create table plugins - " + err.Error())
+		}
+	}
+
+	if !DB.HasTable(&DbSetting{}) {
+		if err = DB.CreateTable(&DbSetting{}).Error; err != nil {
+			return errors.New("Unable to create table settings - " + err.Error())
+		}
+	}
+
 	return nil
 }
 
 // AutoMigrateDB will keep tables reflecting structs
 func AutoMigrateDB(DB *gorm.DB) error {
 	// if tables exists check if they reflects struts
-	if err := DB.AutoMigrate(&User{}, &Alias{}, &RcptHost{}, &RelayIpOk{}, &QMessage{}, &Route{}, &DkimConfig{}, &Plugin{}).Error; err != nil {
+	if err := DB.AutoMigrate(&User{}, &Alias{}, &RcptHost{}, &RelayIpOk{}, &QMessage{}, &Route{}, &DkimConfig{}, &Plugin{}, &DbSetting{}).Error; err != nil {
 		return errors.New("Unable autoMigrateDB - " + err.Error())
+	}
+	if err := SettingsFillMissing(DB, Cfg.Values()); err != nil {
+		return errors.New("Unable to add new settings - " + err.Error())
+	}
+	if err := RelativizeUserHomes(); err != nil {
+		return errors.New("Unable to make user homes relative - " + err.Error())
 	}
 	return nil
 }

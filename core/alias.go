@@ -24,160 +24,41 @@ func AliasGet(aliasStr string) (alias Alias, err error) {
 	return alias, err
 }
 
-// AliasAdd create a new cocosmail alias
+// AliasAdd adds an alias, checked like in the configurator and config
+// import (see ValidateData). An address alias delivers to any addresses
+// (deliverTo, separated by spaces, commas or ;), local or not, and/or to a
+// command (pipe); its domain is added as local if cocosmail doesn't handle it
+// yet. A domain alias delivers to one local domain.
 func AliasAdd(alias, deliverTo, pipe string, isMiniList bool) error {
-	isDomAlias := false
-
-	// deliverTo && pipe must be != null
-	if deliverTo == "" && pipe == "" {
-		return errors.New("you must define pipe command OR local mailbox(es), domain where mails for this alias have to be delivered")
+	a := AliasData{
+		Alias:     strings.ToLower(strings.TrimSpace(alias)),
+		DeliverTo: strings.FieldsFunc(strings.ToLower(deliverTo), func(r rune) bool { return r == ' ' || r == ',' || r == ';' }),
+		Pipe:      strings.TrimSpace(pipe),
+		MiniList:  isMiniList,
 	}
-	alias = strings.ToLower(strings.TrimSpace(alias))
-
-	// domain or adress alias
-	localDom := strings.SplitN(alias, "@", 2)
-	if len(localDom) > 2 {
-		return errors.New("alias should be a valid email address or a domain. " + alias + " given")
-	}
-	// TODO check domain if domain is valid
-	if len(localDom) == 1 {
-		isDomAlias = true
-	}
-
-	// if domainAlias minilist is forbiden
-	if isDomAlias && isMiniList {
-		return errors.New("you can't use --minilist option on dmain alias")
-	}
-
-	// exists ?
-	exists, err := AliasExists(alias)
+	exists, err := AliasExists(a.Alias)
 	if err != nil {
 		return err
 	}
 	if exists {
-		return errors.New(alias + " already exists")
+		return errors.New(a.Alias + " already exists")
 	}
-
-	// sanity checks if alias is an address
-	// alias must not be a valid user
-	if !isDomAlias {
-		exists, err = UserExists(alias)
-		if err != nil {
+	// the command must exist on this server
+	if a.Pipe != "" {
+		if _, err := exec.LookPath(strings.Fields(a.Pipe)[0]); err != nil {
 			return err
 		}
-		if exists {
-			return errors.New(alias + " is an existing user")
-		}
-
-		// domain part must be a local domain
-		rcpthost, err := RcpthostGet(localDom[1])
-		if err != nil {
-			if err == gorm.ErrRecordNotFound {
-				return errors.New("domain " + localDom[1] + " is not handled by cocosmail")
-			}
+	}
+	d := &Data{Aliases: []AliasData{a}}
+	if t := strings.Split(a.Alias, "@"); len(t) == 2 && t[1] != "" {
+		if _, err := RcpthostGet(t[1]); err == gorm.ErrRecordNotFound {
+			d.Domains = append(d.Domains, DomainData{Name: t[1], Local: true})
+		} else if err != nil {
 			return err
 		}
-		if !rcpthost.IsLocal {
-			return errors.New("domain part of alias must be a local domain handled by cocosmail")
-		}
-	} else {
-		// alias is a domain and must be in rcpthost
-		rcptpHost, err := RcpthostGet(alias)
-		if err != nil {
-			if err == gorm.ErrRecordNotFound {
-				if err = RcpthostAdd(alias, true, true); err != nil {
-					return errors.New("unable to add " + alias + " as rcpthost")
-				}
-			} else {
-				return err
-			}
-		} else {
-			// domain should be an alias
-			if !rcptpHost.IsAlias {
-				return errors.New("domain " + alias + " is and existing domain (and not an alias)")
-			}
-		}
 	}
-
-	// if pipe
-	if pipe != "" {
-		pipe = strings.TrimSpace(pipe)
-		// check the cmd
-		// first part is the command
-		cmd := strings.SplitN(pipe, " ", 1)
-		// file existe and is executable ?
-		_, err := exec.LookPath(cmd[0])
-		if err != nil {
-			return err
-		}
-
-	}
-	if deliverTo != "" { // delivery
-		dt := []string{}
-		t := strings.Split(strings.TrimSpace(deliverTo), " ")
-		for i, d := range t {
-			rcpt := strings.TrimSpace(d)
-			if rcpt == "" {
-				continue
-			}
-			if rcpt == alias {
-				return errors.New("are you drunk ?")
-			}
-			if !isDomAlias {
-				localDomRcpt := strings.Split(rcpt, "@")
-				if len(localDomRcpt) != 2 {
-					return errors.New("deliverTo addresses should be valid email addresses. " + rcpt + " given")
-				}
-
-				// alias domain && rcpt domain should be the same
-				if localDom[1] != localDomRcpt[1] {
-					return errors.New("an email alias must have the same domain part than the final recipient")
-				}
-
-				user, err := UserGetByLogin(rcpt)
-				if err != nil {
-					if err == gorm.ErrRecordNotFound {
-						return errors.New("user " + rcpt + " doesn't exists")
-					}
-					return err
-				}
-				if !user.HaveMailbox {
-					return errors.New("user " + rcpt + " doesn't have mailbox account")
-				}
-			} else {
-				// is domain alias
-				if i > 0 {
-					return errors.New("a domain can be an alias on only one other domain")
-				}
-				// rcpt should be a domain
-				if strings.Count(rcpt, "@") != 0 {
-					return errors.New("you must give a domain... for a domain alias. " + rcpt + " given")
-				}
-				// domain should be a local domain
-				domain, err := RcpthostGet(rcpt)
-				if err != nil {
-					if err == gorm.ErrRecordNotFound {
-						return errors.New("domain " + rcpt + " is not a local domain")
-					}
-					return err
-				} else if !domain.IsLocal {
-					return errors.New("domain " + rcpt + " is not a local domain")
-				}
-			}
-			dt = append(dt, rcpt)
-		}
-		if len(dt) != 0 {
-			deliverTo = strings.Join(dt, ";")
-		}
-	}
-
-	return DB.Save(&Alias{
-		Alias:      alias,
-		DeliverTo:  deliverTo,
-		Pipe:       pipe,
-		IsDomAlias: isDomAlias,
-		IsMiniList: isMiniList,
-	}).Error
+	_, err = ImportData(DB, d, false, false)
+	return err
 }
 
 // AliasDel is used to delete an alias

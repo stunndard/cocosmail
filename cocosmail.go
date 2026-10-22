@@ -3,15 +3,17 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path"
 	"runtime"
+	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -19,19 +21,65 @@ import (
 	"github.com/stunndard/cocosmail/plugin"
 	"github.com/stunndard/cocosmail/pop3"
 	"github.com/urfave/cli"
+	"golang.org/x/term"
 
 	tcli "github.com/stunndard/cocosmail/cli"
 	"github.com/stunndard/cocosmail/core"
 	"github.com/stunndard/cocosmail/rest"
+	"github.com/stunndard/cocosmail/tui"
 )
 
-func init() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
+// bootstrapCli prepares what CLI commands need: config, logger, DB and store.
+// It must not touch the queue or its files: the server may be running.
+func bootstrapCli(c *cli.Context) error {
+	// "cocosmail user" or "cocosmail user help" only show help
+	if c.NArg() == 0 || c.Args().First() == "help" || c.Args().First() == "h" {
+		return nil
+	}
+	if err := core.Bootstrap(); err != nil {
+		return err
+	}
+	if !core.IsOkDB(core.DB) {
+		return errors.New("database is not initialized, run: cocosmail init")
+	}
+	return nil
+}
+
+// bootstrapServer prepares everything the server needs
+func bootstrapServer() {
 	var err error
-	if err = core.Bootstrap(); err != nil {
+	if err = core.BootstrapServer(); err != nil {
 		log.Fatalln(err)
 	}
-	core.Version = core.CocosmailVersion
+
+	// empty database and/or missing settings: set up, then start again
+	missing := core.Cfg.MissingSettings()
+	if !core.IsOkDB(core.DB) {
+		switch {
+		// nobody to answer (systemd, docker...)
+		case !term.IsTerminal(int(os.Stdin.Fd())):
+			log.Fatalln("database is not initialized, run: cocosmail init")
+		case len(missing) > 0:
+			// fresh install: one question for both
+			fmt.Printf("cocosmail is not set up yet: the database is empty and settings are missing: %s\n", strings.Join(missing, ", "))
+			if !askYesNo("Create the database and run the configurator now? (y/n): ") {
+				os.Exit(1)
+			}
+			initDatabase()
+			if missing = core.Cfg.MissingSettings(); len(missing) > 0 {
+				configureOrExit(missing, false)
+			}
+		default:
+			if !askYesNo(fmt.Sprintf("Database 'driver: %s, source: %s' misses some tables.\r\nShould i create them ? (y/n):", core.Cfg.GetDbDriver(), core.Cfg.GetDbSource())) {
+				log.Println("See you soon...")
+				os.Exit(0)
+			}
+			initDatabase()
+		}
+	}
+	if len(missing) > 0 {
+		configureOrExit(missing, true)
+	}
 
 	if os.RemoveAll(path.Join(core.Cfg.GetBasePath(), "nsq")) != nil {
 		log.Fatalln("Unable to delete nsq data directory")
@@ -46,33 +94,17 @@ func init() {
 
 	// TODO: if clusterMode check if nsqlookupd is available
 
-	// check DB
-	// TODO: do check in CLI call (raise error & ask for user to run cocosmail initdb|checkdb)
-	if !core.IsOkDB(core.DB) {
-		var r []byte
-		for {
-			fmt.Printf("Database 'driver: %s, source: %s' misses some tables.\r\nShould i create them ? (y/n):", core.Cfg.GetDbDriver(), core.Cfg.GetDbSource())
-			r, _, _ = bufio.NewReader(os.Stdin).ReadLine()
-			if r[0] == 110 || r[0] == 121 {
-				break
-			}
-		}
-		if r[0] == 121 {
-			if err = core.InitDB(core.DB); err != nil {
-				log.Fatalln(err)
-			}
-		} else {
-			log.Println("See you soon...")
-			os.Exit(0)
-		}
-	}
 	// sync tables from structs
-	if err := core.AutoMigrateDB(core.DB); err != nil {
+	if err = core.AutoMigrateDB(core.DB); err != nil {
 		log.Fatalln(err)
 	}
 
-	// init rand seed
-	rand.Seed(time.Now().UTC().UnixNano())
+	// init NSQ MailQueueProducer
+	if core.Cfg.GetLaunchSmtpd() {
+		if err = core.InitMailQueueProducer(); err != nil {
+			log.Fatalln(err)
+		}
+	}
 
 	// Dovecot support
 	if core.Cfg.GetDovecotSupportEnabled() {
@@ -83,22 +115,157 @@ func init() {
 	}
 }
 
+// initDatabase creates the tables and writes missing default files, like cocosmail init
+func initDatabase() {
+	if err := core.InitDB(core.DB); err != nil {
+		log.Fatalln(err)
+	}
+	written, err := core.WriteDefaultFiles(core.BaseDir())
+	if err != nil {
+		log.Fatalln(err)
+	}
+	for _, f := range written {
+		core.Logger.Info("created " + f)
+	}
+	// the config file couldn't be imported without tables
+	if err := core.ApplyConfigSource(); err != nil {
+		log.Fatalln(err)
+	}
+}
+
+// configureOrExit is called when required settings are missing: it tells how
+// to configure cocosmail and, in a terminal, offers to run the configurator
+// (ask is false when the user already agreed). After it, the server starts
+// again with the new settings.
+func configureOrExit(missing []string, ask bool) {
+	var store tui.Store = &tui.DBStore{}
+	command := "cocosmail config edit"
+	if core.ConfigFilePath != "" {
+		store = &tui.FileStore{Path: core.ConfigFilePath}
+		command += " --file " + core.ConfigFilePath
+	}
+	fmt.Fprintf(os.Stderr, "cocosmail is not configured yet, missing settings: %s\n"+
+		"Configure it with the text UI: %s\n"+
+		"or write them in conf/cocosmail.yaml (see conf/cocosmail.yaml.base) and start again.\n",
+		strings.Join(missing, ", "), command)
+	if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd())) {
+		os.Exit(1)
+	}
+	if ask && !askYesNo("Run the configurator now? (y/n): ") {
+		os.Exit(1)
+	}
+	if err := tui.Run(store); err != nil {
+		log.Fatalln(err)
+	}
+	values, _, err := store.Load()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	if missing = core.MissingSettings(values); len(missing) > 0 {
+		fmt.Fprintf(os.Stderr, "still missing: %s\n", strings.Join(missing, ", "))
+		os.Exit(1)
+	}
+	// start again, with the new settings
+	err = syscall.Exec(executable, os.Args, os.Environ())
+	log.Fatalln("restart failed:", err)
+}
+
+// askYesNo asks question until answer is y or n. EOF means no.
+func askYesNo(question string) bool {
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Print(question)
+		r, _, err := reader.ReadLine()
+		if err != nil {
+			fmt.Println()
+			return false
+		}
+		switch string(r) {
+		case "y":
+			return true
+		case "n":
+			return false
+		}
+	}
+}
+
+// executable is the binary path, taken at start: it's re-executed to restart,
+// so after the binary was replaced, the new version starts
+var executable string
+
+// restart stops the server gracefully and starts it again in the same
+// process (same PID), to apply settings that can't be applied live
+func restart(reason string, nsqDaemon *nsqd.NSQD) {
+	const drainTimeout = 30 * time.Second
+	core.Logger.Info("restarting: " + reason)
+
+	// no new SMTP and POP3 sessions, let running ones finish
+	core.CloseSmtpdListeners()
+	pop3.Close()
+	deadline := time.Now().Add(drainTimeout)
+	for atomic.LoadInt32(&core.SmtpSessionsCount) > 0 && time.Now().Before(deadline) {
+		time.Sleep(200 * time.Millisecond)
+	}
+	if n := atomic.LoadInt32(&core.SmtpSessionsCount); n > 0 {
+		core.Logger.Info(fmt.Sprintf("restarting: %d SMTP sessions still open, clients will retry", n))
+	}
+	pop3.Wait(time.Until(deadline))
+	core.StopDeliverd(time.Until(deadline))
+
+	if core.Cfg.GetLaunchSmtpd() {
+		core.NsqQueueProducer.Stop()
+	}
+	nsqDaemon.Exit()
+	if core.Bolt != nil {
+		_ = core.Bolt.Close()
+	}
+	_ = core.DB.Close()
+
+	// file descriptors are closed on exec, stdin/stdout/stderr are kept
+	err := syscall.Exec(executable, os.Args, os.Environ())
+	log.Fatalln("restart failed:", err)
+}
+
 // MAIN
 func main() {
 	var err error
+	if executable, err = os.Executable(); err != nil {
+		executable = os.Args[0]
+	}
+	core.Version = core.CocosmailVersion
 	app := cli.NewApp()
 	app.Name = "cocosmail"
 	app.Usage = "Email system"
 	app.Version = core.CocosmailVersion
+	app.Flags = []cli.Flag{
+		cli.StringFlag{
+			Name:   "config, c",
+			Usage:  "config file, loaded into the database at every start: the file is the source of truth (for docker)",
+			EnvVar: "COCOSMAIL_CONFIG",
+		},
+	}
+	app.Before = func(c *cli.Context) error {
+		core.ConfigFilePath = c.String("config")
+		return nil
+	}
 	app.Commands = tcli.CliCommands
+	// CLI commands need config & DB, but only when they run, not for help
+	for i := range app.Commands {
+		if app.Commands[i].Before == nil {
+			app.Commands[i].Before = bootstrapCli
+		}
+	}
 	// no know command ? Launch server
 	app.Action = func(c *cli.Context) {
 		if len(c.Args()) != 0 {
 			_ = cli.ShowAppHelp(c)
 		} else {
+			bootstrapServer()
+
 			// if there is nothing to do then... do nothing
-			if !core.Cfg.GetLaunchDeliverd() && !core.Cfg.GetLaunchSmtpd() {
-				log.Fatalln("I have nothing to do, so i do nothing. Bye.")
+			if !core.Cfg.GetLaunchDeliverd() && !core.Cfg.GetLaunchSmtpd() && !core.Cfg.GetLaunchPop3() {
+				log.Fatalln("Nothing to run: the SMTP server, delivery and POP3 are all off.\n" +
+					"Turn on COCOSMAIL_SMTPD_LAUNCH, COCOSMAIL_DELIVERD_LAUNCH or COCOSMAIL_POP3D_LAUNCH, e.g. with: cocosmail config edit")
 			}
 
 			// Init Bolt (used as cache)
@@ -209,7 +376,14 @@ func main() {
 				go NewMonitor(60)
 			}
 
-			<-sigChan
+			// apply settings changed with cocosmail config
+			go core.WatchSettings()
+
+			select {
+			case reason := <-core.RestartRequest:
+				restart(reason, nsqDaemon)
+			case <-sigChan:
+			}
 			core.Logger.Info("Exiting...")
 
 			// close NsqQueueProducer if exists
@@ -224,7 +398,9 @@ func main() {
 			os.Exit(0)
 		}
 	}
-	_ = app.Run(os.Args)
+	if err = app.Run(os.Args); err != nil {
+		log.Fatalln(err)
+	}
 
 }
 
