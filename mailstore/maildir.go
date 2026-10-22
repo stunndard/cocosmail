@@ -3,7 +3,8 @@
 //
 // A user's home is a Maildir (cur/, new/, tmp/): INBOX. Other folders are
 // Maildirs in it named "." + folder name, "." separates levels: .Sent,
-// .Archive.2024. Flags are in the file names (key:2,FLAGS), like Dovecot does.
+// .Archive.2024. Flags are in the file names (key:2,FLAGS), like Dovecot does,
+// key;2,FLAGS on Windows.
 //
 // Everything in cocosmail goes through this package, which keeps one Folder
 // per directory in memory: changes are made under its lock, one at a time,
@@ -12,9 +13,11 @@ package mailstore
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -54,7 +57,7 @@ const maxKeywords = 26
 
 // splitName returns the key and the flags part (after ":2,") of a file name
 func splitName(name string) (key, info string) {
-	if i := strings.IndexByte(name, ':'); i >= 0 {
+	if i := strings.IndexByte(name, infoSep); i >= 0 {
 		key = name[:i]
 		info = name[i+1:]
 		if strings.HasPrefix(info, "2,") {
@@ -70,21 +73,72 @@ func splitName(name string) (key, info string) {
 func fileName(key, letters string) string {
 	b := []byte(letters)
 	sort.Slice(b, func(i, j int) bool { return b[i] < b[j] })
-	return key + ":2," + string(b)
+	return key + string(infoSep) + "2," + string(b)
 }
 
-// lastKey makes keys unique within this process
-var lastKey uint64
+// deliveries made by this process, for the Q part of keys
+var deliveries uint64
 
-// newKey returns a new unique message key: time, process and random parts
+// hostname is the last part of keys, escaped by hostEscaper
+var hostname = func() string {
+	host, err := os.Hostname()
+	if err != nil || host == "" {
+		host = "localhost"
+	}
+	return hostEscaper.Replace(host)
+}()
+
+// newKey returns a new unique message key, in the format of the Maildir spec
+// (https://cr.yp.to/proto/maildir.html):
+// seconds.M<microseconds>P<pid>Q<deliveries>R<random>.hostname
 func newKey() string {
 	b := make([]byte, 8)
 	_, _ = rand.Read(b)
-	host, _ := os.Hostname()
-	host = strings.NewReplacer("/", "_", ":", "_", ".", "_").Replace(host)
 	now := time.Now()
-	return fmt.Sprintf("%d.M%dP%dQ%d%s.%s", now.Unix(), now.Nanosecond()/1000,
-		os.Getpid(), atomic.AddUint64(&lastKey, 1), hex.EncodeToString(b), host)
+	return fmt.Sprintf("%d.M%dP%dQ%dR%s.%s", now.Unix(), now.Nanosecond()/1000,
+		os.Getpid(), atomic.AddUint64(&deliveries, 1), hex.EncodeToString(b), hostname)
+}
+
+// writeTmp writes a message to path in tmp/, synced to disk
+func writeTmp(path string, r io.Reader) (int64, error) {
+	w, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return 0, err
+	}
+	size, err := io.Copy(w, r)
+	if err == nil {
+		err = w.Sync()
+	}
+	if cerr := w.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		os.Remove(path)
+	}
+	return size, err
+}
+
+// Deliver writes a new message to the Maildir dir, created if needed: to
+// tmp/, then moved to new/, as the Maildir spec says. Sessions with the
+// folder open see it at once.
+func Deliver(dir string, data []byte) error {
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	if err := initMaildir(dir); err != nil {
+		return err
+	}
+	key := newKey()
+	tmp := filepath.Join(dir, "tmp", key)
+	if _, err := writeTmp(tmp, bytes.NewReader(data)); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, filepath.Join(dir, "new", key)); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	Changed(dir)
+	return nil
 }
 
 // isMaildir tells if dir has a cur directory

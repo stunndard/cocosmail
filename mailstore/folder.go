@@ -561,18 +561,11 @@ func (f *Folder) setFlagsLocked(m *Message, flags []imap.Flag) (bool, error) {
 func (f *Folder) Append(r io.Reader, flags []imap.Flag, date time.Time) (imap.UID, error) {
 	key := newKey()
 	tmp := filepath.Join(f.Path, "tmp", key)
-	w, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	size, err := writeTmp(tmp, r)
 	if err != nil {
 		return 0, err
 	}
-	size, err := io.Copy(w, r)
-	if err == nil {
-		err = w.Sync()
-	}
-	if cerr := w.Close(); err == nil {
-		err = cerr
-	}
-	if err == nil && !date.IsZero() {
+	if !date.IsZero() {
 		err = os.Chtimes(tmp, date, date)
 	}
 	var fi os.FileInfo

@@ -101,7 +101,7 @@ func TestFolderFlags(t *testing.T) {
 	changed, err := f.setFlagsLocked(m, []imap.Flag{imap.FlagSeen, "$Forwarded", imap.FlagAnswered, "\\Recent"})
 	require.NoError(t, err)
 	assert.True(t, changed)
-	assert.True(t, strings.HasSuffix(m.name, ":2,RSa"), m.name)
+	assert.True(t, strings.HasSuffix(m.name, string(infoSep)+"2,RSa"), m.name)
 	assert.ElementsMatch(t, []imap.Flag{imap.FlagSeen, imap.FlagAnswered, "$Forwarded"}, f.flagsLocked(m))
 	changed, _ = f.setFlagsLocked(m, []imap.Flag{imap.FlagAnswered, "$forwarded", imap.FlagSeen})
 	assert.False(t, changed, "same flags, keywords in any case")
@@ -110,18 +110,18 @@ func TestFolderFlags(t *testing.T) {
 
 	// a flag letter of another program is kept
 	cur := filepath.Join(dir, "cur")
-	require.NoError(t, os.Rename(filepath.Join(cur, m.name), filepath.Join(cur, m.Key+":2,PRSa")))
+	require.NoError(t, os.Rename(filepath.Join(cur, m.name), filepath.Join(cur, m.Key+string(infoSep)+"2,PRSa")))
 	f.newMtime = time.Time{}
 	require.NoError(t, f.Sync())
 	f.mu.Lock()
 	_, err = f.setFlagsLocked(f.msgs[0], []imap.Flag{imap.FlagDeleted})
 	f.mu.Unlock()
 	require.NoError(t, err)
-	assert.True(t, strings.HasSuffix(f.msgs[0].name, ":2,PT"), f.msgs[0].name)
+	assert.True(t, strings.HasSuffix(f.msgs[0].name, string(infoSep)+"2,PT"), f.msgs[0].name)
 
 	// read after a rename by another session
 	old := *f.msgs[0]
-	require.NoError(t, os.Rename(filepath.Join(cur, old.name), filepath.Join(cur, old.Key+":2,S")))
+	require.NoError(t, os.Rename(filepath.Join(cur, old.name), filepath.Join(cur, old.Key+string(infoSep)+"2,S")))
 	f.newMtime = time.Time{}
 	require.NoError(t, f.Sync())
 	b, err := f.Read(old)
@@ -246,7 +246,7 @@ func TestFolderSyncSkipsUnchanged(t *testing.T) {
 	// a file added to cur/ without changing the recorded mtimes is not seen
 	scanned := f.curMtime
 	key := newKey()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "cur", key+":2,"), []byte(msg("x")), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "cur", key+string(infoSep)+"2,"), []byte(msg("x")), 0600))
 	require.NoError(t, os.Chtimes(filepath.Join(dir, "cur"), scanned, scanned))
 	assert.Equal(t, []imap.UID{1}, uids(t, f))
 
@@ -295,4 +295,24 @@ func TestStarIsLastMessage(t *testing.T) {
 	v.forEachLocked(star, func(seq uint32, m *Message) { got = append(got, m.UID) })
 	v.mu.Unlock()
 	assert.Equal(t, []imap.UID{2}, got)
+}
+
+// keys in the format of the Maildir spec, delivered to new/
+func TestDeliverKey(t *testing.T) {
+	key := newKey()
+	assert.Regexp(t, `^\d+\.M\d+P\d+Q\d+R[0-9a-f]{16}\.[^/:]+$`, key)
+	assert.NotEqual(t, key, newKey())
+
+	dir := filepath.Join(t.TempDir(), "a", "alice")
+	require.NoError(t, Deliver(dir, []byte(msg("one"))))
+	names, err := readNames(filepath.Join(dir, "new"))
+	require.NoError(t, err)
+	require.Len(t, names, 1)
+	assert.Regexp(t, `^\d+\.M\d+P\d+Q\d+R[0-9a-f]{16}\.`, names[0])
+	tmp, _ := readNames(filepath.Join(dir, "tmp"))
+	assert.Empty(t, tmp)
+	f, err := Open(dir)
+	require.NoError(t, err)
+	defer f.Close()
+	assert.Equal(t, []imap.UID{1}, uids(t, f))
 }

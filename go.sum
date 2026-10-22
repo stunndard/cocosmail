@@ -109,8 +109,6 @@ github.com/spaolacci/murmur3 v1.1.0/go.mod h1:JwIasOWyU6f++ZhiEuf87xNszmSA2myDM2
 github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
-github.com/stunndard/go-maildir v0.3.1-0.20210605034352-5b7dd4cd98f4 h1:2wyh/QgzdWGZzrWFapBti8QHGRDix05YioVK3AWHEW0=
-github.com/stunndard/go-maildir v0.3.1-0.20210605034352-5b7dd4cd98f4/go.mod h1:Dq7DnzC/Qmt6JypRZe9hQ2vykgE1GjKIQGDOKwTBK6A=
 github.com/toorop/go-dkim v0.0.0-20201103131630-e1cd1a0a5208 h1:PM5hJF7HVfNWmCjMdEfbuOBNXSVF2cMFGgQTPdKCbwM=
 github.com/toorop/go-dkim v0.0.0-20201103131630-e1cd1a0a5208/go.mod h1:BzWtXXrXzZUvMacR0oF/fbDDgUPO8L36tDMmRAf14ns=
 github.com/traefik/yaegi v0.9.18 h1:21GZkxEqecM/DOil7oMByHxFJPBMF9ljYrNpiKSsWXo=

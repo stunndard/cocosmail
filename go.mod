@@ -18,7 +18,6 @@ require (
 	github.com/nsqio/nsq v1.1.0-rc1.0.20180802175327-996be6d66d20
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.9.0
-	github.com/stunndard/go-maildir v0.3.1-0.20210605034352-5b7dd4cd98f4
 	github.com/toorop/go-dkim v0.0.0-20201103131630-e1cd1a0a5208
 	github.com/traefik/yaegi v0.9.18
 	github.com/tredoe/osutil v1.5.0
