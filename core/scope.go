@@ -183,6 +183,7 @@ func initLogger() (err error) {
 
 	logPath := Cfg.GetLogPath()
 	logger := logrus.New()
+	logOut = nil
 	//customFormatter := new(logrus.TextFormatter)
 	//customFormatter := new(FileFormatter)
 	if logPath == "stdout" {
@@ -202,10 +203,14 @@ func initLogger() (err error) {
 		if err = os.MkdirAll(filepath.Dir(logPath), 0700); err != nil {
 			return err
 		}
-		out, err = os.OpenFile(logPath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
+		cfg := Cfg
+		logOut, err = openLogFile(logPath, func() (int64, int) {
+			return int64(cfg.GetLogMaxSize()) << 20, cfg.GetLogMaxFiles()
+		})
 		if err != nil {
 			return err
 		}
+		out = logOut
 		f := new(FileFormatter)
 		f.TimestampFormat = time.RFC3339Nano
 		f.FullTimestamp = true

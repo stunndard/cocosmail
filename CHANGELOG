@@ -21,7 +21,8 @@ v 0.3.0 (2026-09-26)
     can be moved as is
   - first start offers to create the database and run the configurator
   - aliases can forward to any addresses, users not needed
-  - log always in log/ next to the binary; POP3 sessions logged like smtpd;
+  - log always in log/ next to the binary, rotated by size (log_max_size,
+    log_max_files) and reopened on SIGHUP; POP3 sessions logged like smtpd;
     AUTH passwords masked in logs
   - fail2ban plugin: plugins table created with the others, first connection
     no longer fails

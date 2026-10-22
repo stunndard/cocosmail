@@ -28,6 +28,13 @@ settings:
   # to the binary (default: stdout)
   logpath: stdout
 
+  # Size in MB at which the log file is rotated: NAME becomes NAME.1, NAME.1
+  # becomes NAME.2 and so on. 0: never rotated (default: 100)
+  log_max_size: 100
+
+  # How many rotated log files are kept, older ones are deleted (default: 10)
+  log_max_files: 10
+
   # Temporary directory for scanning and filtering, a RAM disk like /dev/shm is
   # recommended (default: /tmp)
   tempdir: /dev/shm

@@ -31,6 +31,8 @@ type configValues struct {
 	PluginPath          string `name:"plugin_path"`
 	TempDir             string `name:"tempdir"`
 	LogPath             string `name:"logpath"`
+	LogMaxSize          int    `name:"log_max_size"`
+	LogMaxFiles         int    `name:"log_max_files"`
 	DebugEnabled        bool   `name:"debug_enabled"`
 	HideServerSignature bool   `name:"hide_server_signature"`
 
@@ -291,6 +293,20 @@ func (c *Config) GetLogPath() string {
 		return "discard"
 	}
 	return filepath.Join(BaseDir(), LogDir, filepath.Base(c.cfg.LogPath))
+}
+
+// GetLogMaxSize returns the size in MB at which the log file is rotated, 0: never
+func (c *Config) GetLogMaxSize() int {
+	c.Lock()
+	defer c.Unlock()
+	return c.cfg.LogMaxSize
+}
+
+// GetLogMaxFiles returns how many rotated log files are kept
+func (c *Config) GetLogMaxFiles() int {
+	c.Lock()
+	defer c.Unlock()
+	return c.cfg.LogMaxFiles
 }
 
 // GetDbDriver returns database driver

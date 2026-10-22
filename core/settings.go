@@ -44,6 +44,10 @@ var Settings = []Setting{
 		Description: "Log debug messages"},
 	{Key: "logpath", Section: "general", Default: "stdout", Restart: true,
 		Description: `Where to log: "stdout", "discard" or a file name, the file is log/NAME next to the binary`},
+	{Key: "log_max_size", Section: "general", Default: "100", Validate: notNegative,
+		Description: "Size in MB at which the log file is rotated: NAME becomes NAME.1, NAME.1 becomes NAME.2 and so on. 0: never rotated"},
+	{Key: "log_max_files", Section: "general", Default: "10", Validate: notNegative,
+		Description: "How many rotated log files are kept, older ones are deleted"},
 	{Key: "tempdir", Section: "general", Default: "/tmp",
 		Description: "Temporary directory for scanning and filtering, a RAM disk like /dev/shm is recommended"},
 	{Key: "plugin_path", Section: "general", Default: "plugins",
@@ -275,6 +279,13 @@ func oneOf(allowed ...string) func(string) error {
 		}
 		return fmt.Errorf("%q must be one of: %s", v, strings.Join(allowed, ", "))
 	}
+}
+
+func notNegative(v string) error {
+	if n, err := strconv.Atoi(v); err == nil && n < 0 {
+		return errors.New("can't be negative")
+	}
+	return nil
 }
 
 func validateDsns(v string) error {

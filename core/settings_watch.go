@@ -28,7 +28,7 @@ var (
 
 // WatchSettings applies settings changed in DB (by cocosmail config): at once
 // when possible, else by requesting a restart. Settings are checked every few
-// seconds, and at once on SIGHUP.
+// seconds, and at once on SIGHUP, which also reopens the log file.
 func WatchSettings() {
 	hup := make(chan os.Signal, 1)
 	signal.Notify(hup, syscall.SIGHUP)
@@ -39,6 +39,8 @@ func WatchSettings() {
 		select {
 		case <-time.After(settingsCheckInterval):
 		case <-hup:
+			// after logrotate moved the log file
+			ReopenLog()
 			Logger.Info("SIGHUP: checking settings")
 		}
 		v := SettingsVersion(quiet)
