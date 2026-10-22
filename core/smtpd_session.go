@@ -963,7 +963,7 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 		s.dataBytes = s.dataBytes + uint64(len(line))
 
 		// Max databytes reached ?
-		if s.dataBytes > maxDataBytes {
+		if maxDataBytes > 0 && s.dataBytes > maxDataBytes {
 			s.Log(fmt.Sprintf("DATA - Message size (%d) exceeds maxDataBytes (%d).", s.dataBytes, maxDataBytes))
 			s.Out(552, "5.3.4 sorry, that message size exceeds my databytes limit")
 			// No point to leave the session open, some clients don't check the server response

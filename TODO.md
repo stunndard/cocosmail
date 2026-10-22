@@ -19,6 +19,7 @@ TODO
 - [ ] `rcpthost add -l` help text says "remote host", but the flag marks a local domain.
 - [ ] Received header shows `helo=[[...]]` when the client HELOs with an address literal.
 - [x] MAIL FROM accepted malformed addresses: `<`, several `@`, no local part (issue #2).
+- [x] `smtpd_max_databytes` 0 (the default, "unlimited") refused every message at DATA.
 
 ## Other
 - [ ] Sync nsq/DB in case of crash (requeue in nsq expired messages from DB)
