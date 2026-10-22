@@ -2,176 +2,131 @@
 
 **An email server for human beings.**
 
-cocosmail is a complete, self-hosted mail server in a single binary. It
-receives mail for your domains, delivers it to local mailboxes, lets you
-read it over POP3, and sends your outgoing mail to the rest of the
-internet. There is no Postfix + Dovecot + OpenDKIM + queue daemon + database
-server to glue together: one program, one folder, one config file.
+![cocosmail configurator: editing a user](doc/tui.png)
 
-> **Status:** usable, work in progress. Settings and data (domains, users,
-> aliases, relay IPs, routes, DKIM keys) are kept in the database and managed
-> with a text UI, `cocosmail config edit`. One YAML file holds all of it, to
-> set up, back up or move a server.
+cocosmail is a complete, self-hosted mail server in a single binary. It
+receives mail for your domains, delivers it to local mailboxes, lets you read
+it over POP3 and sends your mail to the rest of the internet. There is no
+Postfix + Dovecot + OpenDKIM + queue daemon + database server to glue
+together: one program, one folder, and a text UI to set it up.
+
+## Why it's easy
+
+- **One binary, one folder.** The database (SQLite), the queue (nsqd), the
+  default files: everything is built in. Everything lives next to the binary.
+- **Easy to configure.** `cocosmail config edit` opens a text UI for all
+  settings and data: domains, users, aliases, relay IPs, routes and DKIM keys.
+  Every setting is described, values are checked before they're accepted, and
+  nothing is saved until you press F2 and see what changed. No hand-written
+  config files, no `postmap`, no reloads.
+- **Changes apply by themselves.** A running server picks up new settings
+  within seconds. When a setting needs a restart (listeners, database...),
+  cocosmail first checks that it will start with it (certificates, free ports),
+  then restarts itself in the same process. If the check fails, it keeps
+  running with the old settings and logs why.
+- **Easy to back up and move.** Copy the folder to another server and start it.
+  Or put everything in one YAML file: `config export` on the old server,
+  `config import` on the new one.
+- **Easy Docker.** One container, one volume, the config file as the source of
+  truth. Users can be added while it runs with `docker exec`.
+- **Friendly when something's missing.** Started for the first time in a
+  terminal, cocosmail offers to create the database and open the configurator.
+  Adding a mailbox in a new domain adds the domain. Errors say what to do.
 
 ## What you get
 
-- **SMTP server**: receives mail from the internet (MX) and from your own mail
-  clients (submission). STARTTLS, implicit TLS (SMTPS), `AUTH PLAIN` and
-  `AUTH LOGIN`. Authentication is only allowed over an encrypted connection.
-  TLS 1.2 or newer only.
-- **POP3 server**: POP3 over TLS (POP3S) for reading your mail.
-- **Local mailboxes**: built-in Maildir delivery. You can also hand mail over to
-  Dovecot's LDA if you want IMAP through Dovecot.
-- **Outgoing delivery**: queue with retries and bounces, MX lookup, optional
-  static routes (per domain, sender or user), failover/round-robin across
-  several local IPs, STARTTLS to remote servers, DKIM signing.
-- **Anti-abuse**: SPF checks (adds `Received-SPF`, can reject), optional
-  ClamAV scanning, relay control per IP or per authenticated user, a fail2ban
-  style plugin.
-- **IPv4 and IPv6** for SMTP (in and out) and POP3.
-- **Aliases and catch-all**, including piping mail to a command.
-- **Plugins** written in plain Go, loaded at runtime without recompiling.
-- **Batteries included**: the message queue (nsqd) and the default database
-  (SQLite) are embedded. MySQL/MariaDB and PostgreSQL are supported too.
-- **CLI** to manage domains, users, aliases, routes, DKIM and the queue, plus a
-  small REST API.
-
-## What's in the folder
-
-Everything cocosmail needs lives in one directory, next to the binary
-(`dist/` in this repo). The default files are also embedded in the binary, and
-`cocosmail init` writes the missing ones. Copy or zip the directory and it
-works on another server as is:
-
-| Path          | What it is                                                     |
-|---------------|----------------------------------------------------------------|
-| `cocosmail`   | the binary (you build it, see below)                            |
-| `run`         | helper script: starts the server from its own directory         |
-| `conf/`       | `cocosmail.yaml.base` is the documented example config           |
-| `ssl/`        | TLS certificates and keys                                      |
-| `tpl/`        | text templates (bounce messages)                               |
-| `plugins/`    | runtime plugins and `config.go`, which enables them             |
-| `db/`         | SQLite database (created on first run)                         |
-| `store/`      | messages waiting in the queue                                  |
-| `mailboxes/`  | users' Maildirs                                                |
-| `log/`        | log file, when `logpath` is a file name (default: stdout) |
-
-`nsq/` and `bolt/` are created automatically for the internal queue and cache.
+- **SMTP**: receives mail from other servers (MX) and from your mail clients:
+  STARTTLS, implicit TLS (SMTPS), `AUTH PLAIN`/`LOGIN`, login only over
+  TLS 1.2+.
+- **POP3** over TLS. **Maildir** delivery built in, or Dovecot's LDA if you want
+  IMAP.
+- **Outgoing mail**: queue with retries and bounces, MX lookup, static routes
+  and smarthosts, several local IPs with failover or round robin, STARTTLS,
+  **DKIM** signing.
+- **Anti-abuse**: SPF checks, optional ClamAV, relay control per IP or per
+  user, a fail2ban-style plugin.
+- **IPv4 and IPv6** everywhere.
+- **Aliases**, forwarding, catch-all, mini mailing lists, piping mail to a
+  command.
+- **Plugins** in plain Go, loaded at runtime without recompiling.
+- SQLite by default, MySQL/MariaDB and PostgreSQL supported. A CLI for
+  everything, and a small REST API.
 
 ## Quick start
 
-These steps set up a server for `example.com` whose hostname is
-`mail.example.com`. Replace them with your own names.
+These steps set up `mail.example.com` for the domain `example.com`. Replace
+them with your own names.
 
 ### 1. Build
 
-You need Go 1.26.6 or newer (an older `go` command downloads it
-automatically) and a C compiler, because SQLite is built with cgo.
+You need Go 1.26.6 or newer (an older `go` downloads it) and a C compiler
+(SQLite uses cgo):
 
 ```sh
 git clone https://github.com/stunndard/cocosmail.git
 cd cocosmail
-go build -tags goffi_static -o dist/cocosmail
+go build -tags goffi_static -o dist/cocosmail      # or: task build
 ```
 
-(or `task build` if you use [Task](https://taskfile.dev)). The `goffi_static`
-tag is needed: the text UI library pulls in an FFI layer (for graphical
-backends cocosmail doesn't use) that doesn't link in cgo builds otherwise.
-Without it, the build stops with `undefined:
-build_with_go_build_tags_goffi_static`. Tests: `go test -tags goffi_static ./...`
-
-To build a fully static binary that runs on any Linux, including old
-distributions and minimal containers (needs static glibc, `libc6-dev` on
-Debian/Ubuntu):
+The `goffi_static` tag is required (the text UI library has an FFI layer that
+doesn't link in cgo builds otherwise). A fully static binary, which runs on any
+Linux and in minimal containers (needs `libc6-dev` on Debian/Ubuntu):
 
 ```sh
 CGO_ENABLED=1 go build -trimpath \
   -tags 'netgo osusergo sqlite_omit_load_extension goffi_static' \
   -ldflags '-s -w -linkmode external -extldflags "-static"' \
-  -o dist/cocosmail
+  -o dist/cocosmail                                # or: task build-static
 ```
 
-(or `task build-static`).
+### 2. Install and configure
 
-### 2. Install
-
-Run cocosmail as its own unprivileged user. Only the binary is needed:
-`cocosmail init` writes the default files (config example, plugins, bounce
-template, ssl/README.txt) next to it, and creates the database:
+Run cocosmail as its own user. Only the binary is needed, it writes
+everything else itself:
 
 ```sh
 sudo adduser --disabled-password cocosmail
-sudo mkdir /home/cocosmail/dist
-sudo cp dist/cocosmail /home/cocosmail/dist/
-sudo chown -R cocosmail: /home/cocosmail/dist
+sudo install -d -o cocosmail /home/cocosmail/mail
+sudo install -o cocosmail dist/cocosmail /home/cocosmail/mail/
 sudo -iu cocosmail
-cd ~/dist
-./cocosmail init
+cd ~/mail
+./cocosmail config edit
 ```
 
-`init` never changes existing files: run it again after an upgrade to get
-files added by the new version, or to restore a deleted one.
+The first `config edit` creates the database and the default files (like
+`cocosmail init`, which is safe to run any time, e.g. after an upgrade). In the
+text UI:
 
-### 3. Configure
+1. **general**: set `me` to `mail.example.com`.
+2. **smtpd**, **pop3d**, **deliverd**: turn on `smtpd_launch`, `pop3d_launch`
+   and `deliverd_launch`. The listeners (`smtpd_dsns`, `pop3d_dsns`) have their
+   own editor; a typical public server listens on:
+   - 25: mail from other servers (STARTTLS available)
+   - 587 (STARTTLS) and 465 (TLS): your mail clients, with login
+   - 995: POP3 over TLS
+3. **Users**: F7 adds `you@example.com` with a password. Keep **Mailbox**
+   (gets mail) and **Relay** (can send mail out after logging in). The domain
+   `example.com` is added with it.
+4. F2 saves, F10 quits. F1 shows the help.
 
-The easiest way is the text UI: `./cocosmail config edit` (see
-[Text UI](#text-ui)). It works in a fresh directory: like `cocosmail init`, it
-creates the database and the missing default files, and it imports
-`conf/cocosmail.yaml` if there is one. Starting cocosmail without the
-required settings also offers to open it. Or write a config file:
+Prefer files? Copy `conf/cocosmail.yaml.base` (every setting, documented) to
+`conf/cocosmail.yaml` and edit it; it's imported at the first start, see
+[Settings and data](#settings-and-data). The command line works too:
 
 ```sh
-cp conf/cocosmail.yaml.base conf/cocosmail.yaml
-chmod 600 conf/cocosmail.yaml
+./cocosmail config set me mail.example.com
+./cocosmail user add -m -r you@example.com 'a-good-password'
 ```
 
-The config file is YAML: the settings under `settings:`, one `key: value`
-per line, each documented inside it. It can also hold domains, users and the
-other data, see [Settings and data](#settings-and-data). At the first start
-it's imported into the database. For a first setup you only need to check
-these settings:
+### 3. Certificates
 
-| Setting              | Set it to                                                    |
-|----------------------|--------------------------------------------------------------|
-| `me`                 | your server's hostname, e.g. `mail.example.com`              |
-| `smtpd_dsns`         | where SMTP listens (see [Listeners](#listeners))            |
-| `pop3d_dsns`         | where POP3 listens                                           |
-| `deliverd_local_ips` | local IPs used for outgoing mail; `0.0.0.0&::` is fine for most |
-
-In the environment, a setting is `COCOSMAIL_` and its name in capitals, e.g.
-`COCOSMAIL_ME`: it overrides the file.
-
-Paths in the config (database, store, mailboxes, plugins) are relative to
-the directory of the `cocosmail` binary, and missing directories are created.
-You can install it anywhere, and later move or copy the whole directory to
-another server as is.
-
-A typical listener setup for a public server:
-
-```yaml
-  smtpd_dsns: '[::]:25:mail.example.com:nossl:example.com;[::]:587:mail.example.com:nossl:example.com;[::]:465:mail.example.com:ssl:example.com'
-  pop3d_dsns: '[::]:995:mail.example.com:ssl:example.com'
-```
-
-- port 25: mail from other servers (STARTTLS available)
-- port 587: your mail clients, with STARTTLS + login
-- port 465: your mail clients, with implicit TLS + login
-- port 995: POP3 over TLS
-
-### 4. Certificates
-
-For each listener, the last DSN field (`example.com` above) is a certificate
-name. cocosmail loads:
-
-- `ssl/smtp-<name>.crt` and `ssl/smtp-<name>.key` for SMTP (used for SMTPS and
-  for STARTTLS)
-- `ssl/pop3-<name>.crt` and `ssl/pop3-<name>.key` for POP3
-
-With [Let's Encrypt](https://letsencrypt.org/) (certbot), for example:
+Each listener names a certificate (`example.com` here). cocosmail loads
+`ssl/smtp-example.com.crt`/`.key` for SMTP and `ssl/pop3-example.com.crt`/`.key`
+for POP3. With Let's Encrypt:
 
 ```sh
 sudo certbot certonly --standalone -d mail.example.com
-cd /home/cocosmail/dist/ssl
+cd /home/cocosmail/mail/ssl
 for p in smtp pop3; do
   sudo cp /etc/letsencrypt/live/mail.example.com/fullchain.pem $p-example.com.crt
   sudo cp /etc/letsencrypt/live/mail.example.com/privkey.pem   $p-example.com.key
@@ -179,112 +134,28 @@ done
 sudo chown cocosmail: *.crt *.key && sudo chmod 600 *.key
 ```
 
-For a quick test, a self-signed certificate works too:
+For a test, a self-signed one does too:
+`openssl req -x509 -newkey rsa:2048 -nodes -days 365 -subj /CN=mail.example.com -keyout ssl/smtp-example.com.key -out ssl/smtp-example.com.crt`
+(and the same for `pop3-`).
+
+### 4. Start
 
 ```sh
-openssl req -x509 -newkey rsa:2048 -nodes -days 365 -subj /CN=mail.example.com \
-  -keyout ssl/smtp-example.com.key -out ssl/smtp-example.com.crt
-cp ssl/smtp-example.com.key ssl/pop3-example.com.key
-cp ssl/smtp-example.com.crt ssl/pop3-example.com.crt
-```
-
-cocosmail stops at startup if a POP3 or SMTPS certificate is missing.
-
-### 5. First start
-
-Create the database tables, then start the server:
-
-```sh
-./cocosmail init
-./run
+./run                     # or ./cocosmail
 ```
 
 ```
-Database 'sqlite3' is ready.
-... settings imported from /home/cocosmail/dist/conf/cocosmail.yaml, from now on the database is the source of truth
 ... smtpd [::]:25 launched.
 ... pop3d [::]:995 SSL launched
 ... deliverd launched
 ```
 
-`cocosmail init` is safe to run again, existing data is kept. If you skip it
-and start the server in a terminal, cocosmail offers to create the tables. From
-a service manager or Docker it stops and tells you to run `cocosmail init`.
-The same goes for missing settings: in a terminal cocosmail offers to open the
-configurator and starts once they're set, otherwise it says what's missing.
-
-### 6. Add your domain and a mailbox
-
-In a second terminal, as the `cocosmail` user in `~/dist`, run
-`./cocosmail config edit`, select **Users** in the section list and press F7:
-enter `you@example.com` and a password, keep **Mailbox** (gets mail) and
-**Relay** (can send mail out after logging in) checked. The domain
-`example.com` is added with it. F2 saves.
-
-Or on the command line:
-
-```sh
-./cocosmail rcpthost add -l example.com           # accept mail for example.com, deliver locally
-./cocosmail user add -m -r you@example.com 'a-good-password'
-```
-
-Or before the first start, in `conf/cocosmail.yaml`:
-
-```yaml
-domains:
-  - name: example.com
-    local: true
-users:
-  - login: you@example.com
-    password: a-good-password   # hashed when imported
-    mailbox: true
-    relay: true
-```
-
-Configure your mail client with:
-
-- incoming: POP3, `mail.example.com`, port 995, SSL/TLS, login `you@example.com`
-- outgoing: SMTP, `mail.example.com`, port 587 (STARTTLS) or 465 (SSL/TLS),
-  same login
-
-### 7. DNS
-
-Other servers must be able to find and trust you. At your DNS provider:
-
-| Record                          | Value                                                     |
-|---------------------------------|-----------------------------------------------------------|
-| `mail.example.com` A / AAAA     | your server's IPv4 / IPv6 address                         |
-| `example.com` MX                | `10 mail.example.com.`                                    |
-| `example.com` TXT (SPF)         | `v=spf1 mx -all`                                          |
-| DKIM TXT                        | shown by the text UI (DKIM keys, F6), or `./cocosmail dkim getdnsrecord example.com` |
-| reverse DNS (PTR)               | set `mail.example.com` for each IP, at your hosting provider |
-
-To sign outgoing mail with DKIM, add a key in the text UI (**DKIM keys**, F7,
-the domain) and publish the record F6 shows. Or:
-
-```sh
-./cocosmail dkim enable example.com
-./cocosmail dkim getdnsrecord example.com   # publish this record
-```
-
-and enable signing: `./cocosmail config set deliverd_dkim_sign true`.
-
-### Ports below 1024
-
-cocosmail doesn't need root. Allow the binary to bind privileged ports:
-
-```sh
-sudo setcap cap_net_bind_service=+ep /home/cocosmail/dist/cocosmail
-```
-
-(repeat after every rebuild), or use `AmbientCapabilities` in the systemd unit
-below.
-
-### Running as a service (systemd)
-
-`/etc/systemd/system/cocosmail.service`:
+cocosmail doesn't need root. To bind ports below 1024, run
+`sudo setcap cap_net_bind_service=+ep cocosmail` (again after each rebuild),
+or use systemd:
 
 ```ini
+# /etc/systemd/system/cocosmail.service
 [Unit]
 Description=cocosmail mail server
 After=network-online.target
@@ -292,8 +163,8 @@ Wants=network-online.target
 
 [Service]
 User=cocosmail
-WorkingDirectory=/home/cocosmail/dist
-ExecStart=/home/cocosmail/dist/cocosmail
+WorkingDirectory=/home/cocosmail/mail
+ExecStart=/home/cocosmail/mail/cocosmail
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 Restart=on-failure
 
@@ -302,248 +173,188 @@ WantedBy=multi-user.target
 ```
 
 ```sh
-sudo systemctl daemon-reload
-sudo systemctl enable --now cocosmail
-journalctl -u cocosmail -f
+sudo systemctl enable --now cocosmail && journalctl -u cocosmail -f
 ```
 
-## Listeners
+Mail clients: POP3 `mail.example.com:995` (SSL/TLS), SMTP port 587 (STARTTLS)
+or 465 (SSL/TLS), login `you@example.com`.
 
-`smtpd_dsns` and `pop3d_dsns` are lists of listeners
-separated by `;`. Each listener is:
+### 5. DNS
 
+| Record                      | Value                                                  |
+|-----------------------------|--------------------------------------------------------|
+| `mail.example.com` A / AAAA | your server's IPv4 / IPv6 address                      |
+| `example.com` MX            | `10 mail.example.com.`                                 |
+| `example.com` TXT (SPF)     | `v=spf1 mx -all`                                       |
+| DKIM TXT                    | text UI: **DKIM keys**, F7 adds a key, F6 shows the record |
+| reverse DNS (PTR)           | `mail.example.com`, set at your hosting provider       |
+
+Then turn on `deliverd_dkim_sign` to sign outgoing mail.
+
+## Docker
+
+The static binary runs in any image. A `Dockerfile`:
+
+```dockerfile
+FROM debian:stable-slim
+COPY dist/cocosmail /usr/local/bin/cocosmail
+WORKDIR /cocosmail
+VOLUME /cocosmail
+EXPOSE 25 465 587 995
+# the binary works in its own directory: copied into the volume at each start
+CMD cp /usr/local/bin/cocosmail . && ./cocosmail init && \
+    exec ./cocosmail --config conf/cocosmail.yaml
 ```
-IP:PORT:HOSTNAME:SSL:CERT
+
+Put `conf/cocosmail.yaml` and the certificates (`ssl/`) in a directory, then:
+
+```sh
+docker build -t cocosmail .
+docker run -d --name mail -v /srv/cocosmail:/cocosmail \
+  -p 25:25 -p 465:465 -p 587:587 -p 995:995 cocosmail
+docker exec -it mail ./cocosmail config edit      # add users while it runs
 ```
 
-| Field      | Meaning                                                            |
-|------------|--------------------------------------------------------------------|
-| `IP`       | address to listen on (see below)                                   |
-| `PORT`     | TCP port                                                           |
-| `HOSTNAME` | name used in the greeting and `Received:` headers                  |
-| `SSL`      | `ssl`: encrypted from the start (implicit TLS). `nossl`: starts in clear text, STARTTLS available (SMTP only) |
-| `CERT`     | certificate name: `ssl/smtp-CERT.*` or `ssl/pop3-CERT.*`           |
+With `--config`, the settings of the file are loaded at every start, and
+`COCOSMAIL_*` environment variables (e.g. `-e COCOSMAIL_ME=mail.example.com`)
+override them. Domains and users of the file are imported into an empty
+database once; after that they live in the volume and are managed with
+`config edit`, and a restart keeps them.
 
-The IP can be:
+## Back up, move, upgrade
 
-- an IPv4 address: `192.0.2.10:25:...`
-- an IPv6 address **in square brackets**: `[2001:db8::10]:25:...`. Link-local
-  addresses need their interface: `[fe80::1%eth0]:25:...`
-- `[::]`, `0.0.0.0` or empty (`:25:...`): all addresses, IPv4 **and** IPv6.
-  This relies on the operating system allowing dual-stack sockets, which is
-  the default on Linux.
+- **The folder is the server.** Stop cocosmail, copy or zip its folder, start
+  it anywhere. Paths are relative to the binary.
+- **One file for everything:**
 
-POP3 has no STARTTLS (STLS), so a POP3 listener must use `ssl`. cocosmail
-refuses to start with `nossl` for POP3, except on a loopback address
-(`127.0.0.1` or `[::1]`), for example behind a local TLS proxy.
+  ```sh
+  ./cocosmail config export all.yaml             # settings, domains, users, aliases, routes, DKIM keys
+  ./cocosmail config import --dry-run all.yaml   # on the new server: show what would change
+  ./cocosmail config import all.yaml
+  ```
 
-To listen only on specific addresses, list them separately:
+  Password hashes are exported as they are; `export --no-secrets` leaves out
+  passwords, keys and secret settings, and importing such a file keeps the
+  ones already there.
+- **Upgrade:** replace the binary and start it. New settings get their
+  defaults, and `cocosmail init` adds new default files without touching yours.
+  Config files of older versions (`COCOSMAIL_KEY=value`) are still read;
+  `./cocosmail config convert old.cfg conf/cocosmail.yaml` turns them into YAML
+  and warns about mistakes the old version ignored.
+
+## Settings and data
+
+cocosmail keeps two things in its database: **settings** (about 50,
+documented in `conf/cocosmail.yaml.base`) and **data** (domains, users,
+aliases, relay IPs, routes, DKIM keys). Only `db_driver` and `db_source` stay
+outside, since they say where the database is (default: SQLite in `db/`).
+
+One YAML file can hold both:
 
 ```yaml
-  smtpd_dsns: '192.0.2.10:25:mail.example.com:nossl:example.com;[2001:db8::10]:25:mail.example.com:nossl:example.com'
+settings:
+  me: mail.example.com
+  smtpd_launch: true
+  smtpd_dsns: '[::]:25:mail.example.com:nossl:example.com'
+domains:
+  - name: example.com
+    local: true
+users:
+  - login: you@example.com
+    password: a-good-password   # hashed when imported
+    mailbox: true
+    relay: true
+aliases:
+  - alias: sales@example.com
+    deliver_to: [you@example.com, partner@elsewhere.net]
 ```
 
-## Outgoing mail and IPv6
+- **Database mode** (default): the database is the source of truth.
+  `conf/cocosmail.yaml`, if present, is imported at the first start. Then use
+  `config edit`, `config set KEY VALUE`, `config import`...
+- **File mode** (`--config FILE` or `COCOSMAIL_CONFIG`): the file's settings
+  are loaded at every start and are read only elsewhere; change the file and
+  restart. Its data is imported only into an empty database. Starting once
+  without `--config` goes back to database mode.
 
-`deliverd_local_ips` lists the local addresses used to connect to
-other servers:
+`config import` checks everything before writing anything: settings not in the
+file get their default (`--merge` keeps them), data is added or changed
+(`--replace` also deletes what's not in the file).
 
-- `&` between addresses means failover: try them in order.
-- `|` means round-robin: pick them in random order. Don't mix `&` and `|`.
-- Add `:hostname` to use a specific HELO name for an address. IPv6 addresses
-  need brackets when followed by a hostname: `[2001:db8::10]:mail.example.com`.
-- `0.0.0.0` is any local IPv4 address and `::` is any local IPv6 address.
+### Text UI keys
 
-An IPv4 local address is only used for IPv4 destinations and an IPv6 one only
-for IPv6 destinations. The default `0.0.0.0&::` sends over IPv4 when possible
-and falls back to IPv6. `0.0.0.0` alone disables outgoing IPv6.
+| Key         | Action                                                       |
+|-------------|--------------------------------------------------------------|
+| F1          | help                                                         |
+| Tab         | switch between the sections and the list                     |
+| typing      | search the list, Esc clears                                  |
+| Enter, F4   | edit (true/false values are switched)                        |
+| F7, Ins     | add a domain, user, alias, relay IP, route or DKIM key       |
+| F8, Del     | delete an item, or reset a setting to its default            |
+| F6          | DKIM keys: the DNS record to publish                         |
+| F3          | show or hide secrets                                         |
+| F2          | save, after showing what changed                             |
+| F10, Esc    | quit (asks about unsaved changes)                            |
 
-The same syntax is used for the local IPs of a route.
+`config edit --file FILE` edits a config file instead, without a database, e.g.
+to prepare a server offline. `config get`, `set`, `unset` and `list` also take
+`--file`.
+
+## Listeners and outgoing IPs
+
+`smtpd_dsns` and `pop3d_dsns` are listeners separated by `;`, each
+`IP:PORT:HOSTNAME:ssl|nossl:CERT`:
+
+```yaml
+  smtpd_dsns: '[::]:25:mail.example.com:nossl:example.com;[::]:587:mail.example.com:nossl:example.com;[::]:465:mail.example.com:ssl:example.com'
+  pop3d_dsns: '[::]:995:mail.example.com:ssl:example.com'
+```
+
+- IP: IPv4, IPv6 in brackets (`[2001:db8::10]`, `[fe80::1%eth0]`), or `[::]`,
+  `0.0.0.0` or empty for all addresses, IPv4 and IPv6.
+- `ssl`: TLS from the start; `nossl`: plain text with STARTTLS. POP3 has no
+  STARTTLS, so `nossl` is only allowed there on loopback (behind a TLS proxy).
+
+`deliverd_local_ips` are the addresses used to send mail: `&` between them for
+failover, `|` for round robin, `:hostname` for a HELO name per address
+(`[2001:db8::10]:mail.example.com`). The default `0.0.0.0&::` uses IPv4 and
+falls back to IPv6. Routes use the same syntax.
 
 ## Command line
 
-Run `./cocosmail help` or `./cocosmail <command> help` for details.
+`./cocosmail help` and `./cocosmail <command> help` show everything.
 
-| Command     | Subcommands                                               | Purpose                               |
-|-------------|-----------------------------------------------------------|---------------------------------------|
-| `init`      |                                                           | write missing default files, create database tables (safe to repeat) |
-| `config`    | `edit`, `list`, `get`, `set`, `unset`, `import`, `export`, `convert` | settings and data, in the database or in a config file (`--file`) |
-| `rcpthost`  | `add`, `list`, `del`                                      | domains cocosmail accepts mail for (`-l` = local mailboxes) |
-| `user`      | `add`, `del`, `update`, `list`, `catchall`                | users, mailboxes, SMTP login, quota   |
-| `alias`     | `add`, `del`, `list`                                      | aliases, forwarding, pipe to command  |
-| `relayip`   | `add`, `list`, `del`                                      | IPs (v4 or v6) allowed to relay without login |
-| `routes`    | `add`, `list`, `del`                                      | static routes for outgoing mail       |
-| `dkim`      | `enable`, `disable`, `getdnsrecord`, `getpubkey`, `getprivkey` | DKIM keys per domain             |
-| `queue`     | `list`, `count`, `discard`, `bounce`, `purge`             | outgoing mail queue                   |
-
-Example: send all mail for `example.net` through a smarthost:
+| Command    | Purpose                                                              |
+|------------|----------------------------------------------------------------------|
+| `init`     | write missing default files, create database tables (safe to repeat) |
+| `config`   | `edit`, `list`, `get`, `set`, `unset`, `import`, `export`, `convert`  |
+| `rcpthost` | domains cocosmail accepts mail for                                   |
+| `user`     | users, mailboxes, catch-all                                          |
+| `alias`    | aliases, forwarding, pipe to command                                 |
+| `relayip`  | IPs allowed to send without login                                    |
+| `routes`   | static routes, e.g. a smarthost                                      |
+| `dkim`     | DKIM keys and DNS records                                            |
+| `queue`    | outgoing queue: list, discard, bounce, purge                         |
 
 ```sh
+# send all mail for example.net through a smarthost
 ./cocosmail routes add -d example.net -rh smtp.provider.net -rp 587 -rl login -rpwd password
 ```
 
 ## Plugins
 
-Plugins are Go source files that cocosmail interprets at runtime (with
-[yaegi](https://github.com/traefik/yaegi)), so you don't need a Go toolchain
-on the server to change them. They live in `plugins/<name>/<name>.go` and hook
-into the SMTP session: `connect`, `helo`, `mailpre`, `mailpost`, `rcptto`,
-`data`, `beforequeue`, `quit`, `exitasap` and `auth`.
+Plugins are Go source files in `plugins/<name>/<name>.go`, interpreted at
+runtime by [yaegi](https://github.com/traefik/yaegi): no Go toolchain needed on
+the server. They hook into the SMTP session (`connect`, `helo`, `mailpre`,
+`mailpost`, `rcptto`, `data`, `beforequeue`, `quit`, `exitasap`, `auth`), and
+`plugins/config.go` enables them. Included: `fail2ban` (bans IPs after failed
+logins, on by default) and `customgreeting` (an example).
 
-`plugins/config.go` lists which plugins are active, in order. Two examples
-ship with cocosmail:
+## More
 
-- `fail2ban`: bans IPs after repeated failed logins.
-- `customgreeting`: replaces the SMTP greeting. It's an example, not enabled
-  by default.
-
-## Other options
-
-`conf/cocosmail.yaml.base` documents everything else, including SPF policy
-(`smtpd_spf_action`), message size limit, ClamAV, Dovecot LDA,
-MySQL/PostgreSQL, the REST API, queue lifetimes and RFC strictness switches.
-
-## Settings and data
-
-cocosmail keeps two things in its database:
-
-- **settings**: the ~60 options documented in `conf/cocosmail.yaml.base`;
-- **data**: domains, users, aliases, relay IPs, routes and DKIM keys.
-
-Only `db_driver` and `db_source` stay outside, because
-they say where the database is. By default it's SQLite in `db/` next to the
-binary, so there's nothing to set.
-
-One YAML file holds both: `settings:`, then the data sections `domains:`,
-`users:`, `aliases:`, `relay_ips:`, `routes:` and `dkim:`:
-
-```sh
-./cocosmail config export all.yaml             # settings and data, to back up or move
-./cocosmail config import all.yaml             # on any server
-./cocosmail config import --dry-run all.yaml   # only show what would change
-```
-
-- **Settings:** `import` gives settings that are not in the file their default.
-  `--merge` changes only the settings in the file.
-- **Data:** items in the file are added or changed. Everything else in the
-  database is kept, unless `--replace`: then it's deleted.
-- **Passwords:**
-  - `export` writes password hashes, which `import` reads back as they are.
-  - A user can also be given `password: ...` in clear text, which is hashed
-    when imported.
-  - `export --no-secrets` leaves password hashes, route passwords, DKIM
-    private keys and secret settings empty. Importing it keeps the ones
-    already in the database.
-- **Checks:** everything is checked before anything is written. For example,
-  the domain of a mailbox or an address alias must exist and be local. An
-  alias can deliver to any addresses: mailboxes, other aliases, or addresses
-  elsewhere (forwarding).
-
-There are two ways to run cocosmail:
-
-**Database mode** (`./cocosmail`, `./run`): the database is the source of
-truth. At the first start, `conf/cocosmail.yaml` is imported into it,
-settings and data. Then:
-
-```sh
-./cocosmail config edit                        # text UI, see below
-./cocosmail config list                        # values, and where they come from
-./cocosmail config set smtpd_max_hops 30       # applied within a few seconds
-./cocosmail config unset smtpd_max_hops        # back to the default
-```
-
-A running cocosmail checks for changed settings every few seconds (at once on
-`SIGHUP`). Most settings are applied immediately. Settings like listeners,
-database or log path need a restart: cocosmail first checks that it will
-start with them (certificates, free ports, POP3 encryption...), then restarts
-itself in the same process, so systemd or docker don't notice. It stops
-accepting SMTP connections, waits up to 30 seconds for open sessions and
-deliveries, then restarts. If the check fails, cocosmail keeps running with the
-previous settings, writes them back to the database and logs why. Data changes
-(a new user, a new domain) are used at once. Editing `conf/cocosmail.yaml`
-after the first start changes nothing until you import it, except
-`db_driver` and `db_source`: they're always read from it (or from the
-environment), since they can't be in the database.
-
-**File mode** (`./cocosmail --config FILE`, or `COCOSMAIL_CONFIG=FILE`): that's
-the mode for docker. The settings of the file are loaded into the database at
-every start, and `COCOSMAIL_*` environment variables override them.
-`config set` is refused, and `import` skips the settings: change the file
-and restart instead, e.g. with `./cocosmail config set --file cocosmail.yaml
-KEY VALUE`. The data of the file is imported only into an empty database, at
-the first start. Then users and domains live in the database (the docker
-volume) and are managed while it runs, with
-`docker exec -it CONTAINER ./cocosmail config edit`. A restart doesn't undo
-these changes. Starting once without `--config` switches back to database
-mode, keeping everything.
-
-### Text UI
-
-`./cocosmail config edit` shows the sections on the left and the settings of
-the selected section on the right, with the description of the selected
-setting below. It works on the database, or on a config file with
-`--file FILE` (no database needed, e.g. to prepare a server offline).
-
-| Key            | Action                                                   |
-|----------------|----------------------------------------------------------|
-| F1             | help                                                     |
-| Tab            | switch between the section list and the settings         |
-| Enter, F4      | edit the setting, `true`/`false` ones are switched       |
-| typing         | search a setting by name in the section, Esc clears it   |
-| F8             | reset the setting to its default                         |
-| F3             | show or hide secrets, also in dialogs: secret settings, route passwords (user passwords are stored as hashes, they can't be shown) |
-| F2             | save, after showing what changed                         |
-| F10, Esc       | quit, asks to save unsaved changes                       |
-
-The entry "all settings" shows every settings section at once. Below it are
-the data sections: Domains, Users, Aliases, Relay IPs, Routes and DKIM keys,
-one item per row.
-- **Keys:** F7 or Ins adds an item, F4 or Enter edits it, F8 or Del deletes
-  it, and in DKIM keys, F6 shows the DNS record to publish.
-- **Saving:** like settings, changes are saved with F2.
-- **Checks:** each change is checked with the rest. A domain that still has
-  users can't be deleted. A mailbox or an alias in a new domain adds the
-  domain.
-- **With settings managed by a file (file mode):** the data can still be
-  edited here, only the settings are read only.
-
-Lists have their own editor, one row per item, opened with Enter: the
-listeners (`smtpd_dsns`, `pop3d_dsns`: IP, port, hostname, SSL, certificate)
-and the local IPs for outgoing mail (`deliverd_local_ips`: IP, HELO hostname,
-F3 switches failover and round robin). There, F7 or Ins adds, F4 or Enter
-edits, F5 copies, F8 or Del deletes, Ctrl+Up/Down moves, F2 applies and F10
-closes; the key bar at the bottom shows them.
-
-Values are checked before they're accepted. Settings that tell where the
-database is, and settings managed by a file in file mode, are read only.
-
-`config get`, `set`, `unset` and `list` also work on a file with
-`--file FILE`, without a database. Files are written in YAML, keeping your
-comments. Older versions used one `COCOSMAIL_KEY=value` per line (or
-`export COCOSMAIL_KEY="value"`); such files are still read by `import` and
-`--config`, but not written. Convert them with:
-
-```sh
-./cocosmail config convert old.cfg conf/cocosmail.yaml
-```
-
-It fixes what it can (e.g. `true`/`false` listeners become `ssl`/`nossl`) and
-warns about settings with wrong names, which older versions silently ignored.
-Without `conf/cocosmail.yaml`, an old `conf/cocosmail.cfg` is still used.
-
-## Roadmap
-
-See [TODO.md](TODO.md) for plans and known issues.
-
-## Contributing
-
-Issues and pull requests are welcome. If you run cocosmail, feedback on what
-was hard to set up is especially useful: making setup easy is the point of
-this project.
-
-## Credits and license
+[TODO.md](TODO.md) has plans and known issues, [CHANGELOG](CHANGELOG) the
+history. Issues and pull requests are welcome; feedback on what was hard to
+set up is especially useful, since easy setup is the point of this project.
 
 cocosmail started as [tmail](https://github.com/toorop/tmail) by Stéphane
-Depierrepont (Toorop) and is developed in this fork.
-
-MIT, see [LICENSE](LICENSE).
+Depierrepont (Toorop). MIT license, see [LICENSE](LICENSE).
