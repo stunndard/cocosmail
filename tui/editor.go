@@ -521,8 +521,8 @@ func (ed *Editor) save() {
 	if len(keys) > 0 {
 		text.WriteString("\n" + ed.store.ApplyNote(keys))
 	}
-	if ed.values["smtpd_launch"] != "true" && ed.values["deliverd_launch"] != "true" && ed.values["pop3d_launch"] != "true" {
-		text.WriteString("\nNote: nothing will run, smtpd_launch, deliverd_launch and pop3d_launch are all false.")
+	if ed.values["smtpd_launch"] != "true" && ed.values["deliverd_launch"] != "true" && ed.values["pop3d_launch"] != "true" && ed.values["imapd_launch"] != "true" {
+		text.WriteString("\nNote: nothing will run, smtpd_launch, deliverd_launch, pop3d_launch and imapd_launch are all false.")
 	}
 	dlg := vtui.ShowMessage("Save", literal(text.String()), []string{"&Save", "&Cancel"})
 	dlg.OnResult = func(code int) {

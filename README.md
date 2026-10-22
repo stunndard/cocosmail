@@ -6,7 +6,7 @@
 
 cocosmail is a complete, self-hosted mail server in a single binary. It
 receives mail for your domains, delivers it to local mailboxes, lets you read
-it over POP3 and sends your mail to the rest of the internet. There is no
+it over IMAP or POP3 and sends your mail to the rest of the internet. There is no
 Postfix + Dovecot + OpenDKIM + queue daemon + database server to glue
 together: one program, one folder, and a text UI to set it up.
 
@@ -38,8 +38,11 @@ together: one program, one folder, and a text UI to set it up.
 - **SMTP**: receives mail from other servers (MX) and from your mail clients:
   STARTTLS, implicit TLS (SMTPS), `AUTH PLAIN`/`LOGIN`, login only over
   TLS 1.2+.
-- **POP3** over TLS. **Maildir** delivery built in, or Dovecot's LDA if you want
-  IMAP.
+- **IMAP** with folders (Sent, Drafts, Trash, Junk and Archive are created and
+  recognized by mail programs), IDLE (new mail shows up at once), MOVE,
+  STARTTLS or TLS. **POP3** over TLS. Both work on the same Maildir at the
+  same time, and see each other's changes. Mail can also be delivered by
+  Dovecot's LDA.
 - **Outgoing mail**: queue with retries and bounces, MX lookup, static routes
   and smarthosts, several local IPs with failover or round robin, STARTTLS,
   **DKIM** signing.
@@ -98,11 +101,13 @@ The first `config edit` creates the database and the default files (like
 text UI:
 
 1. **general**: set `me` to `mail.example.com`.
-2. **smtpd**, **pop3d**, **deliverd**: turn on `smtpd_launch`, `pop3d_launch`
-   and `deliverd_launch`. The listeners (`smtpd_dsns`, `pop3d_dsns`) have their
-   own editor; a typical public server listens on:
+2. **smtpd**, **imapd**, **pop3d**, **deliverd**: turn on `smtpd_launch`,
+   `imapd_launch`, `pop3d_launch` (if you want POP3 too) and `deliverd_launch`.
+   The listeners (`smtpd_dsns`, `imapd_dsns`, `pop3d_dsns`) have their own
+   editor; a typical public server listens on:
    - 25: mail from other servers (STARTTLS available)
    - 587 (STARTTLS) and 465 (TLS): your mail clients, with login
+   - 993: IMAP over TLS (143 with STARTTLS works too)
    - 995: POP3 over TLS
 3. **Users**: F7 adds `you@example.com` with a password. Keep **Mailbox**
    (gets mail) and **Relay** (can send mail out after logging in). The domain
@@ -121,13 +126,13 @@ Prefer files? Copy `conf/cocosmail.yaml.base` (every setting, documented) to
 ### 3. Certificates
 
 Each listener names a certificate (`example.com` here). cocosmail loads
-`ssl/smtp-example.com.crt`/`.key` for SMTP and `ssl/pop3-example.com.crt`/`.key`
-for POP3. With Let's Encrypt:
+`ssl/smtp-example.com.crt`/`.key` for SMTP, `ssl/imap-...` for IMAP and
+`ssl/pop3-...` for POP3. With Let's Encrypt:
 
 ```sh
 sudo certbot certonly --standalone -d mail.example.com
 cd /home/cocosmail/mail/ssl
-for p in smtp pop3; do
+for p in smtp imap pop3; do
   sudo cp /etc/letsencrypt/live/mail.example.com/fullchain.pem $p-example.com.crt
   sudo cp /etc/letsencrypt/live/mail.example.com/privkey.pem   $p-example.com.key
 done
@@ -136,7 +141,7 @@ sudo chown cocosmail: *.crt *.key && sudo chmod 600 *.key
 
 For a test, a self-signed one does too:
 `openssl req -x509 -newkey rsa:2048 -nodes -days 365 -subj /CN=mail.example.com -keyout ssl/smtp-example.com.key -out ssl/smtp-example.com.crt`
-(and the same for `pop3-`).
+(and the same for `imap-` and `pop3-`).
 
 ### 4. Start
 
@@ -146,6 +151,7 @@ For a test, a self-signed one does too:
 
 ```
 ... smtpd [::]:25 launched.
+... imapd [::]:993 SSL launched
 ... pop3d [::]:995 SSL launched
 ... deliverd launched
 ```
@@ -176,8 +182,8 @@ WantedBy=multi-user.target
 sudo systemctl enable --now cocosmail && journalctl -u cocosmail -f
 ```
 
-Mail clients: POP3 `mail.example.com:995` (SSL/TLS), SMTP port 587 (STARTTLS)
-or 465 (SSL/TLS), login `you@example.com`.
+Mail clients: IMAP `mail.example.com:993` (SSL/TLS) or POP3 port 995 (SSL/TLS),
+SMTP port 587 (STARTTLS) or 465 (SSL/TLS), login `you@example.com`.
 
 ### 5. DNS
 
@@ -200,7 +206,7 @@ FROM debian:stable-slim
 COPY dist/cocosmail /usr/local/bin/cocosmail
 WORKDIR /cocosmail
 VOLUME /cocosmail
-EXPOSE 25 465 587 995
+EXPOSE 25 465 587 993 995
 # the binary works in its own directory: copied into the volume at each start
 CMD cp /usr/local/bin/cocosmail . && ./cocosmail init && \
     exec ./cocosmail --config conf/cocosmail.yaml
@@ -211,7 +217,7 @@ Put `conf/cocosmail.yaml` and the certificates (`ssl/`) in a directory, then:
 ```sh
 docker build -t cocosmail .
 docker run -d --name mail -v /srv/cocosmail:/cocosmail \
-  -p 25:25 -p 465:465 -p 587:587 -p 995:995 cocosmail
+  -p 25:25 -p 465:465 -p 587:587 -p 993:993 -p 995:995 cocosmail
 docker exec -it mail ./cocosmail config edit      # add users while it runs
 ```
 
@@ -302,23 +308,33 @@ to prepare a server offline. `config get`, `set`, `unset` and `list` also take
 
 ## Listeners and outgoing IPs
 
-`smtpd_dsns` and `pop3d_dsns` are listeners separated by `;`, each
+`smtpd_dsns`, `imapd_dsns` and `pop3d_dsns` are listeners separated by `;`, each
 `IP:PORT:HOSTNAME:ssl|nossl:CERT`:
 
 ```yaml
   smtpd_dsns: '[::]:25:mail.example.com:nossl:example.com;[::]:587:mail.example.com:nossl:example.com;[::]:465:mail.example.com:ssl:example.com'
+  imapd_dsns: '[::]:993:mail.example.com:ssl:example.com'
   pop3d_dsns: '[::]:995:mail.example.com:ssl:example.com'
 ```
 
 - IP: IPv4, IPv6 in brackets (`[2001:db8::10]`, `[fe80::1%eth0]`), or `[::]`,
   `0.0.0.0` or empty for all addresses, IPv4 and IPv6.
-- `ssl`: TLS from the start; `nossl`: plain text with STARTTLS. POP3 has no
-  STARTTLS, so `nossl` is only allowed there on loopback (behind a TLS proxy).
+- `ssl`: TLS from the start; `nossl`: plain text with STARTTLS, login only after
+  it. POP3 has no STARTTLS, so `nossl` is only allowed there on loopback
+  (behind a TLS proxy). IMAP on loopback with `nossl` allows login without TLS.
 
 `deliverd_local_ips` are the addresses used to send mail: `&` between them for
 failover, `|` for round robin, `:hostname` for a HELO name per address
 (`[2001:db8::10]:mail.example.com`). The default `0.0.0.0&::` uses IPv4 and
 falls back to IPv6. Routes use the same syntax.
+
+## Mail storage
+
+Each user's mail is a Maildir in `mailboxes/`: INBOX is the user's directory
+(`cur/`, `new/`, `tmp/`), folders are `.Sent`, `.Archive.2024`... in it
+(Maildir++, the layout Dovecot uses), and flags are in the file names. A
+mailbox can be backed up, or brought from another server, by copying the
+directory. IMAP UIDs are kept in `cocosmail-uidlist` in each folder.
 
 ## Command line
 

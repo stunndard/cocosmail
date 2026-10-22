@@ -6,6 +6,8 @@ require (
 	blitiri.com.ar/go/spf v1.5.1
 	github.com/boltdb/bolt v1.3.1
 	github.com/codegangsta/negroni v1.0.0
+	github.com/emersion/go-message v0.18.2
+	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/jinzhu/gorm v1.9.16
 	github.com/julienschmidt/httprouter v1.3.0
@@ -23,7 +25,7 @@ require (
 	github.com/unxed/vtinput v0.1.8
 	github.com/unxed/vtui v0.1.360
 	github.com/urfave/cli v1.22.5
-	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a
+	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	golang.org/x/term v0.46.0
 	gopkg.in/yaml.v3 v3.0.1
 )

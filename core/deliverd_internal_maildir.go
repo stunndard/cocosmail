@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/stunndard/cocosmail/mailstore"
 	"github.com/stunndard/go-maildir"
 )
 
@@ -61,6 +62,8 @@ func (d *DeliveryMaildir) Deliver(id, deliverTo string, rawMsg *bytes.Buffer) (p
 	if err != nil {
 		return false, errors.New(fmt.Sprintf("%s unable to close delivery: %s", id, err))
 	}
+	// IMAP sessions see it at once
+	mailstore.Changed(mdPath)
 
 	return false, nil
 }
