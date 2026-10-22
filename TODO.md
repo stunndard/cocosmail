@@ -18,6 +18,7 @@ TODO
 - [ ] go vet: `QMessage` containing a mutex is copied (`core/deliverd.go`, `core/mailqueue.go`).
 - [ ] `rcpthost add -l` help text says "remote host", but the flag marks a local domain.
 - [ ] Received header shows `helo=[[...]]` when the client HELOs with an address literal.
+- [x] MAIL FROM accepted malformed addresses: `<`, several `@`, no local part (issue #2).
 
 ## Other
 - [ ] Sync nsq/DB in case of crash (requeue in nsq expired messages from DB)

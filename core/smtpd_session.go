@@ -378,19 +378,29 @@ func (s *SMTPServerSession) smtpMailFrom(msg []string) {
 	}
 
 	// mail from:<user> EXT || mail from: <user> EXT
+	var reversePath string
 	if len(msg[1]) > 5 { // mail from:<user> EXT
-		t := strings.Split(msg[1], ":")
-		s.Envelope.MailFrom = t[1]
+		reversePath = msg[1][5:]
 		if msgLen > 2 {
 			extension = append(extension, msg[2:]...)
 		}
 	} else if msgLen > 2 { // mail from: user EXT
-		s.Envelope.MailFrom = msg[2]
+		reversePath = msg[2]
 		if msgLen > 3 {
 			extension = append(extension, msg[3:]...)
 		}
-	} else { // null sender
-		s.Envelope.MailFrom = ""
+	} else { // mail from: and nothing
+		s.Log(fmt.Sprintf("MAIL - Bad syntax: %s", strings.Join(msg, " ")))
+		s.pause(2)
+		s.Out(501, "5.5.4 Syntax: MAIL FROM:<address> [SIZE]")
+		return
+	}
+	var err error
+	if s.Envelope.MailFrom, err = parseReversePath(reversePath); err != nil {
+		s.Log("MAIL - invalid address " + reversePath)
+		s.pause(2)
+		s.Out(501, "5.1.7 Invalid address")
+		return
 	}
 
 	// Extensions size
@@ -434,9 +444,6 @@ func (s *SMTPServerSession) smtpMailFrom(msg []string) {
 		}
 	}
 
-	// remove <>
-	s.Envelope.MailFrom = RemoveBrackets(s.Envelope.MailFrom)
-
 	// mail from is valid ?
 	reversePathlen := len(s.Envelope.MailFrom)
 	if reversePathlen > 0 { // 0 -> null reverse path (bounce)
@@ -446,17 +453,9 @@ func (s *SMTPServerSession) smtpMailFrom(msg []string) {
 			s.Out(550, "reverse path must be lower than 255 char (RFC 5321 4.5.1.3.1)")
 			return
 		}
-		localDomain := strings.Split(s.Envelope.MailFrom, "@")
-		if len(localDomain) == 1 {
-			s.Log("MAIL - invalid address " + localDomain[0])
-			s.pause(2)
-			s.Out(501, "5.1.7 Invalid address")
-			return
-			/*
-				localDomain = append(localDomain, Cfg.GetMe())
-				s.Envelope.MailFrom = localDomain[0] + "@" + localDomain[1]
-			*/
-		}
+		// parsed: one @ outside of a quoted local part
+		at := strings.LastIndexByte(s.Envelope.MailFrom, '@')
+		localDomain := []string{s.Envelope.MailFrom[:at], s.Envelope.MailFrom[at+1:]}
 		if Cfg.getRFCMailFromLocalpartSize() && len(localDomain[0]) > 64 {
 			s.Log("MAIL - local part is too long: " + s.Envelope.MailFrom)
 			s.pause(2)
