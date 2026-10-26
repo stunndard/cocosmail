@@ -206,6 +206,17 @@ settings:
   # Seconds before an idle POP3 client is disconnected (default: 300)
   pop3d_server_timeout: 300
 
+  # --- imapd ---
+  #
+  # Launch the IMAP server (default: false)
+  imapd_launch: false
+
+  # IMAP listeners, same format as smtpd_dsns. ssl: port 993, nossl: port 143
+  # with STARTTLS, login needs it except on loopback. Certificate:
+  # ssl/imap-CERT.crt and .key, needed for both (required when imapd_launch is
+  # true)
+  imapd_dsns: ""
+
   # --- rest ---
   #
   # Launch the REST API server (default: false)

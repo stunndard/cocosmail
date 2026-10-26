@@ -2,11 +2,10 @@ package core
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
 
-	"github.com/stunndard/go-maildir"
+	"github.com/stunndard/cocosmail/mailstore"
 )
 
 type DeliveryMaildir struct {
@@ -33,34 +32,9 @@ func (d *DeliveryMaildir) Deliver(id, deliverTo string, rawMsg *bytes.Buffer) (p
 	if err != nil {
 		return false, fmt.Errorf("cannot get user: %s", err)
 	}
-	mdPath := usr.HomePath()
-
-	err = os.MkdirAll(mdPath, 0700)
-	if err != nil {
-		return false, err
+	if err := mailstore.Deliver(usr.HomePath(), rawMsg.Bytes()); err != nil {
+		return false, fmt.Errorf("%s unable to write to maildir: %w", id, err)
 	}
-
-	md := maildir.Dir(mdPath)
-	err = md.Init()
-	if err != nil {
-		return false, err
-	}
-
-	mdd, err := maildir.NewDelivery(mdPath)
-	if err != nil {
-		return false, errors.New(fmt.Sprintf("%s unable to create NewDelivery: %s", id, err))
-	}
-
-	written, err := mdd.Write(rawMsg.Bytes())
-	if err != nil {
-		return false, errors.New(fmt.Sprintf("%s unable to write to delivery: %s", id, err))
-	}
-	Logger.Info(fmt.Sprintf("%s written to maildir: %d bytes", id, written))
-
-	err = mdd.Close()
-	if err != nil {
-		return false, errors.New(fmt.Sprintf("%s unable to close delivery: %s", id, err))
-	}
-
+	Logger.Info(fmt.Sprintf("%s written to maildir: %d bytes", id, rawMsg.Len()))
 	return false, nil
 }

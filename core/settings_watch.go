@@ -163,6 +163,11 @@ func preflight(next *Config, keys []string) error {
 			return errors.New(SettingEnvName("pop3d_dsns") + ": " + err.Error())
 		}
 	}
+	if changed["imapd_launch"] || changed["imapd_dsns"] {
+		if err := checkListeners(next.GetLaunchImap(), next.GetImapDsns(), "imap", Cfg.GetImapDsns()); err != nil {
+			return errors.New(SettingEnvName("imapd_dsns") + ": " + err.Error())
+		}
+	}
 	if changed["logpath"] {
 		if p := next.GetLogPath(); p != "stdout" && p != "discard" {
 			if err := os.MkdirAll(filepath.Dir(p), 0700); err != nil {
@@ -184,7 +189,7 @@ func preflight(next *Config, keys []string) error {
 }
 
 // checkListeners checks certificates and addresses of listeners in dsns.
-// proto is smtp or pop3, running are the listeners of the running server.
+// proto is smtp, pop3 or imap, running are the listeners of the running server.
 func checkListeners(launch bool, dsns, proto, running string) error {
 	if !launch {
 		return nil
@@ -204,7 +209,8 @@ func checkListeners(launch bool, dsns, proto, running string) error {
 		if proto == "pop3" && !d.Ssl && !d.TcpAddr.IP.IsLoopback() {
 			return fmt.Errorf("%s: nossl is only allowed on a loopback address for POP3", d.String())
 		}
-		if d.Ssl {
+		// IMAP needs it for STARTTLS too
+		if d.Ssl || proto == "imap" {
 			crt := path.Join(BaseDir(), "ssl", proto+"-"+d.CertName+".crt")
 			key := path.Join(BaseDir(), "ssl", proto+"-"+d.CertName+".key")
 			if _, err := tls.LoadX509KeyPair(crt, key); err != nil {

@@ -97,6 +97,9 @@ type configValues struct {
 	DovecotLda string `name:"dovecot_lda"`
 	LdaType    string `name:"lda_type"`
 
+	LaunchImap bool   `name:"imapd_launch"`
+	ImapdDsns  string `name:"imapd_dsns"`
+
 	LaunchPop3         bool   `name:"pop3d_launch"`
 	Pop3dDsns          string `name:"pop3d_dsns"`
 	Pop3dServerTimeout int    `name:"pop3d_server_timeout"`
@@ -715,6 +718,20 @@ func (c *Config) GetDovecotLda() string {
 	c.Lock()
 	defer c.Unlock()
 	return c.cfg.DovecotLda
+}
+
+// GetLaunchImap returns true if the IMAP server has to be launched
+func (c *Config) GetLaunchImap() bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.cfg.LaunchImap
+}
+
+// GetImapDsns returns the IMAP listeners
+func (c *Config) GetImapDsns() string {
+	c.Lock()
+	defer c.Unlock()
+	return c.cfg.ImapdDsns
 }
 
 // GetLaunchPop3 returns true if pop3 has to be launched

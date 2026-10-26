@@ -16,50 +16,55 @@ import (
 
 	"github.com/jinzhu/gorm"
 	"github.com/stunndard/cocosmail/core"
+	"github.com/stunndard/cocosmail/imap/goimap"
+	"github.com/stunndard/cocosmail/mailstore"
 	"github.com/stunndard/cocosmail/pop3/popgun"
-	"github.com/stunndard/go-maildir"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type Message struct {
-	filename string
-	key      string
-	size     int
-	deleted  bool
+	msg     mailstore.Message
+	key     string
+	size    int
+	deleted bool
 }
 
-func NewMessage(filename, key string, size int) *Message {
-	return &Message{
-		filename: filename,
-		key:      key,
-		size:     size,
-	}
-}
-
+// Session is the POP3 session of a user: one at a time per user. Messages are
+// those of INBOX at login, IMAP sessions and deliveries can change it
+// meanwhile: everything goes through mailstore.
 type Session struct {
 	messages []*Message
 	user     string
-	md       maildir.Dir
+	inbox    *mailstore.Folder
 }
 
-var sessions = make(map[string]*Session)
-
-func NewSession(user string, s *Session) *Session {
-	sessions[user] = s
-	return s
-}
-
-func DeleteSession(user string) {
-	delete(sessions, user)
-}
+var (
+	sessions   = make(map[string]*Session)
+	sessionsMu sync.Mutex
+)
 
 func GetSession(user string) (session *Session, err error) {
-	var found bool
-	session, found = sessions[user]
+	sessionsMu.Lock()
+	defer sessionsMu.Unlock()
+	session, found := sessions[user]
 	if !found {
 		return session, errors.New("session not found")
 	}
 	return session, nil
+}
+
+// read returns the content of a message, an error if it was deleted
+// meanwhile, e.g. by an IMAP session
+func (s *Session) read(msg *Message) (string, error) {
+	b, err := s.inbox.Read(msg.msg)
+	if err == mailstore.ErrExpunged {
+		return "", errors.New("message deleted meanwhile by another session")
+	}
+	if err != nil {
+		core.Logger.Error(fmt.Sprintf("pop3d user %s error reading message %s: %s", s.user, msg.key, err))
+		return "", errors.New("error reading message")
+	}
+	return string(b), nil
 }
 
 // Authorizator is a authorizator interface implementation
@@ -99,11 +104,6 @@ func NewBackend() *Backend {
 // Deleted messages are ignored.
 func (b *Backend) Stat(user string) (messages, octets int, err error) {
 	s, _ := GetSession(user)
-
-	/*
-		fmt.Println("current maildir", s.md)
-		fmt.Println("current user", s.user)
-	*/
 
 	total := 0
 	numMsg := 0
@@ -163,24 +163,7 @@ func (b *Backend) Retr(user string, msgId int) (message string, err error) {
 		return message, errors.New("message already deleted")
 	}
 
-	r, err := s.md.Open(msg.key)
-	defer func() {
-		_ = r.Close()
-	}()
-	if err != nil {
-		return message, errors.New("error opening")
-	}
-
-	buf := make([]byte, msg.size)
-	read, err := r.Read(buf)
-	if err != nil {
-		return message, errors.New("error read")
-	}
-	if read != msg.size {
-		return message, errors.New("error size")
-	}
-
-	return string(buf), nil
+	return s.read(msg)
 }
 
 // Delete message by message ID - message should be just marked as deleted until
@@ -262,24 +245,12 @@ func (b *Backend) TopMessage(user string, msgId, msgLines int) (exists bool, mes
 		return false, message, errors.New("message already deleted")
 	}
 
-	r, err := s.md.Open(msg.key)
-	defer func() {
-		_ = r.Close()
-	}()
+	buf, err := s.read(msg)
 	if err != nil {
-		return false, message, errors.New("error opening")
+		return false, message, err
 	}
 
-	buf := make([]byte, msg.size)
-	read, err := r.Read(buf)
-	if err != nil {
-		return false, message, errors.New("error read")
-	}
-	if read != msg.size {
-		return false, message, errors.New("error size")
-	}
-
-	lines := strings.Split(string(buf), "\n")
+	lines := strings.Split(buf, "\n")
 	out := make([]string, 0)
 	i := 0
 	body := false
@@ -307,91 +278,64 @@ func (b *Backend) TopMessage(user string, msgId, msgLines int) (exists bool, mes
 func (b *Backend) Update(user string) error {
 	s, _ := GetSession(user)
 
-	i := 0
+	var uids []imap.UID
 	for _, msg := range s.messages {
 		if msg.deleted {
-			err := s.md.Remove(msg.key)
-			if err != nil {
-				core.Logger.Info(fmt.Sprintf("pop3d user %s error deleting file %s: %s", user, msg.filename, err))
-			}
-			i++
+			uids = append(uids, msg.msg.UID)
 		}
+	}
+	if len(uids) == 0 {
+		return nil
+	}
+	i, err := s.inbox.Remove(uids)
+	if err != nil {
+		core.Logger.Error(fmt.Sprintf("pop3d user %s error deleting messages: %s", user, err))
 	}
 
 	core.Logger.Info(fmt.Sprintf("pop3d user %s updated mailbox, deleted %d messages", user, i))
 
-	return nil
+	return err
 }
 
 // Lock is called immediately after client is connected. The best way what to use Lock() for
 // is to read all the messages into cache after client is connected. If another user
 // tries to lock the storage, you should return an error to avoid data race.
+// Only one POP3 session per user at a time: in memory, so no stale lock after
+// a crash. IMAP sessions share the mailbox, through mailstore.
 func (b *Backend) Lock(user string) (inUse bool, err error) {
-	// get the user
+	sessionsMu.Lock()
+	if _, ok := sessions[user]; ok {
+		sessionsMu.Unlock()
+		return true, nil
+	}
+	s := &Session{user: user}
+	sessions[user] = s
+	sessionsMu.Unlock()
+	defer func() {
+		if err != nil {
+			b.Unlock(user)
+		}
+	}()
+
 	usr, err := core.UserGetByLogin(user)
 	if err != nil {
 		return false, fmt.Errorf("cannot get user: %s: %w", user, err)
 	}
-	// get user home path
-	mdUserHome := usr.HomePath()
-	_, err = os.Stat(mdUserHome)
-	if err != nil {
-		err = os.MkdirAll(mdUserHome, 0700)
-		if err != nil {
-			return false, fmt.Errorf("cannot create mailbox dir for user %s: %w", user, err)
-		}
+	home := usr.HomePath()
+	if err = os.MkdirAll(home, 0700); err != nil {
+		return false, fmt.Errorf("cannot create mailbox dir for user %s: %w", user, err)
 	}
-
-	lockfile := mdUserHome + "/lock"
-	_, err = os.Stat(lockfile)
-	if err == nil {
-		return true, nil
+	if s.inbox, err = mailstore.Open(home); err != nil {
+		return false, fmt.Errorf("cannot open mailbox of user %s: %w", user, err)
 	}
-	f, err := os.Create(lockfile)
-	if err != nil {
-		return false, fmt.Errorf("cannot create lock: %w", err)
-	}
-	_ = f.Close()
-
-	s := NewSession(user, &Session{
-		user: user,
-		md:   maildir.Dir(mdUserHome),
-	})
-
 	core.Logger.Info(fmt.Sprintf("pop3d user %s locked mailbox", user))
 
-	err = s.md.Init()
+	msgs, err := s.inbox.Messages()
 	if err != nil {
-		return false, fmt.Errorf("error maildir.Init: %w", err)
+		return false, fmt.Errorf("cannot read mailbox of user %s: %w", user, err)
 	}
-	uns, err := s.md.UnseenCount()
-	if err != nil {
-		return false, fmt.Errorf("error maildir.UnseenCount: %w", err)
-	}
-	core.Logger.Info(fmt.Sprintf("pop3d user %s has %d unseen messages", user, uns))
-	unseen, err := s.md.Unseen()
-	if err != nil {
-		return false, fmt.Errorf("error maildir.Unseen: %w", err)
-	}
-	core.Logger.Info(fmt.Sprintf("pop3d user %s moved %d messages from new to cur", user, len(unseen)))
-
-	keys, err := s.md.Keys()
-	if err != nil {
-		return false, errors.New("error maildir.Keys()")
-	}
-	for _, key := range keys {
-		filename, err := s.md.Filename(key)
-		if err != nil {
-			return false, errors.New("error maildir.Filename()")
-		}
-		fi, err := os.Stat(filename)
-		if err != nil {
-			return false, errors.New("error os.Stat()")
-		}
-		filesize := int(fi.Size())
-
-		m := NewMessage(filename, key, filesize)
-		s.messages = append(s.messages, m)
+	for _, m := range msgs {
+		s.messages = append(s.messages, &Message{msg: m, key: m.Key, size: int(m.Size)})
 	}
 
 	core.Logger.Info(fmt.Sprintf("pop3d user %s loaded %d messages", user, len(s.messages)))
@@ -401,19 +345,12 @@ func (b *Backend) Lock(user string) (inUse bool, err error) {
 
 // Release lock on storage, Unlock() is called after client is disconnected.
 func (b *Backend) Unlock(user string) error {
-	// even if cannot unlock after, better to delete session
-	// so it remains locked and cannot be entered again
-	DeleteSession(user)
-
-	// get user
-	usr, err := core.UserGetByLogin(user)
-	if err != nil {
-		return fmt.Errorf("cannot get user: %s: %w", user, err)
-	}
-
-	lockfile := usr.HomePath() + "/lock"
-	if err := os.Remove(lockfile); err != nil {
-		return fmt.Errorf("error unlocking user: %w", err)
+	sessionsMu.Lock()
+	s := sessions[user]
+	delete(sessions, user)
+	sessionsMu.Unlock()
+	if s != nil && s.inbox != nil {
+		s.inbox.Close()
 	}
 
 	core.Logger.Info(fmt.Sprintf("pop3d user %s unlocked mailbox", user))
@@ -421,7 +358,8 @@ func (b *Backend) Unlock(user string) error {
 	return nil
 }
 
-// ClearLocks deletes all stuck lock files in all users mail directories.
+// ClearLocks deletes the lock files older versions left in users mail
+// directories: locks are kept in memory now.
 // It's caled at pop3 server start only.
 func (b *Backend) ClearLocks() error {
 	// get all users

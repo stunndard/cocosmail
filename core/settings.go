@@ -167,6 +167,14 @@ var Settings = []Setting{
 	{Key: "pop3d_server_timeout", Section: "pop3d", Default: "300", Restart: true,
 		Description: "Seconds before an idle POP3 client is disconnected"},
 
+	// imapd
+	{Key: "imapd_launch", Section: "imapd", Default: "false", Restart: true,
+		Description: "Launch the IMAP server"},
+	{Key: "imapd_dsns", Section: "imapd", RequiredWith: "imapd_launch", Restart: true,
+		Description: "IMAP listeners, same format as smtpd_dsns. ssl: port 993, nossl: port 143 with STARTTLS, " +
+			"login needs it except on loopback. Certificate: ssl/imap-CERT.crt and .key, needed for both",
+		Validate: validateDsns},
+
 	// rest
 	{Key: "rest_server_launch", Section: "rest", Default: "false", Restart: true,
 		Description: "Launch the REST API server"},

@@ -14,12 +14,13 @@ import (
 var dsnSettings = map[string]string{
 	"smtpd_dsns": "smtp",
 	"pop3d_dsns": "pop3",
+	"imapd_dsns": "imap",
 }
 
-// DsnEditor edits a list of listeners (smtpd_dsns, pop3d_dsns), one per row
+// DsnEditor edits a list of listeners (smtpd_dsns, pop3d_dsns, imapd_dsns), one per row
 type DsnEditor struct {
 	*listEditor[core.DsnFields]
-	proto string // smtp or pop3
+	proto string // smtp, pop3 or imap
 }
 
 // newDsnEditor returns the listener editor of setting key, over ed
@@ -76,8 +77,11 @@ func dsnCell(d core.DsnFields, col int) string {
 // newDsn returns the defaults of a new listener
 func (de *DsnEditor) newDsn() core.DsnFields {
 	host := de.ed.values["me"]
-	if de.proto == "pop3" {
+	switch de.proto {
+	case "pop3":
 		return core.DsnFields{Port: "995", Hostname: host, SSL: "ssl", Cert: host}
+	case "imap":
+		return core.DsnFields{Port: "993", Hostname: host, SSL: "ssl", Cert: host}
 	}
 	return core.DsnFields{Port: "25", Hostname: host, SSL: "nossl", Cert: host}
 }

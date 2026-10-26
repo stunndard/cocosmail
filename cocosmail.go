@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/nsqio/nsq/nsqd"
+	"github.com/stunndard/cocosmail/imap"
 	"github.com/stunndard/cocosmail/plugin"
 	"github.com/stunndard/cocosmail/pop3"
 	"github.com/urfave/cli"
@@ -199,9 +200,10 @@ func restart(reason string, nsqDaemon *nsqd.NSQD) {
 	const drainTimeout = 30 * time.Second
 	core.Logger.Info("restarting: " + reason)
 
-	// no new SMTP and POP3 sessions, let running ones finish
+	// no new SMTP, POP3 and IMAP sessions, let running ones finish
 	core.CloseSmtpdListeners()
 	pop3.Close()
+	imap.Close()
 	deadline := time.Now().Add(drainTimeout)
 	for atomic.LoadInt32(&core.SmtpSessionsCount) > 0 && time.Now().Before(deadline) {
 		time.Sleep(200 * time.Millisecond)
@@ -210,6 +212,7 @@ func restart(reason string, nsqDaemon *nsqd.NSQD) {
 		core.Logger.Info(fmt.Sprintf("restarting: %d SMTP sessions still open, clients will retry", n))
 	}
 	pop3.Wait(time.Until(deadline))
+	imap.Wait(time.Until(deadline))
 	core.StopDeliverd(time.Until(deadline))
 
 	if core.Cfg.GetLaunchSmtpd() {
@@ -263,9 +266,9 @@ func main() {
 			bootstrapServer()
 
 			// if there is nothing to do then... do nothing
-			if !core.Cfg.GetLaunchDeliverd() && !core.Cfg.GetLaunchSmtpd() && !core.Cfg.GetLaunchPop3() {
-				log.Fatalln("Nothing to run: the SMTP server, delivery and POP3 are all off.\n" +
-					"Turn on COCOSMAIL_SMTPD_LAUNCH, COCOSMAIL_DELIVERD_LAUNCH or COCOSMAIL_POP3D_LAUNCH, e.g. with: cocosmail config edit")
+			if !core.Cfg.GetLaunchDeliverd() && !core.Cfg.GetLaunchSmtpd() && !core.Cfg.GetLaunchPop3() && !core.Cfg.GetLaunchImap() {
+				log.Fatalln("Nothing to run: the SMTP server, delivery, POP3 and IMAP are all off.\n" +
+					"Turn on COCOSMAIL_SMTPD_LAUNCH, COCOSMAIL_DELIVERD_LAUNCH, COCOSMAIL_POP3D_LAUNCH or COCOSMAIL_IMAPD_LAUNCH, e.g. with: cocosmail config edit")
 			}
 
 			// Init Bolt (used as cache)
@@ -368,6 +371,17 @@ func main() {
 				}
 				for _, dsn := range pop3Dsns {
 					go pop3.NewPop3d(dsn).ListenAndServe()
+				}
+			}
+
+			// IMAP server
+			if core.Cfg.GetLaunchImap() {
+				imapDsns, err := core.GetDsnsFromString(core.Cfg.GetImapDsns())
+				if err != nil {
+					log.Fatalln("unable to parse imap dsn -", err)
+				}
+				for _, dsn := range imapDsns {
+					go imap.NewImapd(dsn).ListenAndServe()
 				}
 			}
 
