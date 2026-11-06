@@ -139,6 +139,11 @@ done
 sudo chown cocosmail: *.crt *.key && sudo chmod 600 *.key
 ```
 
+Certificates are loaded again when their files change, no restart needed.
+To copy renewed ones, add the `cp` lines above to a certbot deploy hook
+(`/etc/letsencrypt/renewal-hooks/deploy/`). If cocosmail can read
+`/etc/letsencrypt` (it is root only by default), symlinks to `live/` work too.
+
 For a test, a self-signed one does too:
 `openssl req -x509 -newkey rsa:2048 -nodes -days 365 -subj /CN=mail.example.com -keyout ssl/smtp-example.com.key -out ssl/smtp-example.com.crt`
 (and the same for `imap-` and `pop3-`).

@@ -2,13 +2,11 @@ package pop3
 
 import (
 	"crypto/md5"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
-	"path"
 	"strings"
 	"sync"
 	"syscall"
@@ -460,20 +458,12 @@ func (p *Pop3d) ListenAndServe() {
 	}
 
 	if p.dsn.Ssl {
-		cert, err := tls.LoadX509KeyPair(
-			path.Join(core.Cfg.GetBasePath(), fmt.Sprintf("ssl/pop3-%s.crt", p.dsn.CertName)),
-			path.Join(core.Cfg.GetBasePath(), fmt.Sprintf("ssl/pop3-%s.key", p.dsn.CertName)))
+		cert, err := core.LoadListenerCert("pop3", p.dsn.CertName)
 		if err != nil {
 			log.Fatalln("unable to load SSL keys for pop3.", "err:", err)
 		}
-		// TODO: http://fastah.blackbuck.mobi/blog/securing-https-in-go/
-		tlsConfig := &tls.Config{
-			Certificates:       []tls.Certificate{cert},
-			InsecureSkipVerify: true,
-			MinVersion:         tls.VersionTLS12,
-		}
 		pop3Cfg.UseTls = true
-		pop3Cfg.TlsConfig = tlsConfig
+		pop3Cfg.TlsConfig = cert.TLSConfig()
 	}
 
 	sigChan := make(chan os.Signal, 1)

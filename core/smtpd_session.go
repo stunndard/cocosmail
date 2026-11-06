@@ -3,14 +3,12 @@ package core
 import (
 	"bufio"
 	"bytes"
-	"crypto/rand"
 	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"net"
 	"net/mail"
-	"path"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -1175,9 +1173,7 @@ func (s *SMTPServerSession) smtpStartTLS() {
 		return
 	}
 
-	cert, err := tls.LoadX509KeyPair(
-		path.Join(Cfg.GetBasePath(), fmt.Sprintf("ssl/smtp-%s.crt", s.certName)),
-		path.Join(Cfg.GetBasePath(), fmt.Sprintf("ssl/smtp-%s.key", s.certName)))
+	cert, err := LoadListenerCert("smtp", s.certName)
 	if err != nil {
 		errmsg := "TLS failed unable to load server keys"
 		s.LogError(fmt.Sprintf("%s: %s", errmsg, err.Error()))
@@ -1185,16 +1181,9 @@ func (s *SMTPServerSession) smtpStartTLS() {
 		return
 	}
 
-	tlsConfig := tls.Config{
-		Certificates:       []tls.Certificate{cert},
-		InsecureSkipVerify: true,
-		MinVersion: tls.VersionTLS12,
-	}
-	tlsConfig.Rand = rand.Reader
-
 	s.Out(220, "Ready to start TLS nego")
 
-	s.connTLS = tls.Server(s.Conn, &tlsConfig)
+	s.connTLS = tls.Server(s.Conn, cert.TLSConfig())
 	// run a handshake
 	// errors.New("tls: unsupported SSLv2 handshake received")
 	err = s.connTLS.Handshake()

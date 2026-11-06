@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"path"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -396,16 +395,11 @@ func NewImapd(d core.Dsn) *Imapd {
 // encrypted from the start, else STARTTLS is offered and login needs it,
 // except on loopback (behind a TLS proxy).
 func (d *Imapd) ListenAndServe() {
-	cert, err := tls.LoadX509KeyPair(
-		path.Join(core.Cfg.GetBasePath(), fmt.Sprintf("ssl/imap-%s.crt", d.dsn.CertName)),
-		path.Join(core.Cfg.GetBasePath(), fmt.Sprintf("ssl/imap-%s.key", d.dsn.CertName)))
+	cert, err := core.LoadListenerCert("imap", d.dsn.CertName)
 	if err != nil {
 		log.Fatalln("unable to load SSL keys for imap.", "err:", err)
 	}
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		MinVersion:   tls.VersionTLS12,
-	}
+	tlsConfig := cert.TLSConfig()
 	options := &imapserver.Options{
 		NewSession: func(conn *imapserver.Conn) (imapserver.Session, *imapserver.GreetingData, error) {
 			return newSession(conn), &imapserver.GreetingData{Text: greeting(d.dsn.SystemName)}, nil
