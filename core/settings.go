@@ -39,7 +39,7 @@ var Settings = []Setting{
 	{Key: "me", Section: "general", Required: true,
 		Description: "Hostname of this server, used in HELO/EHLO and as default for outgoing mail"},
 	{Key: "hide_server_signature", Section: "general", Default: "false",
-		Description: "Hide cocosmail version in SMTP greeting"},
+		Description: "Hide cocosmail version in SMTP, POP3 and IMAP greetings"},
 	{Key: "debug_enabled", Section: "general", Default: "false", Restart: true,
 		Description: "Log debug messages"},
 	{Key: "logpath", Section: "general", Default: "stdout", Restart: true,

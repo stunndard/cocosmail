@@ -34,7 +34,8 @@ type Config struct {
 	ListenInterface string
 	UseTls          bool
 	TlsConfig       *tls.Config
-	ServerName      string
+	// ServerName is shown in the greeting, read on each connection
+	ServerName func() string
 }
 
 type Authorizator interface {
@@ -224,7 +225,11 @@ func (s *Server) Start() error {
 				continue
 			}
 
-			c := newClient(s.auth, s.backend, s.config.ServerName)
+			name := ""
+			if s.config.ServerName != nil {
+				name = s.config.ServerName()
+			}
+			c := newClient(s.auth, s.backend, name)
 			s.clients.Add(1)
 			go func() {
 				defer s.clients.Done()

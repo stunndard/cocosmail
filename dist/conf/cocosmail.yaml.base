@@ -18,7 +18,7 @@ settings:
   # (required)
   me: cocosmail.io
 
-  # Hide cocosmail version in SMTP greeting (default: false)
+  # Hide cocosmail version in SMTP, POP3 and IMAP greetings (default: false)
   hide_server_signature: false
 
   # Log debug messages (default: false)

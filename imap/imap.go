@@ -379,6 +379,14 @@ type Imapd struct {
 	dsn core.Dsn
 }
 
+// greeting is the text of the server greeting, like the SMTP and POP3 ones
+func greeting(systemName string) string {
+	if core.Cfg.GetHideServerSignature() {
+		return systemName + " IMAP server ready"
+	}
+	return "cocosmail " + core.Version + " at " + systemName + " IMAP server ready"
+}
+
 // NewImapd returns an IMAP listener for dsn
 func NewImapd(d core.Dsn) *Imapd {
 	return &Imapd{d}
@@ -400,7 +408,7 @@ func (d *Imapd) ListenAndServe() {
 	}
 	options := &imapserver.Options{
 		NewSession: func(conn *imapserver.Conn) (imapserver.Session, *imapserver.GreetingData, error) {
-			return newSession(conn), nil, nil
+			return newSession(conn), &imapserver.GreetingData{Text: greeting(d.dsn.SystemName)}, nil
 		},
 		Caps:   caps,
 		Logger: logger{},

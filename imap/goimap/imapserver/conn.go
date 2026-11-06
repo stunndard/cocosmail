@@ -158,11 +158,15 @@ func (c *Conn) serve() {
 
 	c.state = imap.ConnStateNotAuthenticated
 	statusType := imap.StatusResponseTypeOK
+	text := "IMAP server ready"
 	if greetingData != nil && greetingData.PreAuth {
 		c.state = imap.ConnStateAuthenticated
 		statusType = imap.StatusResponseTypePreAuth
 	}
-	if err := c.writeCapabilityStatus("", statusType, "IMAP server ready"); err != nil {
+	if greetingData != nil && greetingData.Text != "" {
+		text = greetingData.Text
+	}
+	if err := c.writeCapabilityStatus("", statusType, text); err != nil {
 		c.server.logger().Printf("failed to write greeting: %v", err)
 		return
 	}

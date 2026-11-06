@@ -8,3 +8,4 @@ v2.0.0-beta.8, maintained here as part of cocosmail. MIT license, see
 Changes:
 - `Conn.SetDebug` (imapserver/debug.go): a protocol log for each connection,
   client and server sides apart, also after STARTTLS.
+- `GreetingData.Text`: the text of the server greeting.

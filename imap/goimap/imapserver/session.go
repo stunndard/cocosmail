@@ -20,6 +20,8 @@ var ErrAuthFailed = errAuthFailed
 // GreetingData is the data associated with an IMAP greeting.
 type GreetingData struct {
 	PreAuth bool
+	// Text replaces "IMAP server ready" (cocosmail)
+	Text string
 }
 
 // NumKind describes how a number should be interpreted: either as a sequence
