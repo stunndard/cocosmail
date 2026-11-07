@@ -3,15 +3,18 @@
 package core
 
 import (
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"io"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/emersion/go-msgauth/dkim"
 	"github.com/jinzhu/gorm"
 )
 
@@ -102,4 +105,59 @@ func DkimGetConfig(domain string) (dkc *DkimConfig, err error) {
 		}
 	}
 	return dkc, nil
+}
+
+// dkimHeaders are the header fields signed
+var dkimHeaders = []string{"from", "subject", "date", "message-id"}
+
+// dkimSignature returns the DKIM-Signature header field of m for domain,
+// with the key of dkc. The message is read from its file as a stream.
+func dkimSignature(m *queuedMessage, domain string, dkc *DkimConfig) (string, error) {
+	key, err := dkimPrivateKey(dkc.PrivKey)
+	if err != nil {
+		return "", err
+	}
+	signer, err := dkim.NewSigner(&dkim.SignOptions{
+		Domain:     domain,
+		Selector:   dkc.Selector,
+		Signer:     key,
+		HeaderKeys: dkimHeaders,
+	})
+	if err != nil {
+		return "", err
+	}
+	r, err := m.Reader()
+	if err != nil {
+		signer.Close()
+		return "", err
+	}
+	defer r.Close()
+	if _, err := io.Copy(signer, r); err != nil {
+		signer.Close()
+		return "", err
+	}
+	if err := signer.Close(); err != nil {
+		return "", err
+	}
+	return signer.Signature(), nil
+}
+
+// dkimPrivateKey parses a PEM private key, PKCS #1 or PKCS #8
+func dkimPrivateKey(privKey string) (crypto.Signer, error) {
+	block, _ := pem.Decode([]byte(privKey))
+	if block == nil {
+		return nil, errors.New("the DKIM private key is not in PEM format")
+	}
+	if key, err := x509.ParsePKCS1PrivateKey(block.Bytes); err == nil {
+		return key, nil
+	}
+	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, errors.New("unable to parse the DKIM private key: " + err.Error())
+	}
+	signer, ok := key.(crypto.Signer)
+	if !ok {
+		return nil, errors.New("the DKIM private key can't sign")
+	}
+	return signer, nil
 }

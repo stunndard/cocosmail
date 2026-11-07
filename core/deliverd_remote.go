@@ -1,7 +1,6 @@
 package core
 
 import (
-	"bytes"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -9,7 +8,6 @@ import (
 	"time"
 
 	"github.com/stunndard/cocosmail/message"
-	"github.com/toorop/go-dkim"
 )
 
 func deliverRemote(d *Delivery) {
@@ -188,18 +186,6 @@ func deliverRemote(d *Delivery) {
 	// add Received headers
 	d.msg.Prepend("Received: cocosmail deliverd remote " + d.ID + "; " + Format822Date() + "\r\n")
 
-	// the message is copied from its file, except when signed
-	var data io.Reader
-	msgReader, err := d.msg.Reader()
-	if err != nil {
-		errMsg := "deliverd-remote " + d.ID + " - unable to read the message - " + err.Error()
-		Logger.Error(errMsg)
-		d.dieTemp(errMsg, false)
-		return
-	}
-	defer msgReader.Close()
-	data = msgReader
-
 	// TODO call delivery plugin that can modify the message
 
 	// DKIM ?
@@ -215,28 +201,29 @@ func deliverRemote(d *Delivery) {
 			}
 			if dkc != nil {
 				Logger.Debug(fmt.Sprintf("deliverd-remote %s: add dkim sign", d.ID))
-				dkimOptions := dkim.NewSigOptions()
-				dkimOptions.PrivateKey = []byte(dkc.PrivKey)
-				dkimOptions.AddSignatureTimestamp = true
-				dkimOptions.Domain = userDomain[1]
-				dkimOptions.Selector = dkc.Selector
-				dkimOptions.Headers = []string{"from", "subject", "date", "message-id"}
-				// TODO: sign as a stream, go-dkim needs the whole message
-				raw, err := io.ReadAll(msgReader)
+				// a pass over the file, the message is sent after
+				sig, err := dkimSignature(d.msg, userDomain[1], dkc)
 				if err != nil {
-					errMsg := "deliverd-remote " + d.ID + " - unable to read the message - " + err.Error()
-					Logger.Error(errMsg)
-					d.dieTemp(errMsg, false)
-					return
+					// sent unsigned, as before
+					Logger.Error("deliverd-remote " + d.ID + " - unable to sign with DKIM - " + err.Error())
+				} else {
+					d.msg.Prepend(sig)
 				}
-				_ = dkim.Sign(&raw, dkimOptions)
-				data = bytes.NewReader(raw)
 				Logger.Debug(fmt.Sprintf("deliverd-remote %s: end dkim sign", d.ID))
 			}
 		}
 	}
 
-	_, err = io.Copy(dataPipe, data)
+	// the message is copied from its file
+	msgReader, err := d.msg.Reader()
+	if err != nil {
+		errMsg := "deliverd-remote " + d.ID + " - unable to read the message - " + err.Error()
+		Logger.Error(errMsg)
+		d.dieTemp(errMsg, false)
+		return
+	}
+	defer msgReader.Close()
+	_, err = io.Copy(dataPipe, msgReader)
 	if err != nil {
 		errMsg := "deliverd-remote " + d.ID + " - " + client.RemoteAddr() + " - unable to copy dataBuf to dataPipe DKIM config for domain " + " - " + err.Error()
 		Logger.Error(errMsg)
