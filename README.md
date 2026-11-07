@@ -366,6 +366,11 @@ the server. They hook into the SMTP session (`connect`, `helo`, `mailpre`,
 `plugins/config.go` enables them. Included: `fail2ban` (bans IPs after failed
 logins, on by default) and `customgreeting` (an example).
 
+Plugins can import `bufio`, `encoding/json`, `errors`, `fmt`, `io`, `net`,
+`strings`, `time` and cocosmail's `core`. In `data` and `beforequeue`,
+`s.RawMail()` opens the message received (close it when done): it's in a file,
+not in memory, so read it as a stream.
+
 ## More
 
 [TODO.md](TODO.md) has plans and known issues, [CHANGELOG](CHANGELOG) the
