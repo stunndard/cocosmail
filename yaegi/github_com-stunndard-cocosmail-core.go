@@ -3,7 +3,6 @@
 package yaegi
 
 import (
-	"bytes"
 	"github.com/stunndard/cocosmail/core"
 	"go/constant"
 	"go/token"
@@ -138,14 +137,14 @@ func (W _github_com_stunndard_cocosmail_core_DeliverdAuth) Start(server *core.Se
 // _github_com_stunndard_cocosmail_core_InternalDelivery is an interface wrapper for InternalDelivery type
 type _github_com_stunndard_cocosmail_core_InternalDelivery struct {
 	WCheckConfig func() (err error)
-	WDeliver     func(id string, deliverTo string, rawMsg *bytes.Buffer) (permFail bool, err error)
+	WDeliver     func(id string, deliverTo string, rawMsg io.Reader) (permFail bool, err error)
 	WGetName     func() string
 }
 
 func (W _github_com_stunndard_cocosmail_core_InternalDelivery) CheckConfig() (err error) {
 	return W.WCheckConfig()
 }
-func (W _github_com_stunndard_cocosmail_core_InternalDelivery) Deliver(id string, deliverTo string, rawMsg *bytes.Buffer) (permFail bool, err error) {
+func (W _github_com_stunndard_cocosmail_core_InternalDelivery) Deliver(id string, deliverTo string, rawMsg io.Reader) (permFail bool, err error) {
 	return W.WDeliver(id, deliverTo, rawMsg)
 }
 func (W _github_com_stunndard_cocosmail_core_InternalDelivery) GetName() string { return W.WGetName() }
@@ -153,12 +152,12 @@ func (W _github_com_stunndard_cocosmail_core_InternalDelivery) GetName() string 
 // _github_com_stunndard_cocosmail_core_Storer is an interface wrapper for Storer type
 type _github_com_stunndard_cocosmail_core_Storer struct {
 	WDel func(key string) error
-	WGet func(key string) (io.Reader, error)
+	WGet func(key string) (io.ReadCloser, error)
 	WPut func(key string, reader io.Reader) error
 }
 
 func (W _github_com_stunndard_cocosmail_core_Storer) Del(key string) error { return W.WDel(key) }
-func (W _github_com_stunndard_cocosmail_core_Storer) Get(key string) (io.Reader, error) {
+func (W _github_com_stunndard_cocosmail_core_Storer) Get(key string) (io.ReadCloser, error) {
 	return W.WGet(key)
 }
 func (W _github_com_stunndard_cocosmail_core_Storer) Put(key string, reader io.Reader) error {

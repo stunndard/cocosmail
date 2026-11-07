@@ -183,10 +183,22 @@ func deliverRemote(d *Delivery) {
 	}
 
 	// check if Received header needs redaction before remote delivery
-	*d.RawData = []byte(message.RedactHeaders(string(*d.RawData)))
+	d.msg.Header = []byte(message.RedactHeaders(string(d.msg.Header)))
 
 	// add Received headers
-	*d.RawData = append([]byte("Received: cocosmail deliverd remote "+d.ID+"; "+Format822Date()+"\r\n"), *d.RawData...)
+	d.msg.Prepend("Received: cocosmail deliverd remote " + d.ID + "; " + Format822Date() + "\r\n")
+
+	// the message is copied from its file, except when signed
+	var data io.Reader
+	msgReader, err := d.msg.Reader()
+	if err != nil {
+		errMsg := "deliverd-remote " + d.ID + " - unable to read the message - " + err.Error()
+		Logger.Error(errMsg)
+		d.dieTemp(errMsg, false)
+		return
+	}
+	defer msgReader.Close()
+	data = msgReader
 
 	// TODO call delivery plugin that can modify the message
 
@@ -209,14 +221,22 @@ func deliverRemote(d *Delivery) {
 				dkimOptions.Domain = userDomain[1]
 				dkimOptions.Selector = dkc.Selector
 				dkimOptions.Headers = []string{"from", "subject", "date", "message-id"}
-				_ = dkim.Sign(d.RawData, dkimOptions)
+				// TODO: sign as a stream, go-dkim needs the whole message
+				raw, err := io.ReadAll(msgReader)
+				if err != nil {
+					errMsg := "deliverd-remote " + d.ID + " - unable to read the message - " + err.Error()
+					Logger.Error(errMsg)
+					d.dieTemp(errMsg, false)
+					return
+				}
+				_ = dkim.Sign(&raw, dkimOptions)
+				data = bytes.NewReader(raw)
 				Logger.Debug(fmt.Sprintf("deliverd-remote %s: end dkim sign", d.ID))
 			}
 		}
 	}
 
-	dataBuf := bytes.NewBuffer(*d.RawData)
-	_, err = io.Copy(dataPipe, dataBuf)
+	_, err = io.Copy(dataPipe, data)
 	if err != nil {
 		errMsg := "deliverd-remote " + d.ID + " - " + client.RemoteAddr() + " - unable to copy dataBuf to dataPipe DKIM config for domain " + " - " + err.Error()
 		Logger.Error(errMsg)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 	"sync"
 	"time"
@@ -128,6 +129,24 @@ func QueueAddMessage(rawMess *[]byte, envelope message.Envelope, authUser string
 		return
 	}
 	err = queueRecords(qStore, uuid, string(message.RawGetMessageId(rawMess)), envelope, authUser)
+	return
+}
+
+// QueueAddReader queues the message read from r
+func QueueAddReader(r io.Reader, messageId string, envelope message.Envelope, authUser string) (uuid string, err error) {
+	qStore, err := NewStore(Cfg.GetStoreDriver(), Cfg.GetStoreSource())
+	if err != nil {
+		return
+	}
+	uuid, err = NewUUID()
+	if err != nil {
+		return
+	}
+	if err = qStore.Put(uuid, r); err != nil {
+		qStore.Del(uuid)
+		return
+	}
+	err = queueRecords(qStore, uuid, messageId, envelope, authUser)
 	return
 }
 

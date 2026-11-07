@@ -111,7 +111,7 @@ func newSMTPClient(d *Delivery, routes []Route, timeoutBasePerCmd int) (client *
 				systemName string
 			}
 
-			msg, err := message.New(d.RawData)
+			msg, err := message.New(&d.msg.Header)
 			if err != nil {
 				return nil, errors.New("cannot parse message: " + err.Error())
 			}
