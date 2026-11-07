@@ -44,7 +44,12 @@ func LaunchServer() {
 	// TLS
 	if core.Cfg.GetRestServerIsTls() {
 		core.Logger.Info("httpd " + addr + " TLS launched")
-		log.Fatalln(http.ListenAndServeTLS(addr, path.Join(getBasePath(), "ssl/web_server.crt"), path.Join(getBasePath(), "ssl/web_server.key"), n))
+		cert, err := core.LoadCert(path.Join(getBasePath(), "ssl/web_server.crt"), path.Join(getBasePath(), "ssl/web_server.key"))
+		if err != nil {
+			log.Fatalln("unable to load SSL keys for the REST server:", err)
+		}
+		server := &http.Server{Addr: addr, Handler: n, TLSConfig: cert.TLSConfig()}
+		log.Fatalln(server.ListenAndServeTLS("", ""))
 	} else {
 		core.Logger.Info("httpd " + addr + " launched")
 		log.Fatalln(http.ListenAndServe(addr, n))
