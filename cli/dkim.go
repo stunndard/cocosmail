@@ -95,7 +95,7 @@ var Dkim = cgCli.Command{
 				dkc, err := api.DkimGetConfig(domain)
 				cliHandleErr(err)
 				if dkc != nil {
-					fmt.Printf("%s._domainkey.%s zone:\n\nv=DKIM1;k=rsa;s=email;h=sha256;p=%s\n\n", domain, dkc.Selector, dkc.PubKey)
+					fmt.Printf("TXT record on %s._domainkey.%s:\n\nv=DKIM1;k=rsa;s=email;h=sha256;p=%s\n\n", dkc.Selector, dkc.Domain, dkc.PubKey)
 				} else {
 					println("DKIM is not enabled for " + domain)
 					println("To enable DKIM on " + domain + " run command:")
