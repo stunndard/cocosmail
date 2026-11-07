@@ -74,7 +74,13 @@ func deliverLocal(d *Delivery) {
 				}
 				defer dataBuf.Close()
 
-				cmd := exec.Command(strings.Join(strings.Split(alias.Pipe, " "), ","))
+				// the program, then its arguments, separated by spaces
+				args := strings.Fields(alias.Pipe)
+				if len(args) == 0 {
+					d.diePerm(fmt.Sprintf("delivery-local %s: the pipe command of alias %s is empty", d.ID, d.QMsg.RcptTo), true)
+					return
+				}
+				cmd := exec.Command(args[0], args[1:]...)
 				stdin, err := cmd.StdinPipe()
 				if err != nil {
 					d.dieTemp(fmt.Sprintf("delivery-local %s: unable to create stddin pipe to %s. %s", d.ID, alias.Pipe, err.Error()), true)
