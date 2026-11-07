@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/mail"
 	"path"
@@ -65,7 +66,7 @@ type SMTPServerSession struct {
 	dataBytes        uint64
 	startAt          time.Time
 	exiting          bool
-	CurrentRawMail   []byte
+	spool            *Spool
 	SPFResult        spf.Result
 }
 
@@ -161,7 +162,6 @@ func (s *SMTPServerSession) Reset() {
 	s.seenMail = false
 	s.Envelope.RcptTo = []string{}
 	s.rcptCount = 0
-	s.CurrentRawMail = []byte{}
 	s.resetTimeout()
 }
 
@@ -858,10 +858,21 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 		s.Out(501, "5.5.4 invalid syntax")
 		return
 	}
-	s.Out(354, "End data with <CR><LF>.<CR><LF>")
 
-	// Get RAW mail
-	s.CurrentRawMail = make([]byte, 0, 1024*1024)
+	// the message goes to a file as it comes, not in memory
+	spool, err := NewSpool()
+	if err != nil {
+		s.LogError("DATA - unable to create the message file - " + err.Error())
+		s.Out(451, "4.3.0 temporary queue error")
+		return
+	}
+	s.spool = spool
+	defer func() {
+		spool.Abort()
+		s.spool = nil
+	}()
+
+	s.Out(354, "End data with <CR><LF>.<CR><LF>")
 
 	hops := 0       // nb of relay
 	s.dataBytes = 0 // nb of bytes (size of message)
@@ -870,7 +881,10 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 	maxHops := Cfg.GetSmtpdMaxHops()
 	maxDataBytes := Cfg.GetSmtpdMaxDataBytes()
 
-	headers := ""
+	// the header block is kept until its end, to add our headers on top
+	var headerBlock []byte
+	headersWritten := false
+	messageID := ""
 	doneHeaders := false
 	doneEmail := false
 	var line []byte
@@ -937,9 +951,8 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 				hops++
 			}
 
-			headers = headers + sLine
-			if len(headers) > MAXTOTALHEADERSIZE {
-				s.Log(fmt.Sprintf("DATA - Headers in the message are too long: %d", len(headers)))
+			if len(headerBlock)+len(line) > MAXTOTALHEADERSIZE {
+				s.Log(fmt.Sprintf("DATA - Headers in the message are too long: %d", len(headerBlock)+len(line)))
 				s.Out(500, "headers in this message are too long")
 				// No point to leave the session open, some clients don't check the server response
 				// until they finish sending the whole email body.
@@ -971,20 +984,28 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 			s.ExitAsap()
 			return
 		}
-		// TODO: optimize more by reading directly into slice?
-		s.CurrentRawMail = append(s.CurrentRawMail, line...)
+
+		if headersWritten {
+			_, err = spool.Write(line)
+		} else {
+			headerBlock = append(headerBlock, line...)
+			if doneHeaders {
+				messageID, err = s.spoolHeaders(spool, headerBlock, nil)
+				headersWritten = true
+				headerBlock = nil
+			}
+		}
+		if err != nil {
+			s.LogError("DATA - unable to write the message file - " + err.Error())
+			s.Out(451, "4.3.0 temporary queue error")
+			s.ExitAsap()
+			return
+		}
 
 		lines++
 		if lines%1000 == 0 {
 			s.resetTimeout()
 		}
-	}
-
-	// If no headers in the message, treat the data as the message body only
-	// and add a leading CRLF before the body as we're adding our own headers to the message below.
-	if !doneHeaders {
-		headers = ""
-		s.CurrentRawMail = append([]byte{CR, LF}, s.CurrentRawMail...)
 	}
 
 	s.Log(fmt.Sprintf("DATA - received %d bytes", s.dataBytes))
@@ -995,10 +1016,23 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 		return
 	}
 
+	// If no headers in the message, treat the data as the message body only
+	// and add a leading CRLF before the body as we're adding our own headers to the message.
+	if !headersWritten {
+		messageID, err = s.spoolHeaders(spool, nil, append([]byte{CR, LF}, headerBlock...))
+		if err != nil {
+			s.LogError("DATA - unable to write the message file - " + err.Error())
+			s.Out(451, "4.3.0 temporary queue error")
+			s.Reset()
+			return
+		}
+	}
+	s.Log("message-id:", messageID)
+
 	// scan
 	// clamav
 	if Cfg.GetSmtpdClamavEnabled() {
-		found, virusName, err := NewClamav().ScanStream(bytes.NewReader(s.CurrentRawMail))
+		found, virusName, err := s.clamavScan()
 		Logger.Debug("clamav scan result", found, virusName, err)
 		if err != nil {
 			s.LogError("MAIL - clamav: " + err.Error())
@@ -1017,23 +1051,115 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 		}
 	}
 
-	// Message-ID
-	HeaderMessageID := message.RawGetMessageId(&s.CurrentRawMail)
-	if len(HeaderMessageID) == 0 {
+	// Plugins
+	_, drop := ExecSMTPdPlugins("data", s)
+	if drop {
+		s.ExitAsap()
+		return
+	}
+
+	// Plugins
+	done, drop := ExecSMTPdPlugins("beforequeue", s)
+	if done || drop {
+		if drop {
+			s.ExitAsap()
+			return
+		}
+		// A plugin can call QueueAddMessage if it processes it.
+		// It also needs to send its own response using s.Out().
+		s.Reset()
+		return
+	}
+
+	// put message in queue
+	id, err := QueueAddSpool(spool, messageID, s.Envelope, s.authUser())
+	if err != nil {
+		s.LogError("MAIL - unable to put message in queue -", err.Error())
+		s.Out(451, "temporary queue error")
+		s.Reset()
+		return
+	}
+	s.Log("message queued as", id)
+	s.Out(250, fmt.Sprintf("2.0.0 OK: message queued %s", id))
+	s.Reset()
+	return
+}
+
+// spoolHeaders writes our headers to spool, then the header block of the
+// message, then body. It returns the Message-ID, added if it's missing.
+func (s *SMTPServerSession) spoolHeaders(spool *Spool, headers, body []byte) (messageID string, err error) {
+	added := ""
+	messageID = string(message.RawGetMessageId(&headers))
+	if messageID == "" {
 		atDomain := s.systemName
 		if strings.Count(s.Envelope.MailFrom, "@") != 0 {
 			atDomain = strings.ToLower(strings.Split(s.Envelope.MailFrom, "@")[1])
 		}
-		HeaderMessageID = []byte(fmt.Sprintf("%d.%s@%s", time.Now().Unix(), s.uuid, atDomain))
-		s.CurrentRawMail = append([]byte(fmt.Sprintf("Message-ID: <%s>\r\n", HeaderMessageID)), s.CurrentRawMail...)
-
+		messageID = fmt.Sprintf("%d.%s@%s", time.Now().Unix(), s.uuid, atDomain)
+		added = fmt.Sprintf("Message-ID: <%s>\r\n", messageID)
 	}
-	s.Log("message-id:", string(HeaderMessageID))
 
-	authUser := ""
+	added = s.receivedHeader() + added
+
+	// X-Env-from
+	added = "X-Env-From: " + s.Envelope.MailFrom + "\r\n" + added
+
+	// Received-SPF
+	if Cfg.GetSmtpdSPFCheck() {
+		remoteIP := "unknown"
+		if ip := AddrIP(s.Conn.RemoteAddr()); ip != nil {
+			remoteIP = ip.String()
+		}
+		recvSPF := ""
+		if s.SPFResult == "" {
+			recvSPF = "Received-SPF: pass (SPF check not performed, sender is otherwise verified)\r\n"
+		} else {
+			recvSPF = fmt.Sprintf("Received-SPF: %s (domain of %s designates %s as %s sender)\r\n", s.SPFResult,
+				s.Envelope.MailFrom, remoteIP, s.SPFResult)
+		}
+		added = recvSPF + added
+	}
+
+	if _, err = spool.WriteString(added); err != nil {
+		return
+	}
+	if _, err = spool.Write(headers); err != nil {
+		return
+	}
+	_, err = spool.Write(body)
+	return
+}
+
+// clamavScan scans the message received
+func (s *SMTPServerSession) clamavScan() (found bool, virusName string, err error) {
+	r, err := s.spool.Reader()
+	if err != nil {
+		return false, "", err
+	}
+	defer r.Close()
+	return NewClamav().ScanStream(r)
+}
+
+// authUser is the login of the authenticated user, or ""
+func (s *SMTPServerSession) authUser() string {
 	if s.user != nil {
-		authUser = s.user.Login
+		return s.user.Login
 	}
+	return ""
+}
+
+// RawMail returns the message being received, with our headers on top.
+// For plugins of the data and beforequeue hooks, the caller closes it.
+func (s *SMTPServerSession) RawMail() (io.ReadCloser, error) {
+	if s.spool == nil {
+		return nil, errors.New("no message is being received")
+	}
+	return s.spool.Reader()
+}
+
+// receivedHeader returns our Received header
+func (s *SMTPServerSession) receivedHeader() string {
+	authUser := s.authUser()
 
 	// Add received header
 	remoteIP := "unknown"
@@ -1100,56 +1226,7 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 	// envelope for and timestamp
 	received += "        for " + s.Envelope.RcptTo[0] + "; " + Format822Date() + "\r\n"
 
-	s.CurrentRawMail = append([]byte(received), s.CurrentRawMail...)
-	received = ""
-
-	// X-Env-from
-	s.CurrentRawMail = append([]byte("X-Env-From: "+s.Envelope.MailFrom+"\r\n"), s.CurrentRawMail...)
-
-	// Received-SPF
-	if Cfg.GetSmtpdSPFCheck() {
-		recvSPF := ""
-		if s.SPFResult == "" {
-			recvSPF = "Received-SPF: pass (SPF check not performed, sender is otherwise verified)\r\n"
-		} else {
-			recvSPF = fmt.Sprintf("Received-SPF: %s (domain of %s designates %s as %s sender)\r\n", s.SPFResult,
-				s.Envelope.MailFrom, remoteIP, s.SPFResult)
-		}
-		s.CurrentRawMail = append([]byte(recvSPF), s.CurrentRawMail...)
-	}
-
-	// Plugins
-	_, drop := ExecSMTPdPlugins("data", s)
-	if drop {
-		s.ExitAsap()
-		return
-	}
-
-	// Plugins
-	done, drop := ExecSMTPdPlugins("beforequeue", s)
-	if done || drop {
-		if drop {
-			s.ExitAsap()
-			return
-		}
-		// A plugin can call QueueAddMessage if it processes it.
-		// It also needs to send its own response using s.Out().
-		s.Reset()
-		return
-	}
-
-	// put message in queue
-	id, err := QueueAddMessage(&s.CurrentRawMail, s.Envelope, authUser)
-	if err != nil {
-		s.LogError("MAIL - unable to put message in queue -", err.Error())
-		s.Out(451, "temporary queue error")
-		s.Reset()
-		return
-	}
-	s.Log("message queued as", id)
-	s.Out(250, fmt.Sprintf("2.0.0 OK: message queued %s", id))
-	s.Reset()
-	return
+	return received
 }
 
 // QUIT

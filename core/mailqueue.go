@@ -127,9 +127,21 @@ func QueueAddMessage(rawMess *[]byte, envelope message.Envelope, authUser string
 	if err != nil {
 		return
 	}
+	err = queueRecords(qStore, uuid, string(message.RawGetMessageId(rawMess)), envelope, authUser)
+	return
+}
 
-	messageId := message.RawGetMessageId(rawMess)
+// QueueAddSpool queues the message received in sp
+func QueueAddSpool(sp *Spool, messageId string, envelope message.Envelope, authUser string) (uuid string, err error) {
+	if err = sp.commit(); err != nil {
+		return
+	}
+	return sp.key, queueRecords(sp.store, sp.key, messageId, envelope, authUser)
+}
 
+// queueRecords creates the queue records of the message stored as uuid, one
+// per recipient, and publishes them for deliverd
+func queueRecords(qStore Storer, uuid, messageId string, envelope message.Envelope, authUser string) (err error) {
 	cloop := 0
 	qmessages := []QMessage{}
 	for _, rcptTo := range envelope.RcptTo {
@@ -138,7 +150,7 @@ func QueueAddMessage(rawMess *[]byte, envelope message.Envelope, authUser string
 			AuthUser:                authUser,
 			MailFrom:                envelope.MailFrom,
 			RcptTo:                  rcptTo,
-			MessageId:               string(messageId),
+			MessageId:               messageId,
 			Host:                    message.GetHostFromAddress(rcptTo),
 			LastUpdate:              time.Now(),
 			AddedAt:                 time.Now(),

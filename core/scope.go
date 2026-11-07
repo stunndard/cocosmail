@@ -95,6 +95,7 @@ func bootstrap(server bool) (err error) {
 		if err = os.MkdirAll(diskStorePath(Cfg.GetStoreSource()), 0700); err != nil {
 			return
 		}
+		CleanSpool(Cfg.GetStoreSource())
 	}
 	Store, err = NewStore(Cfg.GetStoreDriver(), Cfg.GetStoreSource())
 	if err != nil {
