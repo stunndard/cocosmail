@@ -37,6 +37,14 @@ func TestDkimSignature(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, strings.HasPrefix(sig, "DKIM-Signature: "))
 		assert.True(t, strings.HasSuffix(sig, "\r\n"))
+		assert.Contains(t, sig, "c=relaxed/simple;")
+		// folded like our Received header
+		lines := strings.Split(strings.TrimSuffix(sig, "\r\n"), "\r\n")
+		assert.Greater(t, len(lines), 2)
+		for _, l := range lines[1:] {
+			assert.True(t, strings.HasPrefix(l, dkimIndent) && l[len(dkimIndent)] != ' ', l)
+			assert.LessOrEqual(t, len(l), 78, l)
+		}
 		m.Prepend(sig)
 
 		verifications, err := dkim.VerifyWithOptions(strings.NewReader(readMessage(t, m)), &dkim.VerifyOptions{LookupTXT: lookup})
