@@ -1172,11 +1172,11 @@ func (s *SMTPServerSession) dkimCheck(spool *Spool) error {
 	defer r.Close()
 	results := dkimVerify(r)
 	for _, res := range results {
-		s.Log("DATA - " + formatResult(s.systemName, res))
+		s.Log("DATA - " + formatResult(s.systemName, res, dkimComment(res, s.fromDomains)))
 	}
 	s.DKIMResult = dkimOutcome(results, s.fromDomains)
 	s.Log(fmt.Sprintf("DATA - DKIM: %s, From domains: %s", s.DKIMResult, strings.Join(s.fromDomains, " ")))
-	spool.setHeaders(authResultsHeader(s.systemName, results))
+	spool.setHeaders(authResultsHeader(s.systemName, results, s.fromDomains))
 	return nil
 }
 

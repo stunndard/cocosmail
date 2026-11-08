@@ -48,7 +48,7 @@ func dkimSign(t *testing.T, dkc *DkimConfig, raw string) string {
 func verifyString(raw string) string {
 	var s []string
 	for _, r := range dkimVerify(strings.NewReader(raw)) {
-		s = append(s, formatResult("mx", r))
+		s = append(s, formatResult("mx", r, ""))
 	}
 	return strings.Join(s, "; ")
 }
@@ -75,13 +75,22 @@ func TestDkimVerify(t *testing.T) {
 }
 
 func TestAuthResultsHeader(t *testing.T) {
-	h := authResultsHeader("mail.example.com", []authres.Result{
-		&authres.DKIMResult{Value: authres.ResultPass, Domain: "a.example", Identifier: "@a.example"},
-		&authres.DKIMResult{Value: authres.ResultFail, Reason: "body hash did not verify", Domain: "b.example"},
-	})
+	results := []authres.Result{
+		&authres.DKIMResult{Value: authres.ResultPass, Domain: "example.com", Identifier: "@example.com"},
+		&authres.DKIMResult{Value: authres.ResultPass, Domain: "esp.example", Identifier: "@esp.example"},
+		&authres.DKIMResult{Value: authres.ResultFail, Reason: "body hash did not verify", Domain: "example.com"},
+	}
+	h := authResultsHeader("mail.example.com", results, []string{"mail.example.com"})
 	assert.Equal(t, "Authentication-Results: mail.example.com;\r\n"+
-		"        dkim=pass header.d=a.example header.i=@a.example;\r\n"+
-		"        dkim=fail reason=\"body hash did not verify\" header.d=b.example\r\n", h)
+		"        dkim=pass (author) header.d=example.com header.i=@example.com;\r\n"+
+		"        dkim=pass (third-party) header.d=esp.example header.i=@esp.example;\r\n"+
+		"        dkim=fail reason=\"body hash did not verify\" header.d=example.com\r\n", h)
+
+	// no From: no comment
+	h = authResultsHeader("mx", results[:1], nil)
+	assert.Equal(t, "Authentication-Results: mx;\r\n        dkim=pass header.d=example.com header.i=@example.com\r\n", h)
+	h = authResultsHeader("mx", []authres.Result{&authres.DKIMResult{Value: authres.ResultNone}}, []string{"example.com"})
+	assert.Equal(t, "Authentication-Results: mx;\r\n        dkim=none\r\n", h)
 }
 
 func TestStripAuthResults(t *testing.T) {
@@ -126,7 +135,7 @@ func TestSpoolDkimClientData(t *testing.T) {
 	r, err := sp.clientData()
 	require.NoError(t, err)
 	defer r.Close()
-	assert.Equal(t, "dkim=pass header.d=example.com header.i=@example.com", formatResult("mx", dkimVerify(r)[0]))
+	assert.Equal(t, "dkim=pass header.d=example.com header.i=@example.com", formatResult("mx", dkimVerify(r)[0], ""))
 }
 
 // the headers go beside the message in the store, delivery adds them on top

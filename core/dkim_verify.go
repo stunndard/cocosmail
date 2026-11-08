@@ -67,19 +67,40 @@ func dkimReason(err error) string {
 }
 
 // authResultsHeader returns an Authentication-Results header field of the
-// results, by identity (our hostname), a result on each line
-func authResultsHeader(identity string, results []authres.Result) string {
+// results, by identity (our hostname), a result on each line. A passing
+// signature is commented: (author) when of a From domain, else (third-party).
+func authResultsHeader(identity string, results []authres.Result, fromDomains []string) string {
 	h := "Authentication-Results: " + identity
 	for _, r := range results {
-		h += ";\r\n" + dkimIndent + formatResult(identity, r)
+		h += ";\r\n" + dkimIndent + formatResult(identity, r, dkimComment(r, fromDomains))
 	}
 	return h + "\r\n"
 }
 
-// formatResult formats a result as in Authentication-Results: dkim=pass ...
-func formatResult(identity string, r authres.Result) string {
-	s := authres.Format(identity, []authres.Result{r})
-	return strings.TrimSpace(strings.TrimPrefix(s, identity+";"))
+// dkimComment returns the comment of a DKIM result: how its passing
+// signature relates to the From domains, "" for other results
+func dkimComment(r authres.Result, fromDomains []string) string {
+	res, ok := r.(*authres.DKIMResult)
+	if !ok || res.Value != authres.ResultPass || len(fromDomains) == 0 {
+		return ""
+	}
+	for _, from := range fromDomains {
+		if dkimAuthorDomain(res.Domain, from) {
+			return "author"
+		}
+	}
+	return "third-party"
+}
+
+// formatResult formats a result as in Authentication-Results, with comment
+// after the value if any: dkim=pass (author) header.d=...
+func formatResult(identity string, r authres.Result, comment string) string {
+	s := strings.TrimSpace(strings.TrimPrefix(authres.Format(identity, []authres.Result{r}), identity+";"))
+	if comment == "" {
+		return s
+	}
+	method, params, _ := strings.Cut(s, " ")
+	return strings.TrimSpace(method + " (" + comment + ") " + params)
 }
 
 // stripAuthResults removes from the header block the Authentication-Results

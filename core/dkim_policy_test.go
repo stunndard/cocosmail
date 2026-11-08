@@ -125,9 +125,11 @@ func TestDkimAuthorSigned(t *testing.T) {
 	header := signed[:strings.Index(signed, "\r\n\r\n")+4]
 	results := dkimVerify(strings.NewReader(signed))
 	assert.Equal(t, dkimAuthor, dkimOutcome(results, fromDomains([]byte(header))))
+	assert.Contains(t, authResultsHeader("mx", results, fromDomains([]byte(header))), "dkim=pass (author) header.d=example.com")
 
 	other := dkimSign(t, dkc, strings.Replace(dkimTestMessage, "alice@example.com", "alice@bank.example", 1))
 	header = other[:strings.Index(other, "\r\n\r\n")+4]
 	results = dkimVerify(strings.NewReader(other))
 	assert.Equal(t, dkimPass, dkimOutcome(results, fromDomains([]byte(header))))
+	assert.Contains(t, authResultsHeader("mx", results, fromDomains([]byte(header))), "dkim=pass (third-party) header.d=example.com")
 }
