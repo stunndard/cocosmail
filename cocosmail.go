@@ -239,7 +239,7 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "cocosmail"
 	app.Usage = "Email system"
-	app.Version = core.CocosmailVersion
+	app.Version = core.BuildVersion()
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name:   "config, c",
@@ -264,6 +264,7 @@ func main() {
 			_ = cli.ShowAppHelp(c)
 		} else {
 			bootstrapServer()
+			core.Logger.Info("cocosmail " + core.BuildVersion() + " starting")
 
 			// if there is nothing to do then... do nothing
 			if !core.Cfg.GetLaunchDeliverd() && !core.Cfg.GetLaunchSmtpd() && !core.Cfg.GetLaunchPop3() && !core.Cfg.GetLaunchImap() {
