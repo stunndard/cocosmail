@@ -106,12 +106,20 @@ func TestConfigFileData(t *testing.T) {
 	assert.Contains(t, string(out), "\n# Users. password:")
 	assert.Contains(t, string(out), "    private_key: |\n      -----BEGIN RSA PRIVATE KEY-----\n")
 
+	// the DNS record of the key, to publish
+	name, record, err := DkimDNSRecord(d.Dkim[0])
+	require.NoError(t, err)
+	assert.Contains(t, string(out), "    dns_name: "+name+"\n    dns_record: "+record+"\n    private_key: |\n")
+	assert.Empty(t, d.Dkim[0].DNSName, "data written unchanged")
+
 	f, _, err = ParseConfigFile(out)
 	require.NoError(t, err)
 	assert.True(t, f.HasData())
 	back, err := f.Data()
 	require.NoError(t, err)
-	assert.Equal(t, d, back)
+	withRecords := d.Copy()
+	withRecords.SetDkimRecords()
+	assert.Equal(t, withRecords, back)
 
 	// a section removed, the others and their comments kept
 	d.Aliases = nil
@@ -141,6 +149,25 @@ func TestAirComments(t *testing.T) {
 	in := "a: 1\n# about b\nb: |\n  line\n  # not a comment\n\n  more\n# about c\nc: 2\n"
 	want := "a: 1\n\n# about b\nb: |\n  line\n  # not a comment\n\n  more\n\n# about c\nc: 2\n"
 	assert.Equal(t, want, string(airComments([]byte(in))))
+}
+
+// without private key (exported with --no-secrets), the record is kept; a
+// record not matching the private key is written again from it
+func TestDkimRecordsExport(t *testing.T) {
+	key, err := NewDkimKey()
+	require.NoError(t, err)
+	d := &Data{Dkim: []DkimData{{Domain: "example.com", Selector: "s1", PrivateKey: key}}}
+	d.SetDkimRecords()
+	name, record := d.Dkim[0].DNSName, d.Dkim[0].DNSRecord
+	assert.Equal(t, "s1._domainkey.example.com", name)
+	d.RemoveSecrets()
+	out := string(NewConfigFile(nil, d).Bytes())
+	assert.Contains(t, out, "    dns_name: "+name+"\n    dns_record: "+record+"\n    private_key: \"\"\n")
+
+	d = &Data{Dkim: []DkimData{{Domain: "example.com", Selector: "s1", DNSName: "old", DNSRecord: "stale", PrivateKey: key}}}
+	out = string(NewConfigFile(nil, d).Bytes())
+	assert.Contains(t, out, "dns_record: "+record+"\n")
+	assert.NotContains(t, out, "stale")
 }
 
 // dist/conf/cocosmail.yaml.base must have all settings, described as now:

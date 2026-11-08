@@ -277,6 +277,8 @@ settings:
 # dkim:
 #   - domain: example.com
 #     selector: s1
+#     dns_name: s1._domainkey.example.com
+#     dns_record: v=DKIM1;k=rsa;s=email;h=sha256;p=MIGfMA0...
 #     private_key: |
 #       -----BEGIN RSA PRIVATE KEY-----
 #       ...

@@ -199,7 +199,8 @@ var Config = cgCli.Command{
 			Usage: "Export settings and data to a config file, or to stdout",
 			Description: "cocosmail config export [FILE] [--no-secrets]\n" +
 				"   One file with all settings and data (domains, users, aliases, relay IPs,\n" +
-				"   routes, DKIM keys), to import on any server.\n" +
+				"   routes, DKIM keys), to import on any server. DKIM keys come with the DNS\n" +
+				"   record to publish, also with --no-secrets.\n" +
 				"   If FILE exists, its values are updated and its comments kept.",
 			Flags: []cgCli.Flag{cgCli.BoolFlag{
 				Name:  "no-secrets",
@@ -211,6 +212,8 @@ var Config = cgCli.Command{
 				cliHandleErr(err)
 				data, err := core.ExportData(core.DB)
 				cliHandleErr(err)
+				// before the private keys are removed
+				data.SetDkimRecords()
 				if c.Bool("no-secrets") {
 					for _, s := range core.Settings {
 						if s.Secret {

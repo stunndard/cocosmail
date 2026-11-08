@@ -90,6 +90,17 @@ func TestImportExportData(t *testing.T) {
 	changes, err = ImportData(db, in, false, false)
 	require.NoError(t, err)
 	assert.Empty(t, changes)
+	// DKIM DNS records, as exported, are ignored, even stale ones
+	withRecords := out.Copy()
+	withRecords.SetDkimRecords()
+	require.NotEmpty(t, withRecords.Dkim[0].DNSRecord)
+	changes, err = ImportData(db, withRecords, true, false)
+	require.NoError(t, err)
+	assert.Empty(t, changes)
+	withRecords.Dkim[0].DNSRecord = "stale"
+	changes, err = ImportData(db, withRecords, true, false)
+	require.NoError(t, err)
+	assert.Empty(t, changes)
 
 	// merge without password keeps it
 	changes, err = ImportData(db, &Data{Users: []UserData{{Login: "john@example.com", Mailbox: true}}}, false, false)

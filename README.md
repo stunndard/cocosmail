@@ -199,7 +199,7 @@ SMTP port 587 (STARTTLS) or 465 (SSL/TLS), login `you@example.com`.
 | `mail.example.com` A / AAAA | your server's IPv4 / IPv6 address                      |
 | `example.com` MX            | `10 mail.example.com.`                                 |
 | `example.com` TXT (SPF)     | `v=spf1 mx -all`                                       |
-| DKIM TXT                    | text UI: **DKIM keys**, F7 adds a key, F6 shows the record |
+| DKIM TXT                    | text UI: **DKIM keys**, F7 adds a key, F6 shows the record; or `dns_name` and `dns_record` in `cocosmail config export` |
 | reverse DNS (PTR)           | `mail.example.com`, set at your hosting provider       |
 
 Then turn on `deliverd_dkim_sign` to sign outgoing mail.

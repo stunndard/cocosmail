@@ -102,9 +102,28 @@ func (r RouteData) String() string {
 
 // DkimData is the DKIM key of a domain
 type DkimData struct {
-	Domain     string `yaml:"domain"`
-	Selector   string `yaml:"selector"`
+	Domain   string `yaml:"domain"`
+	Selector string `yaml:"selector"`
+	// the DNS TXT record to publish, from the private key: written by
+	// export, so DNS can be set up from the file, ignored by import
+	DNSName    string `yaml:"dns_name,omitempty"`
+	DNSRecord  string `yaml:"dns_record,omitempty"`
 	PrivateKey string `yaml:"private_key"`
+}
+
+// SetDkimRecords sets the DNS records of the DKIM keys from their private
+// keys. Without private key (secrets removed), the record is kept.
+func (d *Data) SetDkimRecords() {
+	for i := range d.Dkim {
+		k := &d.Dkim[i]
+		if k.PrivateKey == "" {
+			continue
+		}
+		k.DNSName, k.DNSRecord = "", ""
+		if name, value, err := DkimDNSRecord(*k); err == nil {
+			k.DNSName, k.DNSRecord = name, value
+		}
+	}
 }
 
 // DkimKeyBits is the size of new DKIM keys
@@ -255,6 +274,8 @@ func (d *Data) normalize() error {
 	}
 	for i := range d.Dkim {
 		d.Dkim[i].Domain = strings.ToLower(strings.TrimSpace(d.Dkim[i].Domain))
+		// they come from the private key
+		d.Dkim[i].DNSName, d.Dkim[i].DNSRecord = "", ""
 	}
 	d.Sort()
 	return nil

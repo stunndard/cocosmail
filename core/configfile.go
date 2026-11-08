@@ -44,8 +44,9 @@ var dataSections = []struct{ key, comment string }{
 		"instead of the MX servers. Optional: port (25), priority (lower first), local_ips (like " +
 		"deliverd_local_ips), only for an authenticated user or a mail_from, login and password " +
 		"on remote_host."},
-	{"dkim", "DKIM keys, to sign outgoing mail of domain. The DNS TXT record SELECTOR._domainkey.DOMAIN " +
-		"must hold the public key: cocosmail config edit shows it."},
+	{"dkim", "DKIM keys, to sign outgoing mail of domain. The DNS TXT record dns_name must hold " +
+		"dns_record, with the public key: written from private_key by cocosmail config export, " +
+		"ignored by import."},
 }
 
 // misnamedSettings are names found in old example configs, that cocosmail
@@ -250,6 +251,8 @@ var dataExample = []string{
 	"dkim:",
 	"  - domain: example.com",
 	"    selector: s1",
+	"    dns_name: s1._domainkey.example.com",
+	"    dns_record: v=DKIM1;k=rsa;s=email;h=sha256;p=MIGfMA0...",
 	"    private_key: |",
 	"      -----BEGIN RSA PRIVATE KEY-----",
 	"      ...",
@@ -431,6 +434,8 @@ func (f *ConfigFile) Data() (*Data, error) {
 // SetData replaces the data sections with d, keeping their comments. Empty
 // sections are removed.
 func (f *ConfigFile) SetData(d *Data) {
+	d = d.Copy()
+	d.SetDkimRecords()
 	var n yaml.Node
 	if err := n.Encode(d); err != nil {
 		// only plain types
