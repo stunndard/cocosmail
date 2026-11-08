@@ -29,6 +29,9 @@ type Setting struct {
 	Bootstrap bool
 	// Choices are the allowed values, if limited
 	Choices []string
+	// Actions are the results of a check: the value is accept or reject for
+	// each, in this order, separated by :
+	Actions []string
 	// Validate checks a value, in addition to the type and choices check
 	Validate func(value string) error
 }
@@ -106,13 +109,13 @@ var Settings = []Setting{
 		Description: "Check SPF of incoming mail and add a Received-SPF header"},
 	{Key: "smtpd_spf_action", Section: "smtpd", Default: "accept:accept:accept:accept:accept:accept",
 		Description: "accept or reject for each SPF result, in order: none:neutral:pass:fail:softfail:permerror",
-		Validate:    validateSpfAction},
+		Actions:     spfActionResults, Validate: validateSpfAction},
 	{Key: "smtpd_dkim_check", Section: "smtpd", Default: "true",
 		Description: "Check DKIM signatures of incoming mail and add an Authentication-Results header"},
 	{Key: "smtpd_dkim_action", Section: "smtpd", Default: "accept:accept:accept:accept:accept:accept",
 		Description: "accept or reject for each DKIM result, in order: none:author:pass:fail:temperror:permerror. " +
 			"author: signed by the From domain, pass: signed by other domains only. Needs smtpd_dkim_check",
-		Validate: validateDkimAction},
+		Actions: dkimActionResults, Validate: validateDkimAction},
 	{Key: "smtpd_dkim_require_author", Section: "smtpd",
 		Description: "Domains separated by ;: mail with one of them or a subdomain in From is rejected, " +
 			"unless signed by it. Needs smtpd_dkim_check",

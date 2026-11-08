@@ -396,7 +396,8 @@ func (ed *Editor) set(key, value string) {
 }
 
 // edit edits the selected setting: bools toggle, choices and text in a
-// dialog. In a data section, the selected item.
+// dialog, actions in a dialog with a list for each. In a data section, the
+// selected item.
 func (ed *Editor) edit() {
 	if ed.kind != nil {
 		ed.editItem(false)
@@ -417,6 +418,10 @@ func (ed *Editor) edit() {
 	}
 	if key == "deliverd_local_ips" {
 		vtui.FrameManager.Push(newLocalIpsEditor(ed))
+		return
+	}
+	if len(s.Actions) > 0 {
+		vtui.FrameManager.Push(ed.actionsDialog(*s))
 		return
 	}
 	if isBool(key) {

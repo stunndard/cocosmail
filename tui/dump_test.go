@@ -9,7 +9,7 @@ import (
 )
 
 // TestDumpScreen prints a screen, to look at it:
-// COCOSMAIL_TUI_DUMP=main|section|help|quit|users|userdlg|routedlg|dkimdns go test -tags goffi_static -run TestDumpScreen -v ./tui
+// COCOSMAIL_TUI_DUMP=main|section|help|quit|users|userdlg|routedlg|dkimdns|dkimaction|dkimactionlist go test -tags goffi_static -run TestDumpScreen -v ./tui
 func TestDumpScreen(t *testing.T) {
 	what := os.Getenv("COCOSMAIL_TUI_DUMP")
 	if what == "" {
@@ -53,6 +53,14 @@ func TestDumpScreen(t *testing.T) {
 		events = append(toKind(dkimKind), key(vtinput.VK_F7))
 		events = append(events, typeText("example.com")...)
 		events = append(events, key(vtinput.VK_RETURN), key(vtinput.VK_F6))
+	case "dkimaction", "dkimactionlist":
+		events = append([]*vtinput.InputEvent{key(vtinput.VK_TAB)}, toAllSettings()...)
+		events = append(events, key(vtinput.VK_TAB))
+		events = append(events, typeText("smtpd_dkim_ac")...)
+		events = append(events, key(vtinput.VK_F4))
+		if what == "dkimactionlist" {
+			events = append(events, key(vtinput.VK_TAB), key(vtinput.VK_TAB), key(vtinput.VK_TAB), ctrlKey(vtinput.VK_DOWN))
+		}
 	case "quit":
 		events = []*vtinput.InputEvent{key(vtinput.VK_DOWN), key(vtinput.VK_RETURN), key(vtinput.VK_F10)}
 	}
