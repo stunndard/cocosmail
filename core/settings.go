@@ -107,6 +107,8 @@ var Settings = []Setting{
 	{Key: "smtpd_spf_action", Section: "smtpd", Default: "accept:accept:accept:accept:accept:accept",
 		Description: "accept or reject for each SPF result, in order: none:neutral:pass:fail:softfail:permerror",
 		Validate:    validateSpfAction},
+	{Key: "smtpd_dkim_check", Section: "smtpd", Default: "true",
+		Description: "Check DKIM signatures of incoming mail and add an Authentication-Results header"},
 	{Key: "smtpd_scan_clamav_enabled", Section: "smtpd", Default: "false",
 		Description: "Scan incoming mail with ClamAV"},
 	{Key: "smtpd_scan_clamav_dsns", Section: "smtpd", Default: "/var/run/clamav/clamd.ctl",

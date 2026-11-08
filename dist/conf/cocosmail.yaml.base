@@ -119,6 +119,10 @@ settings:
   # accept:accept:accept:accept:accept:accept)
   smtpd_spf_action: accept:accept:accept:accept:accept:accept
 
+  # Check DKIM signatures of incoming mail and add an Authentication-Results
+  # header (default: true)
+  smtpd_dkim_check: true
+
   # Scan incoming mail with ClamAV (default: false)
   smtpd_scan_clamav_enabled: false
 

@@ -64,6 +64,7 @@ type SMTPServerSession struct {
 	dataBytes        uint64
 	startAt          time.Time
 	exiting          bool
+	outgoing         bool // from an authenticated user or a relay IP: no SPF, DKIM checks
 	spool            *Spool
 	SPFResult        spf.Result
 }
@@ -160,6 +161,7 @@ func (s *SMTPServerSession) Reset() {
 	s.seenMail = false
 	s.Envelope.RcptTo = []string{}
 	s.rcptCount = 0
+	s.outgoing = false
 	s.resetTimeout()
 }
 
@@ -651,6 +653,7 @@ func (s *SMTPServerSession) smtpRcptTo(msg []string) {
 		s.Out(455, "4.3.0 Oops, problem with relay access")
 		return
 	}
+	s.outgoing = s.user != nil || canRelay
 
 	// check spf
 	if Cfg.GetSmtpdSPFCheck() {
@@ -988,6 +991,12 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 		} else {
 			headerBlock = append(headerBlock, line...)
 			if doneHeaders {
+				// ours are added after the checks
+				var removed int
+				headerBlock, removed = stripAuthResults(headerBlock, s.ourHostnames())
+				if removed > 0 {
+					s.Log(fmt.Sprintf("DATA - removed %d Authentication-Results headers claiming to be ours", removed))
+				}
 				messageID, err = s.spoolHeaders(spool, headerBlock, nil)
 				headersWritten = true
 				headerBlock = nil
@@ -1044,6 +1053,16 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 			s.Out(554, "5.7.1 message infected by "+virusName)
 			s.Log("MAIL - infected by " + virusName)
 			//s.purgeConn()
+			s.Reset()
+			return
+		}
+	}
+
+	// DKIM, of mail coming in: the results are added on top at delivery
+	if Cfg.GetSmtpdDkimCheck() && !s.outgoing {
+		if err := s.dkimCheck(spool); err != nil {
+			s.LogError("DATA - DKIM check: " + err.Error())
+			s.Out(451, "4.3.0 temporary queue error")
 			s.Reset()
 			return
 		}
@@ -1121,11 +1140,41 @@ func (s *SMTPServerSession) spoolHeaders(spool *Spool, headers, body []byte) (me
 	if _, err = spool.WriteString(added); err != nil {
 		return
 	}
+	// checks see the message as sent: a signature may cover the absence of
+	// the Message-ID we add
+	spool.markDataStart()
 	if _, err = spool.Write(headers); err != nil {
 		return
 	}
 	_, err = spool.Write(body)
 	return
+}
+
+// dkimCheck verifies the DKIM signatures of the message received, for the
+// Authentication-Results header added at delivery
+func (s *SMTPServerSession) dkimCheck(spool *Spool) error {
+	r, err := spool.clientData()
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	results := dkimVerify(r)
+	for _, res := range results {
+		s.Log("DATA - " + formatResult(s.systemName, res))
+	}
+	spool.setHeaders(authResultsHeader(s.systemName, results))
+	return nil
+}
+
+// ourHostnames are the names of this server, as in our Received headers
+func (s *SMTPServerSession) ourHostnames() []string {
+	names := []string{s.systemName, Cfg.GetMe()}
+	if dsns, err := GetDsnsFromString(Cfg.GetSmtpdDsns()); err == nil {
+		for _, d := range dsns {
+			names = append(names, d.SystemName)
+		}
+	}
+	return names
 }
 
 // clamavScan scans the message received

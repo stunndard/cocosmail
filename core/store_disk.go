@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path"
@@ -48,7 +49,7 @@ func (s *diskStore) Get(key string) (io.ReadCloser, error) {
 	spath := s.getStoragePath(key)
 	f, err := os.Open(spath)
 	if err != nil {
-		return nil, errors.New("diskStore.Get: unable to open " + spath + " for reading." + err.Error())
+		return nil, fmt.Errorf("diskStore.Get: unable to open %s for reading: %w", spath, err)
 	}
 	return f, nil
 }

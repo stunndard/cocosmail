@@ -46,8 +46,9 @@ together: one program, one folder, and a text UI to set it up.
 - **Outgoing mail**: queue with retries and bounces, MX lookup, static routes
   and smarthosts, several local IPs with failover or round robin, STARTTLS,
   **DKIM** signing.
-- **Anti-abuse**: SPF checks, optional ClamAV, relay control per IP or per
-  user, a fail2ban-style plugin.
+- **Anti-abuse**: SPF checks, DKIM verification of incoming mail (an
+  Authentication-Results header), optional ClamAV, relay control per IP or
+  per user, a fail2ban-style plugin.
 - **IPv4 and IPv6** everywhere.
 - **Aliases**, forwarding, catch-all, mini mailing lists, piping mail to a
   command.

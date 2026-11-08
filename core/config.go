@@ -61,6 +61,7 @@ type configValues struct {
 	SmtpdHideReceivedFromAuth bool   `name:"smtpd_hide_received_from_auth"`
 	SmtpdSPFCheck             bool   `name:"smtpd_spf_check"`
 	SmtpdSPFAction            string `name:"smtpd_spf_action"`
+	SmtpdDkimCheck            bool   `name:"smtpd_dkim_check"`
 
 	LaunchDeliverd               bool   `name:"deliverd_launch"`
 	LocalIps                     string `name:"deliverd_local_ips"`
@@ -447,6 +448,13 @@ func (c *Config) GetSmtpdSPFCheck() bool {
 	c.Lock()
 	defer c.Unlock()
 	return c.cfg.SmtpdSPFCheck
+}
+
+// GetSmtpdDkimCheck returns SmtpdDkimCheck
+func (c *Config) GetSmtpdDkimCheck() bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.cfg.SmtpdDkimCheck
 }
 
 // GetSmtpdSPFAction returns SPFAction

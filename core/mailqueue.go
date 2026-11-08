@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"strings"
 	"sync"
 	"time"
@@ -50,7 +51,7 @@ func (q *QMessage) Delete() error {
 	if err != nil {
 		return err
 	}*/
-	err = Store.Del(q.Uuid)
+	err = delStored(Store, q.Uuid)
 	// Si le fichier n'existe pas ce n'est pas une véritable erreur
 	if err != nil && strings.Contains(err.Error(), "no such file") {
 		err = nil
@@ -132,6 +133,15 @@ func QueueAddMessage(rawMess *[]byte, envelope message.Envelope, authUser string
 	return
 }
 
+// delStored removes the message stored as key, and its headers file
+func delStored(st Storer, key string) error {
+	err := st.Del(key)
+	if e := st.Del(key + headersSuffix); e != nil && !errors.Is(e, fs.ErrNotExist) && err == nil {
+		err = e
+	}
+	return err
+}
+
 // QueueAddReader queues the message read from r
 func QueueAddReader(r io.Reader, messageId string, envelope message.Envelope, authUser string) (uuid string, err error) {
 	qStore, err := NewStore(Cfg.GetStoreDriver(), Cfg.GetStoreSource())
@@ -143,7 +153,7 @@ func QueueAddReader(r io.Reader, messageId string, envelope message.Envelope, au
 		return
 	}
 	if err = qStore.Put(uuid, r); err != nil {
-		qStore.Del(uuid)
+		delStored(qStore, uuid)
 		return
 	}
 	err = queueRecords(qStore, uuid, messageId, envelope, authUser)
@@ -182,7 +192,7 @@ func queueRecords(qStore Storer, uuid, messageId string, envelope message.Envelo
 		err = DB.Create(&qm).Error
 		if err != nil {
 			if cloop == 0 {
-				qStore.Del(uuid)
+				delStored(qStore, uuid)
 			}
 			return
 		}
@@ -197,7 +207,7 @@ func queueRecords(qStore Storer, uuid, messageId string, envelope message.Envelo
 		jMsg, err = json.Marshal(qmsg)
 		if err != nil {
 			if cloop == 1 {
-				qStore.Del(uuid)
+				delStored(qStore, uuid)
 			}
 			DB.Delete(&qmsg)
 			return
@@ -206,7 +216,7 @@ func queueRecords(qStore Storer, uuid, messageId string, envelope message.Envelo
 		err = NsqQueueProducer.Publish("todeliver", jMsg)
 		if err != nil {
 			if cloop == 1 {
-				qStore.Del(uuid)
+				delStored(qStore, uuid)
 			}
 			DB.Delete(&qmsg)
 			return
