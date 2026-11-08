@@ -3,15 +3,18 @@
 package core
 
 import (
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"io"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/emersion/go-msgauth/dkim"
 	"github.com/jinzhu/gorm"
 )
 
@@ -102,4 +105,104 @@ func DkimGetConfig(domain string) (dkc *DkimConfig, err error) {
 		}
 	}
 	return dkc, nil
+}
+
+// dkimHeaders are the header fields signed
+var dkimHeaders = []string{"from", "subject", "date", "message-id"}
+
+// dkimIndent starts the continuation lines of the DKIM-Signature header,
+// like those of our Received header
+const dkimIndent = "        "
+
+// dkimSignature returns the DKIM-Signature header field of m for domain,
+// with the key of dkc. The message is read from its file as a stream.
+func dkimSignature(m *queuedMessage, domain string, dkc *DkimConfig) (string, error) {
+	key, err := dkimPrivateKey(dkc.PrivKey)
+	if err != nil {
+		return "", err
+	}
+	// relaxed for the header fields: the folding of the signature is changed
+	// after it's computed, and relays re-folding headers don't break it
+	signer, err := dkim.NewSigner(&dkim.SignOptions{
+		Domain:                 domain,
+		Selector:               dkc.Selector,
+		Signer:                 key,
+		HeaderKeys:             dkimHeaders,
+		HeaderCanonicalization: dkim.CanonicalizationRelaxed,
+		BodyCanonicalization:   dkim.CanonicalizationSimple,
+	})
+	if err != nil {
+		return "", err
+	}
+	r, err := m.Reader()
+	if err != nil {
+		signer.Close()
+		return "", err
+	}
+	defer r.Close()
+	if _, err := io.Copy(signer, r); err != nil {
+		signer.Close()
+		return "", err
+	}
+	if err := signer.Close(); err != nil {
+		return "", err
+	}
+	return dkimFold(signer.Signature()), nil
+}
+
+// dkimFold folds the signature header field like our Received header:
+// continuation lines start with dkimIndent, lines are at most 78 characters.
+// The tags are kept in order, the b= value is wrapped on its own lines.
+func dkimFold(sig string) string {
+	name, value, ok := strings.Cut(sig, ":")
+	if !ok {
+		return sig
+	}
+	const width = 78
+	words := strings.Fields(value)
+	folded, line := "", name+":"
+	for i, w := range words {
+		if strings.HasPrefix(w, "b=") {
+			// the value of b= may be folded in several words, it's last
+			folded += line + "\r\n"
+			b := strings.Join(words[i:], "")
+			line = dkimIndent
+			for len(line)+len(b) > width {
+				n := width - len(line)
+				folded += line + b[:n] + "\r\n"
+				b, line = b[n:], dkimIndent
+			}
+			return folded + line + b + "\r\n"
+		}
+		switch {
+		case line == dkimIndent:
+			line += w
+		case len(line)+1+len(w) > width:
+			folded += line + "\r\n"
+			line = dkimIndent + w
+		default:
+			line += " " + w
+		}
+	}
+	return folded + line + "\r\n"
+}
+
+// dkimPrivateKey parses a PEM private key, PKCS #1 or PKCS #8
+func dkimPrivateKey(privKey string) (crypto.Signer, error) {
+	block, _ := pem.Decode([]byte(privKey))
+	if block == nil {
+		return nil, errors.New("the DKIM private key is not in PEM format")
+	}
+	if key, err := x509.ParsePKCS1PrivateKey(block.Bytes); err == nil {
+		return key, nil
+	}
+	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, errors.New("unable to parse the DKIM private key: " + err.Error())
+	}
+	signer, ok := key.(crypto.Signer)
+	if !ok {
+		return nil, errors.New("the DKIM private key can't sign")
+	}
+	return signer, nil
 }

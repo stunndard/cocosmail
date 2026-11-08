@@ -13,7 +13,6 @@ package mailstore
 
 import (
 	"bufio"
-	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -121,24 +120,25 @@ func writeTmp(path string, r io.Reader) (int64, error) {
 // Deliver writes a new message to the Maildir dir, created if needed: to
 // tmp/, then moved to new/, as the Maildir spec says. Sessions with the
 // folder open see it at once.
-func Deliver(dir string, data []byte) error {
+func Deliver(dir string, r io.Reader) (int64, error) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
-		return err
+		return 0, err
 	}
 	if err := initMaildir(dir); err != nil {
-		return err
+		return 0, err
 	}
 	key := newKey()
 	tmp := filepath.Join(dir, "tmp", key)
-	if _, err := writeTmp(tmp, bytes.NewReader(data)); err != nil {
-		return err
+	size, err := writeTmp(tmp, r)
+	if err != nil {
+		return 0, err
 	}
 	if err := os.Rename(tmp, filepath.Join(dir, "new", key)); err != nil {
 		os.Remove(tmp)
-		return err
+		return 0, err
 	}
 	Changed(dir)
-	return nil
+	return size, nil
 }
 
 // isMaildir tells if dir has a cur directory

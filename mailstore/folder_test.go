@@ -304,7 +304,9 @@ func TestDeliverKey(t *testing.T) {
 	assert.NotEqual(t, key, newKey())
 
 	dir := filepath.Join(t.TempDir(), "a", "alice")
-	require.NoError(t, Deliver(dir, []byte(msg("one"))))
+	size, err := Deliver(dir, strings.NewReader(msg("one")))
+	require.NoError(t, err)
+	assert.Equal(t, int64(len(msg("one"))), size)
 	names, err := readNames(filepath.Join(dir, "new"))
 	require.NoError(t, err)
 	require.Len(t, names, 1)

@@ -1,7 +1,6 @@
 package core
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"os/exec"
@@ -14,14 +13,14 @@ import (
 )
 
 type InternalDelivery interface {
-	Deliver(id string, deliverTo string, rawMsg *bytes.Buffer) (permFail bool, err error)
+	Deliver(id string, deliverTo string, rawMsg io.Reader) (permFail bool, err error)
 	CheckConfig() (err error)
 	GetName() string
 }
 
 // deliverLocal handle local delivery
 func deliverLocal(d *Delivery) {
-	var dataBuf *bytes.Buffer
+	var dataBuf io.ReadCloser
 	mailboxAvailable := false
 	var localRcpt []string
 
@@ -68,9 +67,20 @@ func deliverLocal(d *Delivery) {
 				// 0: OK
 				// 4: temp fail
 				// 5: perm fail
-				dataBuf := bytes.NewBuffer(*d.RawData)
+				dataBuf, err := d.msg.Reader()
+				if err != nil {
+					d.dieTemp(fmt.Sprintf("delivery-local %s: unable to read the message. %s", d.ID, err), true)
+					return
+				}
+				defer dataBuf.Close()
 
-				cmd := exec.Command(strings.Join(strings.Split(alias.Pipe, " "), ","))
+				// the program, then its arguments, separated by spaces
+				args := strings.Fields(alias.Pipe)
+				if len(args) == 0 {
+					d.diePerm(fmt.Sprintf("delivery-local %s: the pipe command of alias %s is empty", d.ID, d.QMsg.RcptTo), true)
+					return
+				}
+				cmd := exec.Command(args[0], args[1:]...)
 				stdin, err := cmd.StdinPipe()
 				if err != nil {
 					d.dieTemp(fmt.Sprintf("delivery-local %s: unable to create stddin pipe to %s. %s", d.ID, alias.Pipe, err.Error()), true)
@@ -124,7 +134,13 @@ func deliverLocal(d *Delivery) {
 				if enveloppe.MailFrom != "" && alias.IsMiniList && !alias.IsDomAlias {
 					enveloppe.MailFrom = alias.Alias
 				}
-				uuid, err := QueueAddMessage(d.RawData, enveloppe, "")
+				r, err := d.msg.Reader()
+				if err != nil {
+					d.dieTemp(fmt.Sprintf("delivery-local %s: unable to read the message. %s", d.ID, err), true)
+					return
+				}
+				uuid, err := QueueAddReader(r, d.msg.MessageID(), enveloppe, "")
+				r.Close()
 				if err != nil {
 					d.dieTemp(fmt.Sprintf("delivery-local %s: unable to requeue aliased msg: %s", d.ID, err), true)
 					return
@@ -146,21 +162,26 @@ func deliverLocal(d *Delivery) {
 	}
 
 	// check if Received header needs redaction before local delivery
-	*d.RawData = []byte(message.RedactHeadersRemove(string(*d.RawData)))
+	d.msg.Header = []byte(message.RedactHeadersRemove(string(d.msg.Header)))
 
 	// TODO Remove return path
 	//msg.DelHeader("return-path")
 
 	// Received
-	*d.RawData = append([]byte("Received: cocosmail deliverd local "+d.ID+"; "+Format822Date()+"\r\n"), *d.RawData...)
+	d.msg.Prepend("Received: cocosmail deliverd local " + d.ID + "; " + Format822Date() + "\r\n")
 
 	// Delivered-To
-	*d.RawData = append([]byte("Delivered-To: "+deliverTo+"\r\n"), *d.RawData...)
+	d.msg.Prepend("Delivered-To: " + deliverTo + "\r\n")
 
 	// Return path
-	*d.RawData = append([]byte("Return-Path: "+d.QMsg.MailFrom+"\r\n"), *d.RawData...)
+	d.msg.Prepend("Return-Path: " + d.QMsg.MailFrom + "\r\n")
 
-	dataBuf = bytes.NewBuffer(*d.RawData)
+	dataBuf, err = d.msg.Reader()
+	if err != nil {
+		d.dieTemp(fmt.Sprintf("delivery-local %s: unable to read the message. %s", d.ID, err), true)
+		return
+	}
+	defer dataBuf.Close()
 
 	if Cfg.GetDovecotSupportEnabled() {
 		cmd := exec.Command(Cfg.GetDovecotLda(), "-d", deliverTo)

@@ -22,7 +22,7 @@ type Delivery struct {
 	ID                     string
 	NSQMsg                 *nsq.Message
 	QMsg                   *QMessage
-	RawData                *[]byte
+	msg                    *queuedMessage
 	QStore                 Storer
 	StartAt                time.Time
 	IsLocal                bool
@@ -132,21 +132,13 @@ func (d *Delivery) processMsg() {
 		return
 	}
 	//d.QStore = QStore
-	dataReader, err := d.QStore.Get(d.QMsg.Uuid)
+	// only the header block is read, the body is copied from the file
+	d.msg, err = loadQueuedMessage(d.QStore, d.QMsg.Uuid)
 	if err != nil {
 		Logger.Error("unable to retrieve raw mail from store. " + err.Error())
 		d.dieTemp("unable to retrieve raw mail from store", false)
 		return
 	}
-
-	// get RawData
-	t, err := ioutil.ReadAll(dataReader)
-	if err != nil {
-		Logger.Error("unable to read raw mail from dataReader. " + err.Error())
-		d.dieTemp("unable to read raw mail from dataReader", false)
-		return
-	}
-	d.RawData = &t
 
 	// Bounce  ?
 	if flagBounce {
@@ -224,6 +216,9 @@ func (d *Delivery) discard() {
 	return
 }
 
+// bounceBodyLimit is how much of the body a bounce includes
+const bounceBodyLimit = 50000
+
 // bounce creates & enqueues a bounce message
 func (d *Delivery) bounce(errMsg string) {
 	// If returnPath =="" -> double bounce -> discard
@@ -259,16 +254,24 @@ func (d *Delivery) bounce(errMsg string) {
 		BouncedMail string
 	}
 
-	// Si ça bounce car le mail a disparu de la queue:
-	if d.RawData == nil {
-		t := []byte("Raw mail was not found in the store")
-		d.RawData = &t
+	// the headers and the start of the body, a big message isn't sent back
+	bouncedMail := "Raw mail was not found in the store"
+	if d.msg != nil {
+		// check if Received header needs redaction before bouncing
+		d.msg.Header = []byte(message.RedactHeadersRemove(string(d.msg.Header)))
+		excerpt, cut, err := d.msg.Excerpt(bounceBodyLimit)
+		if err != nil {
+			Logger.Error("deliverd " + d.ID + ": unable to read message queued as " + d.QMsg.Uuid + " to bounce it: " + err.Error())
+			excerpt = string(d.msg.Header)
+			cut = true
+		}
+		bouncedMail = excerpt
+		if cut {
+			bouncedMail += "\r\n\r\n--- The message is too big, only its beginning is shown.\r\n"
+		}
 	}
 
-	// check if Received header needs redaction before bouncing
-	*d.RawData = []byte(message.RedactHeadersRemove(string(*d.RawData)))
-
-	tData := templateData{Format822Date(), Cfg.GetMe(), d.QMsg.MailFrom, d.QMsg.RcptTo, errMsg, string(*d.RawData)}
+	tData := templateData{Format822Date(), Cfg.GetMe(), d.QMsg.MailFrom, d.QMsg.RcptTo, errMsg, bouncedMail}
 	t, err := template.ParseFiles(path.Join(Cfg.GetBasePath(), "tpl/bounce.tpl"))
 	if err != nil {
 		Logger.Error("deliverd " + d.ID + ": unable to bounce message queued as " + d.QMsg.Uuid + " " + err.Error())

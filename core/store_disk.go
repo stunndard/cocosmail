@@ -1,10 +1,8 @@
 package core
 
 import (
-	"bytes"
 	"errors"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 )
@@ -42,17 +40,17 @@ func NewDiskStore(storeSource string) (*diskStore, error) {
 	return &diskStore{basePath}, nil
 }
 
-// Get returns io.Reader corresponding to key
-func (s *diskStore) Get(key string) (io.Reader, error) {
+// Get opens the file of key, the caller closes it
+func (s *diskStore) Get(key string) (io.ReadCloser, error) {
 	if key == "" {
 		return nil, errors.New("diskStore.Get: key is empty")
 	}
 	spath := s.getStoragePath(key)
-	raw, err := ioutil.ReadFile(spath)
+	f, err := os.Open(spath)
 	if err != nil {
 		return nil, errors.New("diskStore.Get: unable to open " + spath + " for reading." + err.Error())
 	}
-	return io.Reader(bytes.NewReader(raw)), nil
+	return f, nil
 }
 
 // Put save key value in store
@@ -78,6 +76,7 @@ func (s *diskStore) Put(key string, reader io.Reader) error {
 	}
 	_, err = io.Copy(f, reader)
 	if err != nil {
+		f.Close()
 		return err
 	}
 

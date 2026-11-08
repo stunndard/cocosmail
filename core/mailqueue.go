@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 	"sync"
 	"time"
@@ -127,9 +128,39 @@ func QueueAddMessage(rawMess *[]byte, envelope message.Envelope, authUser string
 	if err != nil {
 		return
 	}
+	err = queueRecords(qStore, uuid, string(message.RawGetMessageId(rawMess)), envelope, authUser)
+	return
+}
 
-	messageId := message.RawGetMessageId(rawMess)
+// QueueAddReader queues the message read from r
+func QueueAddReader(r io.Reader, messageId string, envelope message.Envelope, authUser string) (uuid string, err error) {
+	qStore, err := NewStore(Cfg.GetStoreDriver(), Cfg.GetStoreSource())
+	if err != nil {
+		return
+	}
+	uuid, err = NewUUID()
+	if err != nil {
+		return
+	}
+	if err = qStore.Put(uuid, r); err != nil {
+		qStore.Del(uuid)
+		return
+	}
+	err = queueRecords(qStore, uuid, messageId, envelope, authUser)
+	return
+}
 
+// QueueAddSpool queues the message received in sp
+func QueueAddSpool(sp *Spool, messageId string, envelope message.Envelope, authUser string) (uuid string, err error) {
+	if err = sp.commit(); err != nil {
+		return
+	}
+	return sp.key, queueRecords(sp.store, sp.key, messageId, envelope, authUser)
+}
+
+// queueRecords creates the queue records of the message stored as uuid, one
+// per recipient, and publishes them for deliverd
+func queueRecords(qStore Storer, uuid, messageId string, envelope message.Envelope, authUser string) (err error) {
 	cloop := 0
 	qmessages := []QMessage{}
 	for _, rcptTo := range envelope.RcptTo {
@@ -138,7 +169,7 @@ func QueueAddMessage(rawMess *[]byte, envelope message.Envelope, authUser string
 			AuthUser:                authUser,
 			MailFrom:                envelope.MailFrom,
 			RcptTo:                  rcptTo,
-			MessageId:               string(messageId),
+			MessageId:               messageId,
 			Host:                    message.GetHostFromAddress(rcptTo),
 			LastUpdate:              time.Now(),
 			AddedAt:                 time.Now(),

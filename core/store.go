@@ -8,7 +8,7 @@ import (
 // Storer is a interface for stores
 type Storer interface {
 	//TODO should return perm or temp failure
-	Get(key string) (io.Reader, error)
+	Get(key string) (io.ReadCloser, error)
 	Put(key string, reader io.Reader) error
 	Del(key string) error
 }
