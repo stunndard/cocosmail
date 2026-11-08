@@ -67,6 +67,8 @@ type SMTPServerSession struct {
 	outgoing         bool // from an authenticated user or a relay IP: no SPF, DKIM checks
 	spool            *Spool
 	SPFResult        spf.Result
+	DKIMResult       string   // none, author, pass, fail, temperror or permerror
+	fromDomains      []string // of the From header of the message received
 }
 
 // NewSMTPServerSession returns a new SMTP session
@@ -868,6 +870,8 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 		return
 	}
 	s.spool = spool
+	s.DKIMResult = ""
+	s.fromDomains = nil
 	defer func() {
 		spool.Abort()
 		s.spool = nil
@@ -997,6 +1001,7 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 				if removed > 0 {
 					s.Log(fmt.Sprintf("DATA - removed %d Authentication-Results headers claiming to be ours", removed))
 				}
+				s.fromDomains = fromDomains(headerBlock)
 				messageID, err = s.spoolHeaders(spool, headerBlock, nil)
 				headersWritten = true
 				headerBlock = nil
@@ -1063,6 +1068,13 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 		if err := s.dkimCheck(spool); err != nil {
 			s.LogError("DATA - DKIM check: " + err.Error())
 			s.Out(451, "4.3.0 temporary queue error")
+			s.Reset()
+			return
+		}
+		if code, msg := dkimRejection(s.DKIMResult, s.fromDomains); code != 0 {
+			s.Log(fmt.Sprintf("DATA - rejected by DKIM: %s, From domains: %s", s.DKIMResult, strings.Join(s.fromDomains, " ")))
+			s.pause(2)
+			s.Out(code, msg)
 			s.Reset()
 			return
 		}
@@ -1162,6 +1174,8 @@ func (s *SMTPServerSession) dkimCheck(spool *Spool) error {
 	for _, res := range results {
 		s.Log("DATA - " + formatResult(s.systemName, res))
 	}
+	s.DKIMResult = dkimOutcome(results, s.fromDomains)
+	s.Log(fmt.Sprintf("DATA - DKIM: %s, From domains: %s", s.DKIMResult, strings.Join(s.fromDomains, " ")))
 	spool.setHeaders(authResultsHeader(s.systemName, results))
 	return nil
 }

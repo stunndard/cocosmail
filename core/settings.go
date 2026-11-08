@@ -109,6 +109,14 @@ var Settings = []Setting{
 		Validate:    validateSpfAction},
 	{Key: "smtpd_dkim_check", Section: "smtpd", Default: "true",
 		Description: "Check DKIM signatures of incoming mail and add an Authentication-Results header"},
+	{Key: "smtpd_dkim_action", Section: "smtpd", Default: "accept:accept:accept:accept:accept:accept",
+		Description: "accept or reject for each DKIM result, in order: none:author:pass:fail:temperror:permerror. " +
+			"author: signed by the From domain, pass: signed by other domains only. Needs smtpd_dkim_check",
+		Validate: validateDkimAction},
+	{Key: "smtpd_dkim_require_author", Section: "smtpd",
+		Description: "Domains separated by ;: mail with one of them or a subdomain in From is rejected, " +
+			"unless signed by it. Needs smtpd_dkim_check",
+		Validate: validateDomains},
 	{Key: "smtpd_scan_clamav_enabled", Section: "smtpd", Default: "false",
 		Description: "Scan incoming mail with ClamAV"},
 	{Key: "smtpd_scan_clamav_dsns", Section: "smtpd", Default: "/var/run/clamav/clamd.ctl",
@@ -316,9 +324,20 @@ func validateLocalIps(v string) error {
 }
 
 func validateSpfAction(v string) error {
+	return validateActions(v, spfActionResults)
+}
+
+func validateDkimAction(v string) error {
+	return validateActions(v, dkimActionResults)
+}
+
+var spfActionResults = []string{"none", "neutral", "pass", "fail", "softfail", "permerror"}
+
+// validateActions checks accept or reject for each of results, separated by :
+func validateActions(v string, results []string) error {
 	actions := strings.Split(v, ":")
-	if len(actions) != 6 {
-		return errors.New("needs 6 actions separated by :, for none:neutral:pass:fail:softfail:permerror")
+	if len(actions) != len(results) {
+		return fmt.Errorf("needs %d actions separated by :, for %s", len(results), strings.Join(results, ":"))
 	}
 	for _, a := range actions {
 		if a != "accept" && a != "reject" {
@@ -326,6 +345,27 @@ func validateSpfAction(v string) error {
 		}
 	}
 	return nil
+}
+
+// validateDomains checks domains separated by ;
+func validateDomains(v string) error {
+	for _, d := range splitDomains(v) {
+		if !validMailDomain(d) || strings.HasPrefix(d, "[") {
+			return fmt.Errorf("%q is not a domain", d)
+		}
+	}
+	return nil
+}
+
+// splitDomains splits domains separated by ;, lowercased
+func splitDomains(v string) []string {
+	var domains []string
+	for _, d := range strings.Split(v, ";") {
+		if d = strings.ToLower(strings.TrimSpace(d)); d != "" {
+			domains = append(domains, d)
+		}
+	}
+	return domains
 }
 
 func validateIP(v string) error {

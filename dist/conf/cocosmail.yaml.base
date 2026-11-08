@@ -123,6 +123,16 @@ settings:
   # header (default: true)
   smtpd_dkim_check: true
 
+  # accept or reject for each DKIM result, in order:
+  # none:author:pass:fail:temperror:permerror. author: signed by the From
+  # domain, pass: signed by other domains only. Needs smtpd_dkim_check (default:
+  # accept:accept:accept:accept:accept:accept)
+  smtpd_dkim_action: accept:accept:accept:accept:accept:accept
+
+  # Domains separated by ;: mail with one of them or a subdomain in From is
+  # rejected, unless signed by it. Needs smtpd_dkim_check
+  smtpd_dkim_require_author: ""
+
   # Scan incoming mail with ClamAV (default: false)
   smtpd_scan_clamav_enabled: false
 
