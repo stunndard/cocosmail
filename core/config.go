@@ -61,6 +61,9 @@ type configValues struct {
 	SmtpdHideReceivedFromAuth bool   `name:"smtpd_hide_received_from_auth"`
 	SmtpdSPFCheck             bool   `name:"smtpd_spf_check"`
 	SmtpdSPFAction            string `name:"smtpd_spf_action"`
+	SmtpdDkimCheck            bool   `name:"smtpd_dkim_check"`
+	SmtpdDkimAction           string `name:"smtpd_dkim_action"`
+	SmtpdDkimRequireAuthor    string `name:"smtpd_dkim_require_author"`
 
 	LaunchDeliverd               bool   `name:"deliverd_launch"`
 	LocalIps                     string `name:"deliverd_local_ips"`
@@ -447,6 +450,27 @@ func (c *Config) GetSmtpdSPFCheck() bool {
 	c.Lock()
 	defer c.Unlock()
 	return c.cfg.SmtpdSPFCheck
+}
+
+// GetSmtpdDkimCheck returns SmtpdDkimCheck
+func (c *Config) GetSmtpdDkimCheck() bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.cfg.SmtpdDkimCheck
+}
+
+// GetSmtpdDkimAction returns SmtpdDkimAction
+func (c *Config) GetSmtpdDkimAction() string {
+	c.Lock()
+	defer c.Unlock()
+	return c.cfg.SmtpdDkimAction
+}
+
+// GetSmtpdDkimRequireAuthor returns SmtpdDkimRequireAuthor
+func (c *Config) GetSmtpdDkimRequireAuthor() string {
+	c.Lock()
+	defer c.Unlock()
+	return c.cfg.SmtpdDkimRequireAuthor
 }
 
 // GetSmtpdSPFAction returns SPFAction

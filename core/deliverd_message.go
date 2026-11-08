@@ -3,7 +3,9 @@ package core
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"io"
+	"io/fs"
 
 	"github.com/stunndard/cocosmail/message"
 )
@@ -25,7 +27,8 @@ type queuedMessage struct {
 	headerLen int64
 }
 
-// loadQueuedMessage reads the header block of the message stored as key
+// loadQueuedMessage reads the header block of the message stored as key,
+// with the headers of its .headers file on top
 func loadQueuedMessage(store Storer, key string) (*queuedMessage, error) {
 	r, err := store.Get(key)
 	if err != nil {
@@ -36,7 +39,27 @@ func loadQueuedMessage(store Storer, key string) (*queuedMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &queuedMessage{store: store, key: key, Header: header, headerLen: int64(len(header))}, nil
+	m := &queuedMessage{store: store, key: key, Header: header, headerLen: int64(len(header))}
+	added, err := readAddedHeaders(store, key)
+	if err != nil {
+		return nil, err
+	}
+	m.Prepend(added)
+	return m, nil
+}
+
+// readAddedHeaders reads the .headers file of the message, "" if none
+func readAddedHeaders(store Storer, key string) (string, error) {
+	r, err := store.Get(key + headersSuffix)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+	b, err := io.ReadAll(io.LimitReader(r, maxHeaderBlock))
+	return string(b), err
 }
 
 // readHeaderBlock reads r up to the first blank line, included
