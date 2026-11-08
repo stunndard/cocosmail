@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stunndard/cocosmail/message"
 )
 
 func storeMessage(t *testing.T, raw string) *queuedMessage {
@@ -68,4 +69,35 @@ func TestQueuedMessageLongLines(t *testing.T) {
 	m := storeMessage(t, long+"\r\nbody")
 	assert.Equal(t, long+"\r\n", string(m.Header))
 	assert.Equal(t, long+"\r\nbody", readMessage(t, m))
+}
+
+func TestRedactAuthData(t *testing.T) {
+	old := Cfg
+	t.Cleanup(func() { Cfg = old })
+	Cfg = &Config{}
+	raw := "Received: from " + message.AuthDataStart + "client.isp.example ([203.0.113.7] helo=[laptop])" + message.AuthDataEnd + "\r\n" +
+		"        by mail.example.com with ESMTPS\r\nSubject: hi\r\n\r\nbody\r\n"
+	shown := "Received: from client.isp.example ([203.0.113.7] helo=[laptop])\r\n        by mail.example.com with ESMTPS\r\nSubject: hi\r\n\r\n"
+	hidden := "Received: from local\r\n        by mail.example.com with ESMTPS\r\nSubject: hi\r\n\r\n"
+
+	m := storeMessage(t, raw)
+	m.redactAuthData(true)
+	assert.Equal(t, hidden, string(m.Header), "remote")
+
+	m = storeMessage(t, raw)
+	m.redactAuthData(false)
+	assert.Equal(t, shown, string(m.Header), "local")
+
+	// tenants isolated
+	Cfg.cfg.SmtpdHideReceivedFromAuthLocal = true
+	m = storeMessage(t, raw)
+	m.redactAuthData(false)
+	assert.Equal(t, hidden, string(m.Header), "local, hidden")
+
+	// a copy, for a pipe: the original keeps the marks
+	m = storeMessage(t, raw)
+	piped := *m
+	piped.redactAuthData(false)
+	assert.Equal(t, hidden, string(piped.Header))
+	assert.Contains(t, string(m.Header), message.AuthDataStart)
 }

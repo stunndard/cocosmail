@@ -105,6 +105,9 @@ var Settings = []Setting{
 		Description: "Maximum simultaneous incoming SMTP sessions"},
 	{Key: "smtpd_hide_received_from_auth", Section: "smtpd", Default: "true",
 		Description: "Hide IP and hostname in Received header for authenticated senders"},
+	{Key: "smtpd_hide_received_from_auth_local", Section: "smtpd", Default: "false",
+		Description: "Hide them also from local recipients, so the users of one domain don't see where " +
+			"those of another send from. Needs smtpd_hide_received_from_auth"},
 	{Key: "smtpd_spf_check", Section: "smtpd", Default: "true",
 		Description: "Check SPF of incoming mail and add a Received-SPF header"},
 	{Key: "smtpd_spf_action", Section: "smtpd", Default: "accept:accept:accept:accept:accept:accept",

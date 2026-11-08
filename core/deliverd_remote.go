@@ -6,8 +6,6 @@ import (
 	"io"
 	"strings"
 	"time"
-
-	"github.com/stunndard/cocosmail/message"
 )
 
 func deliverRemote(d *Delivery) {
@@ -181,7 +179,7 @@ func deliverRemote(d *Delivery) {
 	}
 
 	// check if Received header needs redaction before remote delivery
-	d.msg.Header = []byte(message.RedactHeaders(string(d.msg.Header)))
+	d.msg.redactAuthData(true)
 
 	// add Received headers
 	d.msg.Prepend("Received: cocosmail deliverd remote " + d.ID + "; " + Format822Date() + "\r\n")

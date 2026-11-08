@@ -258,7 +258,7 @@ func (d *Delivery) bounce(errMsg string) {
 	bouncedMail := "Raw mail was not found in the store"
 	if d.msg != nil {
 		// check if Received header needs redaction before bouncing
-		d.msg.Header = []byte(message.RedactHeadersRemove(string(d.msg.Header)))
+		d.msg.redactAuthData(false)
 		excerpt, cut, err := d.msg.Excerpt(bounceBodyLimit)
 		if err != nil {
 			Logger.Error("deliverd " + d.ID + ": unable to read message queued as " + d.QMsg.Uuid + " to bounce it: " + err.Error())

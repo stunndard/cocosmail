@@ -111,6 +111,11 @@ settings:
   # true)
   smtpd_hide_received_from_auth: true
 
+  # Hide them also from local recipients, so the users of one domain don't see
+  # where those of another send from. Needs smtpd_hide_received_from_auth
+  # (default: false)
+  smtpd_hide_received_from_auth_local: false
+
   # Check SPF of incoming mail and add a Received-SPF header (default: true)
   smtpd_spf_check: true
 

@@ -84,6 +84,18 @@ func readHeaderBlock(r io.Reader) ([]byte, error) {
 	return header, nil
 }
 
+// redactAuthData resolves the marks around the IP and hostname of an
+// authenticated sender in our Received header: they're replaced by "local"
+// for remote recipients, and for local ones if
+// smtpd_hide_received_from_auth_local, else only the marks are removed
+func (m *queuedMessage) redactAuthData(remote bool) {
+	if remote || Cfg.GetSmtpdHideReceivedFromAuthLocal() {
+		m.Header = []byte(message.RedactHeaders(string(m.Header)))
+	} else {
+		m.Header = []byte(message.RedactHeadersRemove(string(m.Header)))
+	}
+}
+
 // Prepend adds header lines on top of the message
 func (m *queuedMessage) Prepend(lines string) {
 	m.Header = append([]byte(lines), m.Header...)

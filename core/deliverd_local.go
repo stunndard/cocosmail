@@ -67,7 +67,10 @@ func deliverLocal(d *Delivery) {
 				// 0: OK
 				// 4: temp fail
 				// 5: perm fail
-				dataBuf, err := d.msg.Reader()
+				// a copy for the program, the marks stay for deliverTo
+				piped := *d.msg
+				piped.redactAuthData(false)
+				dataBuf, err := piped.Reader()
 				if err != nil {
 					d.dieTemp(fmt.Sprintf("delivery-local %s: unable to read the message. %s", d.ID, err), true)
 					return
@@ -162,7 +165,7 @@ func deliverLocal(d *Delivery) {
 	}
 
 	// check if Received header needs redaction before local delivery
-	d.msg.Header = []byte(message.RedactHeadersRemove(string(d.msg.Header)))
+	d.msg.redactAuthData(false)
 
 	// TODO Remove return path
 	//msg.DelHeader("return-path")

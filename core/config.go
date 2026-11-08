@@ -106,6 +106,8 @@ type configValues struct {
 	LaunchPop3         bool   `name:"pop3d_launch"`
 	Pop3dDsns          string `name:"pop3d_dsns"`
 	Pop3dServerTimeout int    `name:"pop3d_server_timeout"`
+
+	SmtpdHideReceivedFromAuthLocal bool `name:"smtpd_hide_received_from_auth_local"`
 }
 
 // configFields maps setting key to configValues field index
@@ -443,6 +445,13 @@ func (c *Config) GetSmtpdHideReceivedFromAuth() bool {
 	c.Lock()
 	defer c.Unlock()
 	return c.cfg.SmtpdHideReceivedFromAuth
+}
+
+// GetSmtpdHideReceivedFromAuthLocal returns SmtpdHideReceivedFromAuthLocal
+func (c *Config) GetSmtpdHideReceivedFromAuthLocal() bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.cfg.SmtpdHideReceivedFromAuthLocal
 }
 
 // GetSmtpdSPFCheck returns SPFCheck
