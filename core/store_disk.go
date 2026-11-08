@@ -93,18 +93,19 @@ func (s *diskStore) Del(key string) error {
 	return os.Remove(s.getStoragePath(key))
 }
 
+// storeLevels is the number of directory levels of the store, one character
+// of the key each, as for mailboxes: store/6/a/6a926acd...
+const storeLevels = 2
+
 // getStoragePath returns storage path associated with key key
 func (s *diskStore) getStoragePath(key string) string {
-	lenKey := len(key)
-	if lenKey == 1 {
-		return path.Join(s.basePath, key)
+	levels := storeLevels
+	if levels > len(key)-1 {
+		levels = len(key) - 1
 	}
-	sPath := s.basePath
-	for i := 0; i < lenKey-1; i++ {
-		sPath = path.Join(sPath, key[i:i+1])
-		if i == 3 {
-			break
-		}
+	p := s.basePath
+	for i := 0; i < levels; i++ {
+		p = path.Join(p, key[i:i+1])
 	}
-	return path.Join(sPath, key)
+	return path.Join(p, key)
 }
