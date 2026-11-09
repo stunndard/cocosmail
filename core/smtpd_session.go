@@ -841,6 +841,15 @@ func (s *SMTPServerSession) smtpExpn(_ []string) {
 	return
 }
 
+// unstuffDot removes the dot the client adds to a data line starting with
+// a dot (RFC 5321 section 4.5.2)
+func unstuffDot(line []byte) []byte {
+	if len(line) > 0 && line[0] == '.' {
+		return line[1:]
+	}
+	return line
+}
+
 // DATA
 // plutot que de stocker en RAM on pourrait envoyer directement les danat
 // dans un fichier ne queue
@@ -948,6 +957,7 @@ func (s *SMTPServerSession) smtpData(msg []string) {
 			doneEmail = true
 			break
 		}
+		line = unstuffDot(line)
 
 		if !doneHeaders {
 			// count hops in headers
