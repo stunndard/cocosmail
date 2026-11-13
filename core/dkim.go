@@ -107,6 +107,34 @@ func DkimGetConfig(domain string) (dkc *DkimConfig, err error) {
 	return dkc, nil
 }
 
+// dkimLookupKey returns the DKIM key of a domain, nil if there's none
+var dkimLookupKey = DkimGetConfig
+
+// dkimSignKey returns the DKIM key outgoing mail is signed with and its
+// domain, nil if there's none: the key of the sender's domain. A bounce has
+// no sender: the key of its From domain, else of the HELO name, or of a
+// parent domain of them, as example.org for MAILER-DAEMON@mail.example.org.
+// DMARC needs the signature aligned with From, a parent domain is.
+func dkimSignKey(mailFrom string, header []byte, helo string) (string, *DkimConfig, error) {
+	if mailFrom != "" {
+		_, domain, ok := strings.Cut(mailFrom, "@")
+		if !ok {
+			return "", nil, nil
+		}
+		dkc, err := dkimLookupKey(domain)
+		return domain, dkc, err
+	}
+	for _, name := range append(fromDomains(header), strings.ToLower(helo)) {
+		for d := name; strings.Contains(d, "."); _, d, _ = strings.Cut(d, ".") {
+			dkc, err := dkimLookupKey(d)
+			if err != nil || dkc != nil {
+				return d, dkc, err
+			}
+		}
+	}
+	return "", nil, nil
+}
+
 // dkimHeaders are the header fields signed
 var dkimHeaders = []string{"from", "subject", "date", "message-id"}
 

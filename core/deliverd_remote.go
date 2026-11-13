@@ -188,27 +188,25 @@ func deliverRemote(d *Delivery) {
 
 	// DKIM ?
 	if Cfg.GetDeliverdDkimSign() {
-		userDomain := strings.SplitN(d.QMsg.MailFrom, "@", 2)
-		if len(userDomain) == 2 {
-			dkc, err := DkimGetConfig(userDomain[1])
+		// a bounce is signed with the key of its From domain or HELO name
+		domain, dkc, err := dkimSignKey(d.QMsg.MailFrom, d.msg.Header, client.systemName)
+		if err != nil {
+			errMsg := "deliverd-remote " + d.ID + " - unable to get DKIM config for domain " + domain + " - " + err.Error()
+			Logger.Error(errMsg)
+			d.dieTemp(errMsg, false)
+			return
+		}
+		if dkc != nil {
+			Logger.Debug(fmt.Sprintf("deliverd-remote %s: add dkim sign for %s", d.ID, domain))
+			// a pass over the file, the message is sent after
+			sig, err := dkimSignature(d.msg, domain, dkc)
 			if err != nil {
-				errMsg := "deliverd-remote " + d.ID + " - unable to get DKIM config for domain " + userDomain[1] + " - " + err.Error()
-				Logger.Error(errMsg)
-				d.dieTemp(errMsg, false)
-				return
+				// sent unsigned, as before
+				Logger.Error("deliverd-remote " + d.ID + " - unable to sign with DKIM - " + err.Error())
+			} else {
+				d.msg.Prepend(sig)
 			}
-			if dkc != nil {
-				Logger.Debug(fmt.Sprintf("deliverd-remote %s: add dkim sign", d.ID))
-				// a pass over the file, the message is sent after
-				sig, err := dkimSignature(d.msg, userDomain[1], dkc)
-				if err != nil {
-					// sent unsigned, as before
-					Logger.Error("deliverd-remote " + d.ID + " - unable to sign with DKIM - " + err.Error())
-				} else {
-					d.msg.Prepend(sig)
-				}
-				Logger.Debug(fmt.Sprintf("deliverd-remote %s: end dkim sign", d.ID))
-			}
+			Logger.Debug(fmt.Sprintf("deliverd-remote %s: end dkim sign", d.ID))
 		}
 	}
 

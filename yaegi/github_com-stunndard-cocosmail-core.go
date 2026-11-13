@@ -3,10 +3,12 @@
 package yaegi
 
 import (
+	"context"
 	"github.com/stunndard/cocosmail/core"
 	"go/constant"
 	"go/token"
 	"io"
+	"net"
 	"reflect"
 )
 
@@ -41,6 +43,13 @@ func init() {
 		"ConfigFilePath":                 reflect.ValueOf(&core.ConfigFilePath).Elem(),
 		"CurrentSettings":                reflect.ValueOf(core.CurrentSettings),
 		"DB":                             reflect.ValueOf(&core.DB).Elem(),
+		"DNSDifferent":                   reflect.ValueOf(constant.MakeFromLiteral("\"different\"", token.STRING, 0)),
+		"DNSError":                       reflect.ValueOf(constant.MakeFromLiteral("\"error\"", token.STRING, 0)),
+		"DNSFillIn":                      reflect.ValueOf(constant.MakeFromLiteral("\"fill in\"", token.STRING, 0)),
+		"DNSHostIP":                      reflect.ValueOf(core.DNSHostIP),
+		"DNSMissing":                     reflect.ValueOf(constant.MakeFromLiteral("\"missing\"", token.STRING, 0)),
+		"DNSOk":                          reflect.ValueOf(constant.MakeFromLiteral("\"ok\"", token.STRING, 0)),
+		"DNSOptional":                    reflect.ValueOf(constant.MakeFromLiteral("\"optional\"", token.STRING, 0)),
 		"DataEmpty":                      reflect.ValueOf(core.DataEmpty),
 		"DefaultConfigFile":              reflect.ValueOf(constant.MakeFromLiteral("\"conf/cocosmail.yaml\"", token.STRING, 0)),
 		"DefaultConfigPath":              reflect.ValueOf(core.DefaultConfigPath),
@@ -59,6 +68,7 @@ func init() {
 		"ErrBadDsn":                      reflect.ValueOf(core.ErrBadDsn),
 		"ErrNonAsciiCharDetected":        reflect.ValueOf(&core.ErrNonAsciiCharDetected).Elem(),
 		"ExecSMTPdPlugins":               reflect.ValueOf(&core.ExecSMTPdPlugins).Elem(),
+		"ExportDNS":                      reflect.ValueOf(core.ExportDNS),
 		"ExportData":                     reflect.ValueOf(core.ExportData),
 		"ExternalSettings":               reflect.ValueOf(core.ExternalSettings),
 		"Format822Date":                  reflect.ValueOf(core.Format822Date),
@@ -177,6 +187,9 @@ func init() {
 		"Cert":              reflect.ValueOf((*core.Cert)(nil)),
 		"Config":            reflect.ValueOf((*core.Config)(nil)),
 		"ConfigFile":        reflect.ValueOf((*core.ConfigFile)(nil)),
+		"DNSExport":         reflect.ValueOf((*core.DNSExport)(nil)),
+		"DNSLookup":         reflect.ValueOf((*core.DNSLookup)(nil)),
+		"DNSRecord":         reflect.ValueOf((*core.DNSRecord)(nil)),
 		"Data":              reflect.ValueOf((*core.Data)(nil)),
 		"DbSetting":         reflect.ValueOf((*core.DbSetting)(nil)),
 		"DeliverdAuth":      reflect.ValueOf((*core.DeliverdAuth)(nil)),
@@ -207,10 +220,36 @@ func init() {
 		"YagPlugin":         reflect.ValueOf((*core.YagPlugin)(nil)),
 
 		// interface wrapper definitions
+		"_DNSLookup":        reflect.ValueOf((*_github_com_stunndard_cocosmail_core_DNSLookup)(nil)),
 		"_DeliverdAuth":     reflect.ValueOf((*_github_com_stunndard_cocosmail_core_DeliverdAuth)(nil)),
 		"_InternalDelivery": reflect.ValueOf((*_github_com_stunndard_cocosmail_core_InternalDelivery)(nil)),
 		"_Storer":           reflect.ValueOf((*_github_com_stunndard_cocosmail_core_Storer)(nil)),
 	}
+}
+
+// _github_com_stunndard_cocosmail_core_DNSLookup is an interface wrapper for DNSLookup type
+type _github_com_stunndard_cocosmail_core_DNSLookup struct {
+	WLookupAddr   func(ctx context.Context, addr string) ([]string, error)
+	WLookupIPAddr func(ctx context.Context, host string) ([]net.IPAddr, error)
+	WLookupMX     func(ctx context.Context, name string) ([]*net.MX, error)
+	WLookupSRV    func(ctx context.Context, service string, proto string, name string) (string, []*net.SRV, error)
+	WLookupTXT    func(ctx context.Context, name string) ([]string, error)
+}
+
+func (W _github_com_stunndard_cocosmail_core_DNSLookup) LookupAddr(ctx context.Context, addr string) ([]string, error) {
+	return W.WLookupAddr(ctx, addr)
+}
+func (W _github_com_stunndard_cocosmail_core_DNSLookup) LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr, error) {
+	return W.WLookupIPAddr(ctx, host)
+}
+func (W _github_com_stunndard_cocosmail_core_DNSLookup) LookupMX(ctx context.Context, name string) ([]*net.MX, error) {
+	return W.WLookupMX(ctx, name)
+}
+func (W _github_com_stunndard_cocosmail_core_DNSLookup) LookupSRV(ctx context.Context, service string, proto string, name string) (string, []*net.SRV, error) {
+	return W.WLookupSRV(ctx, service, proto, name)
+}
+func (W _github_com_stunndard_cocosmail_core_DNSLookup) LookupTXT(ctx context.Context, name string) ([]string, error) {
+	return W.WLookupTXT(ctx, name)
 }
 
 // _github_com_stunndard_cocosmail_core_DeliverdAuth is an interface wrapper for DeliverdAuth type

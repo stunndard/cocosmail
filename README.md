@@ -59,8 +59,17 @@ together: one program, one folder, and a text UI to set it up.
 
 ## Quick start
 
-These steps set up `mail.example.com` for the domain `example.com`. Replace
-them with your own names.
+From an empty server to sending and receiving mail. These steps set up
+`mail.example.com` for the domain `example.com`; replace them with your own
+names.
+
+You need:
+
+- a server with a public IP address, where ports 25 (in and out), 465, 587
+  and 993 are open. Many cloud providers block port 25 until you ask;
+- a domain whose DNS records you can edit;
+- the reverse DNS (PTR) of the server's address: your hosting provider sets
+  it, usually in its control panel.
 
 ### 1. Build
 
@@ -84,7 +93,7 @@ CGO_ENABLED=1 go build -trimpath \
   -o dist/cocosmail                                # or: task build-static
 ```
 
-### 2. Install and configure
+### 2. Install
 
 Run cocosmail as its own user. Only the binary is needed, it writes
 everything else itself:
@@ -95,26 +104,42 @@ sudo install -d -o cocosmail /home/cocosmail/mail
 sudo install -o cocosmail dist/cocosmail /home/cocosmail/mail/
 sudo -iu cocosmail
 cd ~/mail
+```
+
+### 3. Configure everything in the text UI
+
+```sh
 ./cocosmail config edit
 ```
 
 The first `config edit` creates the database and the default files (like
-`cocosmail init`, which is safe to run any time, e.g. after an upgrade). In the
-text UI:
+`cocosmail init`, which is safe to run any time, e.g. after an upgrade). The
+sections are on the left: settings first, then your data. F1 shows the help
+of any screen, F7 adds an item, Enter edits it.
 
-1. **general**: set `me` to `mail.example.com`.
-2. **smtpd**, **imapd**, **pop3d**, **deliverd**: turn on `smtpd_launch`,
-   `imapd_launch`, `pop3d_launch` (if you want POP3 too) and `deliverd_launch`.
-   The listeners (`smtpd_dsns`, `imapd_dsns`, `pop3d_dsns`) have their own
-   editor; a typical public server listens on:
-   - 25: mail from other servers (STARTTLS available)
-   - 587 (STARTTLS) and 465 (TLS): your mail clients, with login
-   - 993: IMAP over TLS (143 with STARTTLS works too)
-   - 995: POP3 over TLS
-3. **Users**: F7 adds `you@example.com` with a password. Keep **Mailbox**
-   (gets mail) and **Relay** (can send mail out after logging in). The domain
+1. **general**: set `me` to `mail.example.com`, the name of the server.
+2. **smtpd**: turn on `smtpd_launch`. `smtpd_dsns` opens the listener editor;
+   add three, all with hostname `mail.example.com` and certificate
+   `example.com`:
+   - port 25: mail from other servers (STARTTLS);
+   - port 587: your mail clients, with STARTTLS;
+   - port 465: your mail clients, with **SSL from the start** checked.
+
+   Leave the IP address empty to listen on all addresses.
+3. **imapd**: turn on `imapd_launch`, add a listener on port 993 with SSL from
+   the start. **pop3d** the same on port 995, if you want POP3.
+4. **deliverd**: turn on `deliverd_launch` (sends mail out) and
+   `deliverd_dkim_sign` (signs it). Bounces have no sender: they're signed
+   with the key of the server's domain, `example.com` for
+   `MAILER-DAEMON@mail.example.com`.
+5. **Users**: add `you@example.com` with a password. Keep **Mailbox** (gets
+   mail) and **Relay** (can send mail after logging in). The domain
    `example.com` is added with it.
-4. F2 saves, F10 quits. F1 shows the help.
+6. **Aliases**: add `postmaster@example.com`, delivered to `you@example.com`.
+   Every mail domain needs it, and DMARC reports go there (or to
+   `dmarc@example.com`, if you add that one).
+7. **DKIM keys**: add a key for `example.com`. The selector is filled in.
+8. F2 saves, after showing what changed. F10 quits.
 
 Prefer files? Copy `conf/cocosmail.yaml.base` (every setting, documented) to
 `conf/cocosmail.yaml` and edit it; it's imported at the first start, see
@@ -125,11 +150,85 @@ Prefer files? Copy `conf/cocosmail.yaml.base` (every setting, documented) to
 ./cocosmail user add -m -r you@example.com 'a-good-password'
 ```
 
-### 3. Certificates
+### 4. Export the DNS records
+
+```sh
+./cocosmail config export-dns dns.txt
+```
+
+cocosmail writes every record your setup needs, from the listeners, the
+outgoing IPs, the domains and the DKIM keys, grouped by zone:
+
+```
+example.com
+  MX    @                    10 mail.example.com
+  A     mail                 203.0.113.5
+  TXT   @                    v=spf1 ip4:203.0.113.5 -all
+  TXT   mail                 v=spf1 a -all
+  TXT   20261113._domainkey  v=DKIM1;k=rsa;s=email;h=sha256;p=MIIBIjANBgkq...
+  TXT   _dmarc               v=DMARC1; p=none; rua=mailto:postmaster@example.com
+  SRV   _submission._tcp     0 1 587 mail.example.com
+  SRV   _submissions._tcp    0 1 465 mail.example.com
+  SRV   _imaps._tcp          0 1 993 mail.example.com
+
+Reverse DNS (PTR): set by the provider of each address, not in a zone.
+  203.0.113.5  mail.example.com
+```
+
+The address is the one the server reaches the internet with. Behind NAT, or
+to choose it, give the public address: `--public-ip 203.0.113.5` (repeat it
+for IPv6). The notes at the top of the file tell what's missing, like a domain
+without a DKIM key.
+
+With several domains or hostnames, each domain gets its own records: the MX of
+`tenant2.example` is `mx.tenant2.example` if a listener has that hostname.
+
+### 5. Create the records
+
+In the DNS panel of your domain, create each record of its zone: the type,
+the name (`@` is the domain itself, `mail` is `mail.example.com`) and the
+value. MX and SRV values start with numbers that most panels have their own
+fields for: the MX priority is `10`; for SRV, priority `0`, weight `1`, then
+the port and the host. TXT values go in whole, without quotes.
+
+Panels that import zone files (Cloudflare, PowerDNS, BIND...) take them
+directly:
+
+```sh
+./cocosmail config export-dns --zone dns/    # dns/example.com.zone, dns/reverse-dns.txt
+```
+
+Then set the reverse DNS of the server's address to `mail.example.com` at your
+hosting provider. Mail from an address without it is often refused.
+
+New records can take a few minutes to show, changed ones up to their old TTL
+(often an hour). Check them from the server:
+
+```sh
+./cocosmail config export-dns --check
+```
+
+```
+example.com
+  ok       MX   @     10 mail.example.com
+  ok       A    mail  203.0.113.5
+  MISSING  TXT  @     v=spf1 ip4:203.0.113.5 -all
+...
+9 ok, 1 missing
+```
+
+Each record is **ok**, **MISSING**, **DIFFERENT** (with what was found) or
+**ERROR** (the lookup failed); **optional** ones (SRV) can be left out. A different record that does the same job is ok: an SPF of
+`v=spf1 mx -all` allowing the same addresses, any DMARC policy, a DKIM record
+with the same key. The command exits with 1 until all are ok, so it can run in
+a script.
+
+### 6. Certificates
 
 Each listener names a certificate (`example.com` here). cocosmail loads
 `ssl/smtp-example.com.crt`/`.key` for SMTP, `ssl/imap-...` for IMAP and
-`ssl/pop3-...` for POP3. With Let's Encrypt:
+`ssl/pop3-...` for POP3. With Let's Encrypt, once `mail.example.com` resolves
+to the server:
 
 ```sh
 sudo certbot certonly --standalone -d mail.example.com
@@ -150,7 +249,7 @@ For a test, a self-signed one does too:
 `openssl req -x509 -newkey rsa:2048 -nodes -days 365 -subj /CN=mail.example.com -keyout ssl/smtp-example.com.key -out ssl/smtp-example.com.crt`
 (and the same for `imap-` and `pop3-`).
 
-### 4. Start
+### 7. Start
 
 ```sh
 ./run                     # or ./cocosmail
@@ -189,20 +288,18 @@ WantedBy=multi-user.target
 sudo systemctl enable --now cocosmail && journalctl -u cocosmail -f
 ```
 
+### 8. Use it
+
 Mail clients: IMAP `mail.example.com:993` (SSL/TLS) or POP3 port 995 (SSL/TLS),
-SMTP port 587 (STARTTLS) or 465 (SSL/TLS), login `you@example.com`.
+SMTP port 587 (STARTTLS) or 465 (SSL/TLS), login `you@example.com`. Clients
+that read SRV records (RFC 6186) find these from the address alone.
 
-### 5. DNS
+Send a message to a Gmail or Outlook address and open its source ("Show
+original" in Gmail): SPF, DKIM and DMARC should say PASS. When they do for a
+while, make DMARC stricter: `p=quarantine`, then `p=reject`.
 
-| Record                      | Value                                                  |
-|-----------------------------|--------------------------------------------------------|
-| `mail.example.com` A / AAAA | your server's IPv4 / IPv6 address                      |
-| `example.com` MX            | `10 mail.example.com.`                                 |
-| `example.com` TXT (SPF)     | `v=spf1 mx -all`                                       |
-| DKIM TXT                    | text UI: **DKIM keys**, F7 adds a key, F6 shows the record; or `dns_name` and `dns_record` in `cocosmail config export` |
-| reverse DNS (PTR)           | `mail.example.com`, set at your hosting provider       |
-
-Then turn on `deliverd_dkim_sign` to sign outgoing mail.
+Adding a domain later: add its users (or the domain) and a DKIM key in the
+text UI, then export and check the DNS records again.
 
 ## Docker
 
@@ -335,6 +432,9 @@ failover, `|` for round robin, `:hostname` for a HELO name per address
 (`[2001:db8::10]:mail.example.com`). The default `0.0.0.0&::` uses IPv4 and
 falls back to IPv6. Routes use the same syntax.
 
+`config export-dns` gives the A/AAAA records of each listener hostname and
+HELO name, and the PTR record of each outgoing address.
+
 ## Mail storage
 
 Each user's mail is a Maildir in `mailboxes/`: INBOX is the user's directory
@@ -350,7 +450,7 @@ directory. IMAP UIDs are kept in `cocosmail-uidlist` in each folder.
 | Command    | Purpose                                                              |
 |------------|----------------------------------------------------------------------|
 | `init`     | write missing default files, create database tables (safe to repeat) |
-| `config`   | `edit`, `list`, `get`, `set`, `unset`, `import`, `export`, `convert`  |
+| `config`   | `edit`, `list`, `get`, `set`, `unset`, `import`, `export`, `export-dns`, `convert` |
 | `rcpthost` | domains cocosmail accepts mail for                                   |
 | `user`     | users, mailboxes, catch-all                                          |
 | `alias`    | aliases, forwarding, pipe to command                                 |

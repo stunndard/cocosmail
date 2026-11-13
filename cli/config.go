@@ -3,7 +3,9 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
+	"path/filepath"
 
 	"github.com/stunndard/cocosmail/core"
 	"github.com/stunndard/cocosmail/tui"
@@ -238,6 +240,102 @@ var Config = cgCli.Command{
 				}
 				cliHandleErr(f.Write(path))
 				fmt.Printf("Settings and data exported to %s\n", path)
+				cliDieOk()
+			},
+		},
+		{
+			Name:  "export-dns",
+			Usage: "Export the DNS records the server needs, to a text file or to stdout",
+			Description: "cocosmail config export-dns [FILE] [--public-ip IP]... [--check]\n" +
+				"   cocosmail config export-dns --zone [DIR]\n" +
+				"   MX, A, AAAA, PTR, SPF, DKIM, DMARC and SRV records, by zone, to create in\n" +
+				"   DNS panels. From the SMTP, IMAP and POP3 listeners, deliverd local IPs and\n" +
+				"   routes, domains, users and DKIM keys. Listeners and local IPs on all\n" +
+				"   addresses (0.0.0.0, ::) get the address this server reaches the internet\n" +
+				"   with, or --public-ip behind NAT.\n" +
+				"   --check looks each record up in DNS, exits with 1 if one isn't right.\n" +
+				"   --zone writes zone files to import into DNS providers: DIR/ZONE.zone each,\n" +
+				"   and the PTR records in DIR/reverse-dns.txt.",
+			Flags: []cgCli.Flag{
+				cgCli.StringSliceFlag{
+					Name:  "public-ip",
+					Usage: "public address of this server, IPv4 and/or IPv6 (repeat the flag)",
+				},
+				cgCli.BoolFlag{Name: "check", Usage: "look up the records in DNS: ok, missing or different"},
+				cgCli.BoolFlag{Name: "zone", Usage: "zone files (RFC 1035) to import, one per zone in DIR"},
+			},
+			Action: func(c *cgCli.Context) {
+				if c.Bool("check") && c.Bool("zone") {
+					cliDieBadArgs(c, "--check and --zone don't go together")
+				}
+				public := map[bool]net.IP{}
+				for _, s := range c.StringSlice("public-ip") {
+					ip := net.ParseIP(s)
+					if ip == nil {
+						cliHandleErr(errors.New("--public-ip: invalid address " + s))
+					}
+					public[ip.To4() == nil] = ip
+				}
+				hostIP := func(v6 bool) net.IP {
+					if ip, ok := public[v6]; ok {
+						return ip
+					}
+					if len(public) > 0 {
+						// the other family was given: the server has only it
+						return nil
+					}
+					return core.DNSHostIP(v6)
+				}
+				configTables()
+				values, _, err := core.EffectiveSettings(core.DB)
+				cliHandleErr(err)
+				data, err := core.ExportData(core.DB)
+				cliHandleErr(err)
+				data.SetDkimRecords()
+				dns := core.ExportDNS(values, data, hostIP)
+
+				if c.Bool("zone") {
+					names, files := dns.ZoneFiles()
+					reverse := dns.ReverseText()
+					if len(c.Args()) == 0 {
+						for _, z := range names {
+							os.Stdout.WriteString(files[z] + "\n")
+						}
+						os.Stdout.WriteString(reverse)
+						cliDieOk()
+					}
+					dir := c.Args().First()
+					cliHandleErr(os.MkdirAll(dir, 0755))
+					for _, z := range names {
+						path := filepath.Join(dir, z+".zone")
+						cliHandleErr(os.WriteFile(path, []byte(files[z]), 0644))
+						fmt.Println(path)
+					}
+					if reverse != "" {
+						path := filepath.Join(dir, "reverse-dns.txt")
+						cliHandleErr(os.WriteFile(path, []byte(reverse), 0644))
+						fmt.Println(path)
+					}
+					cliDieOk()
+				}
+
+				problems := 0
+				if c.Bool("check") {
+					problems = dns.Check(net.DefaultResolver)
+				}
+				text := dns.Text()
+				if len(c.Args()) == 0 {
+					os.Stdout.WriteString(text)
+				} else {
+					cliHandleErr(os.WriteFile(c.Args().First(), []byte(text), 0644))
+					fmt.Printf("DNS records exported to %s\n", c.Args().First())
+					if c.Bool("check") {
+						fmt.Printf("%d of %d records not right\n", problems, len(dns.Records))
+					}
+				}
+				if problems > 0 {
+					os.Exit(1)
+				}
 				cliDieOk()
 			},
 		},
