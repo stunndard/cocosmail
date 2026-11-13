@@ -38,6 +38,31 @@ type smtpClient struct {
 	timeoutBasePerCmd int
 }
 
+// localIP is a local IP to send from, with its HELO name
+type localIP = struct {
+	ip         net.IP
+	systemName string
+}
+
+// sameHostIPs returns the local IPs named receivedBy, the host that received
+// the message. Mail made here, as bounces, wasn't received: the IPs of me.
+// All of them if none has the name.
+func sameHostIPs(ips []localIP, receivedBy, me string) []localIP {
+	if receivedBy == "" {
+		receivedBy = me
+	}
+	var same []localIP
+	for _, ip := range ips {
+		if ip.systemName == receivedBy {
+			same = append(same, ip)
+		}
+	}
+	if len(same) == 0 {
+		return ips
+	}
+	return same
+}
+
 // newSMTPClient return a connected SMTP client
 func newSMTPClient(d *Delivery, routes []Route, timeoutBasePerCmd int) (client *smtpClient, err error) {
 	lastErr := err
@@ -106,11 +131,6 @@ func newSMTPClient(d *Delivery, routes []Route, timeoutBasePerCmd int) (client *
 		}
 
 		if Cfg.GetDeliverdRemoteUseSameHost() {
-			var localIPz []struct {
-				ip         net.IP
-				systemName string
-			}
-
 			msg, err := message.New(&d.msg.Header)
 			if err != nil {
 				return nil, errors.New("cannot parse message: " + err.Error())
@@ -135,17 +155,7 @@ func newSMTPClient(d *Delivery, routes []Route, timeoutBasePerCmd int) (client *
 				}
 			}
 
-			if receivedBy == "" {
-				return nil, errors.New(fmt.Sprintf("cannot get received hostname from Received header(s): %s", recvs))
-			}
-
-			for _, ip := range localIPs {
-				if ip.systemName == receivedBy {
-					localIPz = append(localIPz, ip)
-				}
-			}
-
-			localIPs = localIPz
+			localIPs = sameHostIPs(localIPs, receivedBy, Cfg.GetMe())
 		}
 
 		// remoteAdresses
